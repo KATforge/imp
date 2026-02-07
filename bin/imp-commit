@@ -5,15 +5,28 @@ source "$(dirname "$0")/../lib/common.sh"
 
 require_git
 
+# Handle -a flag
+stage_all=false
+if [[ "${1:-}" == "-a" ]]; then
+   stage_all=true
+fi
+
+if [[ "$stage_all" == "true" ]]; then
+   git add -A
+fi
+
 diff=$(git diff --cached)
 
 if [[ -z "$diff" ]]; then
    err "Nothing staged"
-   muted "Stage changes with: git add <files>"
+   hint "git add <files>, or imp commit -a"
    exit 1
 fi
 
-info "Generating commit message..."
+header "Commit"
+
+muted "Generating message..."
+echo
 
 msg=$(ai_fast "Generate a git commit message for this diff.
 
@@ -27,8 +40,9 @@ $diff
 
 Output ONLY the commit message, nothing else:")
 
-echo
+divider
 echo "$msg"
+divider
 echo
 
 read -rp "Use this message? [Y/n/e] " choice
@@ -47,3 +61,4 @@ case "$choice" in
 esac
 
 success "Committed"
+hint "imp commit again, or imp release when ready"

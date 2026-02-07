@@ -3,22 +3,26 @@ set -euo pipefail
 
 IMP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+BOLD='\033[1m'
+MUTED='\033[0;90m'
+RESET='\033[0m'
+
 usage() {
-   cat << EOF
-Usage: imp <command> [args]
-
-Commands:
-   commit      Generate commit message from staged changes
-   release     Squash, changelog, tag, and push a release
-   branch      Create branch from description
-   describe    Explain what a branch does
-   list        Show current work overview
-
-Config (env vars):
-   IMP_AI_PROVIDER    claude, ollama (default: claude)
-   IMP_AI_MODEL_FAST  model for quick tasks (default: haiku)
-   IMP_AI_MODEL_SMART model for complex tasks (default: sonnet)
-EOF
+   echo
+   echo -e "${BOLD}imp${RESET} — AI-powered git workflow"
+   echo
+   echo -e "${MUTED}Commands${RESET}"
+   echo "  commit     Generate commit message (-a to stage all)"
+   echo "  release    Squash, changelog, tag, and push"
+   echo "  branch     Create branch from description"
+   echo "  describe   Explain what a branch does"
+   echo "  list       Show repo overview"
+   echo
+   echo -e "${MUTED}Config${RESET}"
+   echo "  IMP_AI_PROVIDER     claude, ollama (default: claude)"
+   echo "  IMP_AI_MODEL_FAST   quick tasks (default: haiku)"
+   echo "  IMP_AI_MODEL_SMART  complex tasks (default: sonnet)"
+   echo
 }
 
 cmd="${1:-}"
@@ -35,7 +39,6 @@ if [[ -x "$script" ]]; then
    exec "$script" "$@"
 else
    echo "Unknown command: $cmd" >&2
-   echo
    usage
    exit 1
 fi

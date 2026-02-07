@@ -8,12 +8,15 @@ require_git
 desc="$*"
 
 if [[ -z "$desc" ]]; then
-   err "Usage: imp branch <description>"
-   muted "Example: imp branch fix the login timeout bug"
+   err "Missing description"
+   hint "imp branch <description>"
    exit 1
 fi
 
-info "Suggesting branch name..."
+header "Branch"
+
+muted "Generating name..."
+echo
 
 name=$(ai_fast "Suggest a git branch name for: $desc
 
@@ -27,13 +30,14 @@ Output ONLY the branch name:")
 
 name=$(echo "$name" | tr -d '[:space:]')
 
-echo
-echo "Suggested: $name"
+label "Suggested"
+echo "  $name"
 echo
 
 if confirm "Create branch?"; then
    git checkout -b "$name"
    success "Switched to $name"
+   hint "make changes, then imp commit"
 else
    muted "Cancelled"
 fi

@@ -9,7 +9,8 @@ CHANGELOG="CHANGELOG.md"
 
 # Bail if working tree is dirty
 if [[ -n "$(git status --porcelain)" ]]; then
-   err "Uncommitted changes. Commit or stash first."
+   err "Uncommitted changes"
+   hint "git stash or imp commit first"
    exit 1
 fi
 
@@ -30,10 +31,11 @@ fi
 
 count=$(echo "$log" | wc -l | tr -d ' ')
 
-echo
-echo "Commits since ${tag:-beginning} ($count):"
+header "Release"
+
+label "Commits since ${tag:-beginning}"
 echo "$log" | while read -r line; do
-   muted "  $line"
+   item "$line"
 done
 echo
 
@@ -45,23 +47,24 @@ if [[ -n "$tag" ]]; then
 fi
 current="${current:-0.0.0}"
 
-echo "Current version: $current"
+label "Version bump"
+echo "  p  patch   $(bump_version "$current" patch)"
+echo "  m  minor   $(bump_version "$current" minor)"
+echo "  M  major   $(bump_version "$current" major)"
+echo "  c  custom"
+echo "  q  quit"
 echo
-echo "  p = patch  → $(bump_version "$current" patch)"
-echo "  m = minor  → $(bump_version "$current" minor)"
-echo "  M = major  → $(bump_version "$current" major)"
-echo "  c = custom"
-echo "  q = quit"
+muted "Current: $current"
 echo
 
-read -rp "Bump: " choice
+read -rp "Choice: " choice
 
 case "$choice" in
    p | P) new_version=$(bump_version "$current" patch) ;;
    m) new_version=$(bump_version "$current" minor) ;;
    M) new_version=$(bump_version "$current" major) ;;
    c | C)
-      read -rp "Enter version: " new_version
+      read -rp "Version: " new_version
       ;;
    *)
       muted "Cancelled"
@@ -71,7 +74,8 @@ esac
 
 # --- Generate changelog entry ---
 
-info "Analyzing changes..."
+echo
+muted "Analyzing changes..."
 
 entry=$(ai_smart "Generate a changelog entry from these commits.
 
@@ -89,10 +93,10 @@ $log
 Output ONLY the changelog sections:")
 
 echo
-echo "v$new_version"
-echo "────────────────────────────────────"
+label "v$new_version"
+divider
 echo "$entry"
-echo "────────────────────────────────────"
+divider
 echo
 
 read -rp "Release v$new_version? [y/N] " confirm_release
@@ -109,7 +113,8 @@ if [[ "$confirm_push" =~ ^[Yy]$ ]]; then
    will_push=true
    remote=$(git remote | head -1)
    if [[ -z "$remote" ]]; then
-      err "No remote configured. Add one with: git remote add origin <url>"
+      err "No remote configured"
+      hint "git remote add origin <url>"
       exit 1
    fi
 fi
@@ -138,6 +143,7 @@ if [[ -f "$CHANGELOG" ]]; then
 fi
 
 rollback() {
+   echo
    warn "Rolling back..."
    git tag -d "v$new_version" 2> /dev/null || true
    git reset --hard "$original_head" 2> /dev/null || true
@@ -146,11 +152,13 @@ rollback() {
    else
       rm -f "$CHANGELOG"
    fi
-   err "Release failed. Rolled back to previous state."
+   err "Release failed"
    exit 1
 }
 
 trap rollback ERR
+
+echo
 
 # --- Update CHANGELOG.md ---
 
@@ -174,13 +182,11 @@ else
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
-
 $new_entry
 EOF
 fi
 
-success "Updated $CHANGELOG"
+success "Updated CHANGELOG.md"
 
 # --- Squash or commit ---
 
@@ -226,8 +232,10 @@ if [[ "$will_push" == "true" ]]; then
       git push -u origin "$branch"
    fi
    git push --tags
-   success "Pushed"
+   success "Pushed to origin"
 fi
 
 # Disable rollback trap on success
 trap - ERR
+
+hint "make changes, then imp commit"

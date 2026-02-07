@@ -12,8 +12,29 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 MUTED='\033[0;90m'
+BOLD='\033[1m'
 RESET='\033[0m'
+
+# Output helpers
+header() {
+   echo
+   echo -e "${BOLD}$1${RESET}"
+   echo
+}
+
+label() {
+   echo -e "${CYAN}$1${RESET}"
+}
+
+item() {
+   echo -e "  ${MUTED}$1${RESET}"
+}
+
+divider() {
+   echo -e "${MUTED}────────────────────────────────────────${RESET}"
+}
 
 err() {
    echo -e "${RED}error:${RESET} $1" >&2
@@ -32,7 +53,12 @@ muted() {
 }
 
 success() {
-   echo -e "${GREEN}$1${RESET}"
+   echo -e "${GREEN}✓${RESET} $1"
+}
+
+hint() {
+   echo
+   echo -e "${MUTED}→ $1${RESET}"
 }
 
 # Prompt for confirmation

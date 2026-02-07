@@ -7,23 +7,25 @@ require_git
 
 repo=$(basename "$(git rev-parse --show-toplevel)")
 branch=$(git branch --show-current)
+tag=$(last_tag)
 
-echo
-info "$repo ($branch)"
+header "$repo"
+
+label "Branch"
+echo "  $branch"
 echo
 
 # Uncommitted changes
 changes=$(git status --porcelain)
 if [[ -n "$changes" ]]; then
-   echo "Uncommitted:"
+   label "Uncommitted"
    echo "$changes" | while read -r line; do
-      muted "  $line"
+      item "$line"
    done
    echo
 fi
 
 # Unpushed commits
-tag=$(last_tag)
 if [[ -n "$tag" ]]; then
    unpushed=$(git log --oneline "$tag..HEAD" 2> /dev/null || true)
 else
@@ -32,9 +34,9 @@ fi
 
 if [[ -n "$unpushed" ]]; then
    count=$(echo "$unpushed" | wc -l | tr -d ' ')
-   echo "Unpushed ($count):"
+   label "Commits since ${tag:-start} ($count)"
    echo "$unpushed" | while read -r line; do
-      muted "  $line"
+      item "$line"
    done
    echo
 fi
@@ -44,18 +46,27 @@ worktrees=$(git worktree list 2> /dev/null | tail -n +1)
 wt_count=$(echo "$worktrees" | wc -l | tr -d ' ')
 
 if [[ $wt_count -gt 1 ]]; then
-   echo "Worktrees:"
+   label "Worktrees"
    echo "$worktrees" | while read -r line; do
       if echo "$line" | grep -q "$(pwd)"; then
          echo "  $line (here)"
       else
-         muted "  $line"
+         item "$line"
       fi
    done
    echo
 fi
 
-# Show last tag
+# Last tag
 if [[ -n "$tag" ]]; then
-   muted "Last tag: $tag"
+   muted "Last release: $tag"
+fi
+
+# Next steps
+if [[ -n "$changes" ]]; then
+   hint "git add <files>, then imp commit"
+elif [[ -n "$unpushed" ]]; then
+   hint "imp release to ship"
+else
+   hint "make changes, then imp commit"
 fi

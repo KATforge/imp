@@ -8,6 +8,8 @@ require_git
 branch="${1:-HEAD}"
 current=$(git branch --show-current)
 
+header "Describe"
+
 # On main/master: diff since last tag
 # On feature branch: diff against main/master
 if [[ "$current" == "main" || "$current" == "master" || "$branch" == "main" || "$branch" == "master" ]]; then
@@ -29,7 +31,8 @@ if [[ -n "$base" ]]; then
 fi
 
 if [[ -n "${diff:-}" ]]; then
-   info "Analyzing ${current:-$branch} since ${base}..."
+   muted "Analyzing ${current:-$branch} since ${base}..."
+   echo
 
    desc=$(ai_fast "Describe what this code change does in 2-3 sentences:
 
@@ -42,12 +45,16 @@ else
       exit 0
    fi
 
-   info "Analyzing recent commits on ${current:-$branch}..."
+   muted "Analyzing recent commits..."
+   echo
 
    desc=$(ai_fast "Describe what this project has been working on based on these recent commits. 2-3 sentences:
 
 $log")
 fi
 
-echo
+divider
 echo "$desc"
+divider
+
+hint "imp release to ship, or imp list for overview"
