@@ -1,0 +1,24 @@
+#!/bin/bash
+set -euo pipefail
+
+source "$(dirname "$0")/../lib/common.sh"
+
+require_git
+
+header "Review"
+
+if ! get_diff; then
+   muted "No changes to review"
+   exit 0
+fi
+
+muted "Reviewing $DIFF_CONTEXT..."
+echo
+
+review=$(ai_smart "$(prompt_review "$DIFF")")
+
+divider
+echo "$review" | md
+divider
+
+hint "imp commit to commit, or keep editing"

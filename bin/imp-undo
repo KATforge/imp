@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euo pipefail
+
+source "$(dirname "$0")/../lib/common.sh"
+
+require_git
+
+header "Undo"
+
+if ! git rev-parse HEAD &> /dev/null; then
+   muted "No commits to undo"
+   exit 0
+fi
+
+count="${1:-1}"
+
+if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+   err "Invalid count: $count"
+   hint "imp undo [count]"
+   exit 1
+fi
+
+total=$(commit_count)
+if [[ "$count" -gt "$total" ]]; then
+   err "Only $total commits available"
+   exit 1
+fi
+
+label "Commits to undo"
+git log --oneline -n "$count" | while read -r line; do
+   item "$line"
+done
+echo
+
+if has_upstream; then
+   ahead=$(count_ahead)
+   if [[ "$count" -gt "$ahead" ]]; then
+      warn "Warning: some commits are already pushed"
+      echo
+   fi
+fi
+
+read -rp "Undo $count commit(s)? (changes stay staged) [y/N] " choice
+
+if [[ ! "$choice" =~ ^[Yy]$ ]]; then
+   muted "Cancelled"
+   exit 0
+fi
+
+git reset --soft "HEAD~$count"
+
+success "Undone $count commit(s)"
+hint "imp commit to recommit, or keep editing"

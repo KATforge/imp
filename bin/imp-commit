@@ -5,7 +5,6 @@ source "$(dirname "$0")/../lib/common.sh"
 
 require_git
 
-# Handle -a flag
 stage_all=false
 if [[ "${1:-}" == "-a" ]]; then
    stage_all=true
@@ -28,37 +27,12 @@ header "Commit"
 muted "Generating message..."
 echo
 
-msg=$(ai_fast "Generate a git commit message for this diff.
+msg=$(ai_fast "$(prompt_commit "$diff")")
 
-Rules:
-- First line: imperative mood, max 50 chars
-- No markdown, no backticks
-- Focus on WHY not WHAT
-
-Diff:
-$diff
-
-Output ONLY the commit message, nothing else:")
-
-divider
-echo "$msg"
-divider
-echo
-
-read -rp "Use this message? [Y/n/e] " choice
-
-case "$choice" in
-   n | N)
-      muted "Cancelled"
-      exit 0
-      ;;
-   e | E)
-      git commit -e -m "$msg"
-      ;;
-   *)
-      git commit -m "$msg"
-      ;;
-esac
+if ! confirm_commit "$msg"; then
+   muted "Cancelled"
+   exit 0
+fi
 
 success "Committed"
 hint "imp commit again, or imp release when ready"

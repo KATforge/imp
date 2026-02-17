@@ -1,0 +1,56 @@
+#!/bin/bash
+set -euo pipefail
+
+source "$(dirname "$0")/../lib/common.sh"
+
+require_git
+
+header "Stash"
+
+if [[ "${1:-}" == "list" ]]; then
+   stashes=$(git stash list 2> /dev/null || true)
+   if [[ -z "$stashes" ]]; then
+      muted "No stashes"
+   else
+      show_items "Stashes" "$stashes"
+   fi
+   exit 0
+fi
+
+if [[ "${1:-}" == "pop" ]]; then
+   if ! git stash pop; then
+      err "No stash to pop"
+      exit 1
+   fi
+   success "Popped stash"
+   hint "imp commit to commit changes"
+   exit 0
+fi
+
+diff=$(git diff)
+staged=$(git diff --cached)
+
+if [[ -z "$diff" && -z "$staged" ]]; then
+   muted "No changes to stash"
+   hint "imp stash list to see stashes"
+   exit 0
+fi
+
+muted "Generating stash message..."
+echo
+
+combined="${diff}"$'\n'"${staged}"
+
+msg=$(ai_fast "$(prompt_stash "$combined")")
+
+label "Message"
+echo "  $msg"
+echo
+
+if confirm "Stash changes?"; then
+   git stash push -m "$msg"
+   success "Stashed"
+   hint "imp stash pop to restore"
+else
+   muted "Cancelled"
+fi

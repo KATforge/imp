@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euo pipefail
+
+source "$(dirname "$0")/../lib/common.sh"
+
+header "Init"
+
+if git rev-parse --git-dir &> /dev/null; then
+   err "Already a git repository"
+   exit 1
+fi
+
+project_name=$(basename "$(pwd)")
+
+label "Project"
+echo "  $project_name"
+echo
+
+muted "Detecting project type..."
+
+files=$(ls -1 2> /dev/null | head -20)
+
+gitignore_content=$(ai_fast "$(prompt_gitignore "$files")")
+
+echo
+label ".gitignore preview"
+divider
+echo "$gitignore_content" | head -15
+if [[ $(echo "$gitignore_content" | wc -l) -gt 15 ]]; then
+   muted "  ... ($(echo "$gitignore_content" | wc -l) lines total)"
+fi
+divider
+echo
+
+if ! confirm "Initialize repository?"; then
+   muted "Cancelled"
+   exit 0
+fi
+
+git init
+echo "$gitignore_content" > .gitignore
+
+success "Initialized git repository"
+success "Created .gitignore"
+
+git add .gitignore
+git commit -m "Initial commit"
+
+success "Created initial commit"
+
+echo
+if confirm "Add remote origin?" "n"; then
+   read -rp "Remote URL: " remote_url
+   if [[ -n "$remote_url" ]]; then
+      git remote add origin "$remote_url"
+      success "Added remote origin"
+   fi
+fi
+
+hint "imp commit -a to commit all files"

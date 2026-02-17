@@ -3,14 +3,16 @@ set -euo pipefail
 
 IMP_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-# Make all scripts executable
 chmod +x "$IMP_ROOT/bin/"*
 chmod +x "$IMP_ROOT/lib/"*
 
-# Add to PATH
 shell_rc=""
 if [[ -f "$HOME/.zshrc" ]]; then
    shell_rc="$HOME/.zshrc"
+elif [[ -f "$HOME/.bash_profile" ]]; then
+   shell_rc="$HOME/.bash_profile"
+elif [[ -f "$HOME/.profile" ]]; then
+   shell_rc="$HOME/.profile"
 elif [[ -f "$HOME/.bashrc" ]]; then
    shell_rc="$HOME/.bashrc"
 fi
@@ -18,7 +20,7 @@ fi
 path_line="export PATH=\"$IMP_ROOT/bin:\$PATH\""
 
 if [[ -n "$shell_rc" ]]; then
-   if ! grep -q "imp/bin" "$shell_rc" 2>/dev/null; then
+   if ! grep -q "imp/bin" "$shell_rc" 2> /dev/null; then
       echo "" >> "$shell_rc"
       echo "# imp - AI git tools" >> "$shell_rc"
       echo "$path_line" >> "$shell_rc"
@@ -33,4 +35,4 @@ else
 fi
 
 echo
-echo "Installed. Try: imp"
+echo "Installed. Run: imp doctor"

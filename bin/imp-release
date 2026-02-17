@@ -4,17 +4,9 @@ set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
 
 require_git
+require_clean "imp commit or imp stash first"
 
 CHANGELOG="CHANGELOG.md"
-
-# Bail if working tree is dirty
-if [[ -n "$(git status --porcelain)" ]]; then
-   err "Uncommitted changes"
-   hint "git stash or imp commit first"
-   exit 1
-fi
-
-# --- Gather commits ---
 
 tag=$(last_tag)
 
@@ -33,13 +25,7 @@ count=$(echo "$log" | wc -l | tr -d ' ')
 
 header "Release"
 
-label "Commits since ${tag:-beginning}"
-echo "$log" | while read -r line; do
-   item "$line"
-done
-echo
-
-# --- Version bump ---
+show_items "Commits since ${tag:-beginning}" "$log"
 
 current=""
 if [[ -n "$tag" ]]; then
@@ -72,40 +58,40 @@ case "$choice" in
       ;;
 esac
 
-# --- Generate changelog entry ---
-
 echo
 muted "Analyzing changes..."
 
-entry=$(ai_smart "Generate a changelog entry from these commits.
-
-Use Keep a Changelog format with sections (skip empty ones):
-### Added
-### Changed
-### Fixed
-### Removed
-
-Be concise. No commit hashes.
-
-Commits:
-$log
-
-Output ONLY the changelog sections:")
+entry=$(ai_smart "$(prompt_changelog "$log")")
 
 echo
 label "v$new_version"
 divider
-echo "$entry"
+echo "$entry" | md
 divider
 echo
 
-read -rp "Release v$new_version? [y/N] " confirm_release
-if [[ ! "$confirm_release" =~ ^[Yy]$ ]]; then
-   muted "Cancelled"
-   exit 0
-fi
-
-# --- Check push feasibility before mutating ---
+read -rp "Release v$new_version? [y/N/e] " confirm_release
+case "$confirm_release" in
+   e | E)
+      entry=$(edit_in_editor "$entry")
+      echo
+      label "v$new_version (edited)"
+      divider
+      echo "$entry" | md
+      divider
+      echo
+      read -rp "Release v$new_version? [y/N] " confirm_release
+      if [[ ! "$confirm_release" =~ ^[Yy]$ ]]; then
+         muted "Cancelled"
+         exit 0
+      fi
+      ;;
+   y | Y) ;;
+   *)
+      muted "Cancelled"
+      exit 0
+      ;;
+esac
 
 will_push=false
 read -rp "Push after release? [y/N] " confirm_push
@@ -119,22 +105,12 @@ if [[ "$confirm_push" =~ ^[Yy]$ ]]; then
    fi
 fi
 
-# --- Generate commit summary ---
-
-summary=$(ai_fast "Write a git commit subject line for these changes. Max 50 chars, imperative mood, no quotes, no markdown, no period:
-
-$entry
-
-Output ONLY the subject line:")
-
-# --- Prepare changelog content ---
+summary=$(ai_fast "$(prompt_release_summary "$entry")")
 
 today=$(date +%Y-%m-%d)
 new_entry="## [$new_version] - $today
 
 $entry"
-
-# --- Save state for rollback ---
 
 original_head=$(git rev-parse HEAD)
 original_changelog=""
@@ -142,11 +118,15 @@ if [[ -f "$CHANGELOG" ]]; then
    original_changelog=$(cat "$CHANGELOG")
 fi
 
+committed=false
+
 rollback() {
    echo
    warn "Rolling back..."
    git tag -d "v$new_version" 2> /dev/null || true
-   git reset --hard "$original_head" 2> /dev/null || true
+   if [[ "$committed" == "true" ]]; then
+      git reset --hard "$original_head" 2> /dev/null || true
+   fi
    if [[ -n "$original_changelog" ]]; then
       echo "$original_changelog" > "$CHANGELOG"
    else
@@ -159,8 +139,6 @@ rollback() {
 trap rollback ERR
 
 echo
-
-# --- Update CHANGELOG.md ---
 
 if [[ -f "$CHANGELOG" ]]; then
    tmpfile=$(mktemp)
@@ -188,11 +166,9 @@ fi
 
 success "Updated CHANGELOG.md"
 
-# --- Squash or commit ---
-
 can_squash=false
 if [[ -n "$tag" ]]; then
-   if git rev-parse --verify "@{u}" > /dev/null 2>&1; then
+   if has_upstream; then
       unpushed=$(git log --oneline "@{u}..HEAD" 2> /dev/null || true)
       if [[ -n "$unpushed" ]]; then
          can_squash=true
@@ -208,24 +184,24 @@ if [[ "$can_squash" == "true" ]]; then
    git add "$CHANGELOG"
    git reset --soft "$tag"
    git commit -m "$commit_body"
+   committed=true
    success "Squashed $count commits"
 else
    git add "$CHANGELOG"
    git commit -m "$commit_body"
+   committed=true
    if [[ -n "$tag" ]]; then
       muted "Commits already pushed, skipped squash"
    fi
 fi
 
-# --- Tag ---
-
 git tag "v$new_version"
 success "Tagged v$new_version"
 
-# --- Push ---
+trap - ERR
 
 if [[ "$will_push" == "true" ]]; then
-   if git rev-parse --verify "@{u}" > /dev/null 2>&1; then
+   if has_upstream; then
       git push
    else
       branch=$(git branch --show-current)
@@ -234,8 +210,5 @@ if [[ "$will_push" == "true" ]]; then
    git push --tags
    success "Pushed to origin"
 fi
-
-# Disable rollback trap on success
-trap - ERR
 
 hint "make changes, then imp commit"

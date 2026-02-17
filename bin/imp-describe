@@ -7,36 +7,27 @@ require_git
 
 branch="${1:-HEAD}"
 current=$(git branch --show-current)
+base_br=$(base_branch)
 
 header "Describe"
 
-# On main/master: diff since last tag
-# On feature branch: diff against main/master
-if [[ "$current" == "main" || "$current" == "master" || "$branch" == "main" || "$branch" == "master" ]]; then
+if [[ "$current" == "$base_br" || "$branch" == "$base_br" ]]; then
    tag=$(last_tag)
-   if [[ -n "$tag" ]]; then
-      base="$tag"
-   else
-      base=""
-   fi
+   base="${tag:-}"
 else
-   base=$(git merge-base main "$branch" 2> /dev/null \
-      || git merge-base master "$branch" 2> /dev/null \
-      || echo "")
+   base=$(git merge-base "$base_br" "$branch" 2> /dev/null || echo "")
 fi
 
-# Try diff first, fall back to commit log
+diff=""
 if [[ -n "$base" ]]; then
    diff=$(git diff "$base..$branch" 2> /dev/null | head -500)
 fi
 
-if [[ -n "${diff:-}" ]]; then
+if [[ -n "$diff" ]]; then
    muted "Analyzing ${current:-$branch} since ${base}..."
    echo
 
-   desc=$(ai_fast "Describe what this code change does in 2-3 sentences:
-
-$diff")
+   desc=$(ai_fast "$(prompt_describe "$diff" "diff")")
 else
    log=$(git log --oneline -10 "$branch" 2> /dev/null || true)
 
@@ -48,13 +39,11 @@ else
    muted "Analyzing recent commits..."
    echo
 
-   desc=$(ai_fast "Describe what this project has been working on based on these recent commits. 2-3 sentences:
-
-$log")
+   desc=$(ai_fast "$(prompt_describe "$log" "log")")
 fi
 
 divider
-echo "$desc"
+echo "$desc" | md
 divider
 
 hint "imp release to ship, or imp list for overview"

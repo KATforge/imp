@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+source "$(dirname "$0")/../lib/common.sh"
+
+require_git
+require_clean "imp commit or imp stash first"
+
+header "Sync"
+
+branch=$(git branch --show-current)
+
+if ! has_upstream; then
+   err "No upstream branch"
+   hint "git push -u origin $branch"
+   exit 1
+fi
+
+label "Branch"
+echo "  $branch"
+echo
+
+muted "Fetching..."
+git fetch
+
+behind=$(count_behind)
+ahead=$(count_ahead)
+
+if [[ "$behind" -eq 0 && "$ahead" -eq 0 ]]; then
+   success "Already up to date"
+   exit 0
+fi
+
+if [[ "$behind" -gt 0 ]]; then
+   label "Behind"
+   echo "  $behind commits"
+fi
+
+if [[ "$ahead" -gt 0 ]]; then
+   label "Ahead"
+   echo "  $ahead commits"
+fi
+
+echo
+
+if [[ "$behind" -gt 0 ]]; then
+   muted "Rebasing..."
+   if ! git rebase; then
+      err "Rebase failed"
+      hint "git rebase --abort to cancel"
+      exit 1
+   fi
+   success "Rebased"
+fi
+
+if [[ "$ahead" -gt 0 || "$behind" -gt 0 ]]; then
+   if confirm "Push?"; then
+      git push
+      success "Pushed"
+   fi
+fi
+
+hint "imp list to see status"

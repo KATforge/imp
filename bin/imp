@@ -2,6 +2,7 @@
 set -euo pipefail
 
 IMP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+IMP_VERSION="0.0.2"
 
 BOLD='\033[1m'
 MUTED='\033[0;90m'
@@ -11,17 +12,33 @@ usage() {
    echo
    echo -e "${BOLD}imp${RESET} — AI-powered git workflow"
    echo
-   echo -e "${MUTED}Commands${RESET}"
+   echo -e "${MUTED}Daily workflow${RESET}"
    echo "  commit     Generate commit message (-a to stage all)"
-   echo "  release    Squash, changelog, tag, and push"
+   echo "  amend      Amend last commit with new message"
+   echo "  undo       Undo last N commits (keeps changes staged)"
+   echo "  revert     Safely undo a pushed commit"
+   echo "  stash      Stash changes with AI message"
+   echo "  sync       Pull, rebase, push"
+   echo
+   echo -e "${MUTED}Branching${RESET}"
    echo "  branch     Create branch from description"
+   echo "  fix        Create branch from GitHub issue"
+   echo "  pr         Create pull request"
+   echo
+   echo -e "${MUTED}Analysis${RESET}"
+   echo "  diff       Explain changes in plain English"
+   echo "  review     AI code review of changes"
    echo "  describe   Explain what a branch does"
    echo "  list       Show repo overview"
    echo
-   echo -e "${MUTED}Config${RESET}"
-   echo "  IMP_AI_PROVIDER     claude, ollama (default: claude)"
-   echo "  IMP_AI_MODEL_FAST   quick tasks (default: haiku)"
-   echo "  IMP_AI_MODEL_SMART  complex tasks (default: sonnet)"
+   echo -e "${MUTED}Release${RESET}"
+   echo "  release    Squash, changelog, tag, and push"
+   echo "  init       Initialize new repository"
+   echo
+   echo -e "${MUTED}Help${RESET}"
+   echo "  help       Show workflow guide"
+   echo "  doctor     Check dependencies"
+   echo "  --version  Show version"
    echo
 }
 
@@ -31,6 +48,17 @@ cmd="${1:-}"
    usage
    exit 0
 }
+
+case "$cmd" in
+   --version | -v | version)
+      echo "imp $IMP_VERSION"
+      exit 0
+      ;;
+   --help | -h)
+      usage
+      exit 0
+      ;;
+esac
 
 script="$IMP_ROOT/bin/imp-$cmd"
 

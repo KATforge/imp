@@ -15,17 +15,11 @@ label "Branch"
 echo "  $branch"
 echo
 
-# Uncommitted changes
 changes=$(git status --porcelain)
 if [[ -n "$changes" ]]; then
-   label "Uncommitted"
-   echo "$changes" | while read -r line; do
-      item "$line"
-   done
-   echo
+   show_items "Uncommitted" "$changes"
 fi
 
-# Unpushed commits
 if [[ -n "$tag" ]]; then
    unpushed=$(git log --oneline "$tag..HEAD" 2> /dev/null || true)
 else
@@ -34,15 +28,10 @@ fi
 
 if [[ -n "$unpushed" ]]; then
    count=$(echo "$unpushed" | wc -l | tr -d ' ')
-   label "Commits since ${tag:-start} ($count)"
-   echo "$unpushed" | while read -r line; do
-      item "$line"
-   done
-   echo
+   show_items "Commits since ${tag:-start} ($count)" "$unpushed"
 fi
 
-# Worktrees
-worktrees=$(git worktree list 2> /dev/null | tail -n +1)
+worktrees=$(git worktree list 2> /dev/null)
 wt_count=$(echo "$worktrees" | wc -l | tr -d ' ')
 
 if [[ $wt_count -gt 1 ]]; then
@@ -57,12 +46,10 @@ if [[ $wt_count -gt 1 ]]; then
    echo
 fi
 
-# Last tag
 if [[ -n "$tag" ]]; then
    muted "Last release: $tag"
 fi
 
-# Next steps
 if [[ -n "$changes" ]]; then
    hint "git add <files>, then imp commit"
 elif [[ -n "$unpushed" ]]; then

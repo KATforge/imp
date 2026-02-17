@@ -12,21 +12,46 @@ ai() {
    local prompt="$1"
    local model="${2:-$AI_MODEL_FAST}"
 
+   if [[ -z "$prompt" ]]; then
+      echo "error: empty prompt" >&2
+      return 1
+   fi
+
+   local result=""
+
    case "$AI_PROVIDER" in
       claude)
-         claude -p "$prompt" --model "$model" --max-turns 1 2> /dev/null
+         if ! command -v claude &> /dev/null; then
+            echo "error: claude CLI not installed" >&2
+            return 1
+         fi
+         result=$(claude -p "$prompt" --model "$model" --max-turns 1 2> /dev/null)
          ;;
       ollama)
-         curl -s localhost:11434/api/generate \
+         if ! command -v curl &> /dev/null || ! command -v jq &> /dev/null; then
+            echo "error: curl and jq required for ollama" >&2
+            return 1
+         fi
+         result=$(curl -sf localhost:11434/api/generate \
             -d "$(jq -n --arg p "$prompt" --arg m "$model" \
                '{model:$m, prompt:$p, stream:false}')" \
-            | jq -r '.response'
+            | jq -r '.response') || {
+            echo "error: ollama request failed" >&2
+            return 1
+         }
          ;;
       *)
-         echo "Unknown AI provider: $AI_PROVIDER" >&2
+         echo "error: unknown AI provider: $AI_PROVIDER" >&2
          return 1
          ;;
    esac
+
+   if [[ -z "$result" ]]; then
+      echo "error: empty response from AI" >&2
+      return 1
+   fi
+
+   echo "$result"
 }
 
 ai_fast() {

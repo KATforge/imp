@@ -18,17 +18,10 @@ header "Branch"
 muted "Generating name..."
 echo
 
-name=$(ai_fast "Suggest a git branch name for: $desc
-
-Rules:
-- Lowercase, hyphens only, no spaces
-- Max 30 chars
-- Format: type/short-name
-- Types: feat, fix, refactor, docs, test, chore
-
-Output ONLY the branch name:")
-
+name=$(ai_fast "$(prompt_branch "$desc")")
 name=$(echo "$name" | tr -d '[:space:]')
+
+validate_branch "$name"
 
 label "Suggested"
 echo "  $name"

@@ -1,0 +1,77 @@
+#!/bin/bash
+set -euo pipefail
+
+source "$(dirname "$0")/../lib/common.sh"
+
+require_git
+require_gh
+require_jq
+
+issue="${1:-}"
+
+if [[ -z "$issue" ]]; then
+   err "Missing issue number"
+   hint "imp fix <issue-number>"
+   exit 1
+fi
+
+if [[ ! "$issue" =~ ^[0-9]+$ ]]; then
+   err "Issue number must be numeric"
+   hint "imp fix <issue-number>"
+   exit 1
+fi
+
+header "Fix Issue #$issue"
+
+muted "Fetching issue..."
+echo
+
+issue_data=$(gh issue view "$issue" --json title,body,labels 2>&1) || {
+   err "Could not fetch issue #$issue"
+   exit 1
+}
+
+issue_title=$(echo "$issue_data" | jq -r '.title')
+issue_body=$(echo "$issue_data" | jq -r '.body' | head -20)
+
+label "Issue"
+echo "  #$issue: $issue_title"
+echo
+
+muted "Generating branch name..."
+
+branch_name=$(ai_fast "Suggest a git branch name for fixing this issue:
+
+Title: $issue_title
+Description: $issue_body
+
+Rules:
+- Lowercase, hyphens only
+- Max 30 chars
+- Format: fix/<short-name>
+- Include issue number if fits
+
+Output ONLY the branch name:")
+
+branch_name=$(echo "$branch_name" | tr -d '[:space:]')
+
+validate_branch "$branch_name"
+
+label "Branch"
+echo "  $branch_name"
+echo
+
+if confirm "Create branch?"; then
+   git checkout -b "$branch_name"
+   success "Switched to $branch_name"
+   echo
+   label "Context"
+   divider
+   echo "$issue_title"
+   echo
+   echo "$issue_body" | head -10
+   divider
+   hint "make changes, then imp commit"
+else
+   muted "Cancelled"
+fi
