@@ -130,7 +130,7 @@ case "$confirm_release" in
 esac
 
 will_push=false
-if confirm "Push after release?" "n"; then
+if confirm "Push after release?"; then
    will_push=true
    remote=$(git remote | head -1)
    if [[ -z "$remote" ]]; then
@@ -243,7 +243,7 @@ if [[ "$will_push" == "true" ]]; then
       branch=$(git branch --show-current)
       git push -u origin "$branch"
    fi
-   git push --tags
+   git push origin "v$new_version"
    success "Pushed to origin"
 fi
 
