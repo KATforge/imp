@@ -12,12 +12,16 @@ tag=$(last_tag)
 
 if [[ -n "$tag" ]]; then
    log=$(git log --oneline "$tag..HEAD" 2> /dev/null || true)
-else
+fi
+
+# If no reachable tag or no commits since it, fall back to recent commits
+if [[ -z "${log:-}" ]]; then
    log=$(git log --oneline -20 2> /dev/null || true)
+   tag=""
 fi
 
 if [[ -z "$log" ]]; then
-   muted "No commits since ${tag:-beginning}"
+   muted "No commits to release"
    exit 0
 fi
 
@@ -27,19 +31,9 @@ header "Release"
 
 show_items "Commits since ${tag:-beginning}" "$log"
 
-current=""
-if [[ -n "$tag" ]]; then
-   current="${tag#v}"
-fi
-
+# Use highest existing tag (local or fetched) for version calculation
 highest=$(git tag -l 'v*' --sort=-v:refname 2> /dev/null | head -1)
-if [[ -n "$highest" ]]; then
-   highest_ver="${highest#v}"
-   if [[ "$(printf '%s\n%s' "$current" "$highest_ver" | sort -V | tail -1)" == "$highest_ver" ]]; then
-      current="$highest_ver"
-   fi
-fi
-
+current="${highest#v}"
 current="${current:-0.0.0}"
 
 patch_ver=$(bump_version "$current" patch)

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.6] - 2026-02-21
+
+### Changed
+- Simplified version calculation and fallback logic
+
 ## [0.0.5] - 2026-02-21
 
 ### Added
