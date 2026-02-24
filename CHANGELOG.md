@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.9] - 2026-02-24
+
+- Changed: Pipe AI prompts via stdin instead of passing as shell arguments, removing argument size limits
+- Changed: Increase Claude request timeout from 60s to 120s
+- Added: `--tools ""` flag to Claude CLI calls to disable tool use
+- Changed: Ollama prompt now piped through `jq -Rs` and `curl -d @-` instead of inline JSON argument
+- Fixed: Changelog file path now resolved relative to repo root instead of current working directory
+- Changed: `prompt_changelog` now receives full diff as primary input alongside commit log
+- Changed: Changelog prompt format changed from Keep a Changelog sections to flat prefixed lines (`Added:`, `Changed:`, `Fixed:`, `Removed:`)
+- Changed: `prompt_commit` now counts and reports number of changed files in the prompt
+- Changed: Commit message rules updated to require prose body (semicolon-separated) instead of bullet points, with example included
+- Changed: Release squash now stages all changes with `git add -A` instead of only staging the changelog file
+- Added: Integration test verifying release creates a tag and includes changelog in the commit
+- Added: Integration test verifying release squashes multiple commits into one since the last tag
+- Removed: Directory structure section from README
+- Changed: README description, examples, and command reference updated for clarity
+
 ## [0.0.8] - 2026-02-21
 
 ### Changed

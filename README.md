@@ -1,6 +1,15 @@
 # imp
 
-AI-powered git toolkit. Small shell scripts, pluggable AI backend, zero dependencies beyond bash and git.
+AI-powered git workflow. Commit, branch, review, and release without writing commit messages, branch names, or PR descriptions.
+
+```bash
+imp commit -a        # stages everything, generates message, commits
+imp branch "auth"    # creates feat/user-auth
+imp review           # AI code review of your changes
+imp release          # squash, changelog, tag, push
+```
+
+Every command works with or without a network connection (swap Claude for a local Ollama model). No frameworks, no config files, no lock-in: just bash scripts that wrap git.
 
 ## Install
 
@@ -9,12 +18,7 @@ git clone https://github.com/anders458/imp.git
 cd imp
 ./install.sh
 source ~/.bashrc
-```
-
-Verify setup:
-
-```bash
-imp doctor
+imp doctor    # verify setup
 ```
 
 ## Commands
@@ -22,107 +26,92 @@ imp doctor
 ### Daily workflow
 
 ```
-imp commit      Generate commit message from staged changes (-a to stage all)
-imp amend       Amend last commit with new AI message
-imp undo [N]    Undo last N commits (keeps changes staged)
-imp revert      Safely undo a pushed commit
-imp stash       Stash changes with AI message (also: list, pop)
-imp sync        Pull, rebase, push
+imp commit [-a]    Generate commit message from diff (-a to stage all)
+imp amend          Rewrite last commit message
+imp undo [N]       Undo last N commits, keep changes staged
+imp revert         Safely undo a pushed commit
+imp stash          Stash with AI-generated message (also: list, pop)
+imp sync           Pull, rebase, push in one step
 ```
 
 ### Branching
 
 ```
-imp branch      Create branch from description
-imp fix         Create branch from GitHub issue
-imp pr          Create pull request with AI title and description
+imp branch <desc>  Create branch from plain English description
+imp fix <issue>    Create branch from GitHub issue number
+imp pr             Create pull request with AI title and body
 ```
 
 ### Analysis
 
 ```
-imp diff        Explain changes in plain English
-imp review      AI code review of staged or unstaged changes
-imp describe    Explain what a branch does
-imp status      Show repo overview (branch, changes, commits)
-imp log         Pretty commit graph
+imp diff           Explain changes in plain English
+imp review         AI code review of staged or unstaged changes
+imp describe       Summarize what a branch does
+imp status         Repo overview: branch, changes, commits
+imp log [-n N]     Pretty commit graph
 ```
 
 ### Release
 
 ```
-imp release     Squash commits, generate changelog, tag, and push
-imp init        Initialize new repository with AI-generated .gitignore
-```
-
-### Help
-
-```
-imp help        Show workflow guide with example flows
-imp doctor      Check dependencies and configuration
-imp --version   Show version
+imp release        Squash commits, generate changelog, tag, push
+imp init           Initialize repo with AI-generated .gitignore
 ```
 
 ## Examples
 
 ```bash
-# Quick commit
+# Commit with zero effort
 git add .
 imp commit
-# → "Add rate limiting to API endpoints"
-# → Use this message? [Y/n/e]
+# -> "Add rate limiting to API endpoints"
+# -> Use this message? [Y/n/e]
 
-# Stage everything and commit
+# Stage everything and commit in one shot
 imp commit -a
 
-# Create a feature branch
+# Branch from a description
 imp branch "add user authentication"
-# → Suggested: feat/user-auth
-# → Create branch? [Y/n]
+# -> Suggested: feat/user-auth
+# -> Create branch? [Y/n]
 
-# Fix a GitHub issue
+# Branch from a GitHub issue
 imp fix 42
-# → Fetches issue, suggests fix/login-redirect-42
+# -> Fetches issue, suggests fix/login-redirect-42
 
 # Ship a release
 imp release
-# → Shows commits since last tag
-# → Version bump: patch/minor/major
-# → Generates changelog
-# → Squashes, tags, pushes
+# -> Version bump: patch/minor/major
+# -> Generates changelog, squashes, tags, pushes
 ```
 
 ## Workflows
 
 **Solo (trunk-based):**
-
 ```
-imp commit -a  →  imp commit -a  →  imp release
+imp commit -a  ->  imp commit -a  ->  imp release
 ```
 
 **Feature branch:**
-
 ```
-imp branch  →  imp commit -a  →  imp pr
+imp branch  ->  imp commit -a  ->  imp pr
 ```
 
 **Hotfix:**
-
 ```
-imp fix 42  →  imp commit -a  →  imp pr
+imp fix 42  ->  imp commit -a  ->  imp pr
 ```
 
 ## Configuration
 
-Environment variables:
-
 ```bash
-export IMP_AI_PROVIDER=claude     # claude or ollama
-export IMP_AI_MODEL_FAST=haiku    # quick tasks (commit, branch, stash)
-export IMP_AI_MODEL_SMART=sonnet  # complex tasks (review, PR, release)
+export IMP_AI_PROVIDER=claude     # claude (default) or ollama
+export IMP_AI_MODEL_FAST=haiku    # quick tasks: commit, branch, stash
+export IMP_AI_MODEL_SMART=sonnet  # complex tasks: review, PR, release
 ```
 
-For Ollama:
+For fully local AI with Ollama:
 
 ```bash
 export IMP_AI_PROVIDER=ollama
@@ -130,53 +119,14 @@ export IMP_AI_MODEL_FAST=llama3.2
 export IMP_AI_MODEL_SMART=llama3.2
 ```
 
-## Structure
-
-```
-imp/
-├── bin/
-│   ├── imp              # dispatcher
-│   ├── imp-amend
-│   ├── imp-branch
-│   ├── imp-commit
-│   ├── imp-describe
-│   ├── imp-diff
-│   ├── imp-doctor
-│   ├── imp-fix
-│   ├── imp-help
-│   ├── imp-init
-│   ├── imp-log
-│   ├── imp-status
-│   ├── imp-pr
-│   ├── imp-release
-│   ├── imp-revert
-│   ├── imp-review
-│   ├── imp-stash
-│   ├── imp-sync
-│   └── imp-undo
-├── lib/
-│   ├── ai.sh            # pluggable AI interface
-│   ├── common.sh        # shared helpers
-│   └── prompts.sh       # AI prompt templates
-├── tests/
-│   ├── helpers.bash     # test utilities
-│   ├── common.bats      # unit tests
-│   └── commands.bats    # integration tests
-├── install.sh
-├── LICENSE
-├── CHANGELOG.md
-└── README.md
-```
-
 ## Requirements
 
-- bash
-- git
+- bash, git
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Ollama](https://ollama.com)
-- [gh](https://cli.github.com) (optional, for `imp fix` and `imp pr`)
-- [jq](https://jqlang.github.io/jq/download) (optional, for Ollama provider and `imp fix`)
-- [glow](https://github.com/charmbracelet/glow) (optional, for rich markdown rendering)
-- [gum](https://github.com/charmbracelet/gum) (optional, for interactive TUI prompts)
+- [gh](https://cli.github.com) (optional: `imp fix`, `imp pr`)
+- [jq](https://jqlang.github.io/jq/download) (optional: Ollama provider, `imp fix`)
+- [gum](https://github.com/charmbracelet/gum) (optional: interactive prompts)
+- [glow](https://github.com/charmbracelet/glow) (optional: rich markdown rendering)
 
 ## License
 

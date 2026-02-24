@@ -25,16 +25,17 @@ ai() {
             echo "error: claude CLI not installed" >&2
             return 1
          fi
-         result=$(timeout 60 claude -p "$prompt" --model "$model" --max-turns 1 2> /dev/null)
+         result=$(printf '%s' "$prompt" \
+            | timeout 120 claude -p --model "$model" --max-turns 1 --tools "" 2> /dev/null)
          ;;
       ollama)
          if ! command -v curl &> /dev/null || ! command -v jq &> /dev/null; then
             echo "error: curl and jq required for ollama" >&2
             return 1
          fi
-         result=$(curl -sf --max-time 30 localhost:11434/api/generate \
-            -d "$(jq -n --arg p "$prompt" --arg m "$model" \
-               '{model:$m, prompt:$p, stream:false}')" \
+         result=$(printf '%s' "$prompt" \
+            | jq -Rs --arg m "$model" '{model:$m, prompt:., stream:false}' \
+            | curl -sf --max-time 30 localhost:11434/api/generate -d @- \
             | jq -r '.response') || {
             echo "error: ollama request failed" >&2
             return 1

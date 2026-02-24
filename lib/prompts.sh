@@ -4,16 +4,32 @@
 #
 
 prompt_commit() {
+   local diff="$1"
+   local files
+
+   files=$(echo "$diff" | grep -c '^diff --git' || true)
+
    cat << EOF
-Generate a git commit message for this diff.
+Generate a git commit message for this diff ($files files changed).
 
 Rules:
-- First line: imperative mood, max 50 chars
-- No markdown, no backticks, no quotes
-- Focus on WHY not WHAT
+- Subject line: imperative mood, max 50 chars, no period
+- If more than one change, add a blank line then a body paragraph
+- Body must be prose, not bullet points: use semicolons to separate distinct changes
+- Write as a human would: natural, concise, no filler
+- No markdown, no backticks, no quotes, no bullet points, no dashes
+- Mention all affected areas when multiple files change
+
+Example for a multi-change commit:
+Harden AI pipeline and expand test coverage
+
+Pipe prompts via stdin to remove argument size limits; add 120s
+timeout to claude calls; strip leading blank lines in markdown
+renderer; add sanitize helper for single-line AI output and apply
+it to branch, fix, and stash commands.
 
 Diff:
-$1
+$diff
 
 Output ONLY the commit message, nothing else:
 EOF
@@ -158,21 +174,26 @@ EOF
 }
 
 prompt_changelog() {
+   local log="$1"
+   local diff="$2"
+
    cat << EOF
-Generate a changelog entry from these commits.
+Generate a changelog entry from these code changes.
 
-Use Keep a Changelog format with sections (skip empty ones):
-### Added
-### Changed
-### Fixed
-### Removed
+Use the diff as the primary source of truth. The commit messages are for context only.
+Be thorough: every meaningful change should have its own line.
 
-Be concise. No commit hashes.
+Each line must start with a prefix: Added, Changed, Fixed, or Removed.
+Format: "- Added: description" or "- Fixed: description"
+Skip prefixes that don't apply. Be specific about what changed. No commit hashes.
 
 Commits:
-$1
+$log
 
-Output ONLY the changelog sections:
+Diff:
+$diff
+
+Output ONLY the changelog lines:
 EOF
 }
 

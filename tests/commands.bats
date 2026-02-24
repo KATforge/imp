@@ -250,6 +250,45 @@ teardown() {
 
 # === imp init ===
 
+# === imp release ===
+
+@test "release: creates tag and updates changelog" {
+   echo ".bin" > .gitignore
+   git add .gitignore && git commit -m "gitignore"
+   git tag v0.0.1
+   echo "a" >> file.txt && git add file.txt && git commit -m "add feature"
+   echo "b" >> file.txt && git add file.txt && git commit -m "fix bug"
+   mock_ai "- Changed: test improvements"
+   # p=patch, y=confirm changelog, n=don't push
+   run "$IMP_ROOT/bin/imp-release" <<< $'p\ny\nn'
+   [[ "$status" -eq 0 ]]
+   [[ "$output" == *"Tagged v0.0.2"* ]]
+   # Changelog must exist and contain the version
+   [[ -f CHANGELOG.md ]]
+   grep -q "0.0.2" CHANGELOG.md
+   # Changelog must be in the commit, not just on disk
+   git show --stat HEAD | grep -q "CHANGELOG.md"
+}
+
+@test "release: squashes commits since last tag" {
+   echo ".bin" > .gitignore
+   git add .gitignore && git commit -m "gitignore"
+   git tag v1.0.0
+   echo "a" >> file.txt && git add file.txt && git commit -m "one"
+   echo "b" >> file.txt && git add file.txt && git commit -m "two"
+   echo "c" >> file.txt && git add file.txt && git commit -m "three"
+   mock_ai "- Added: new stuff"
+   run "$IMP_ROOT/bin/imp-release" <<< $'p\ny\nn'
+   [[ "$status" -eq 0 ]]
+   [[ "$output" == *"Squashed 3 commits"* ]]
+   # Should be one commit after the tag, not three
+   local count
+   count=$(git log --oneline v1.0.0..HEAD | wc -l | tr -d ' ')
+   [[ "$count" -eq 1 ]]
+}
+
+# === imp init ===
+
 @test "init: fails inside existing repo" {
    run "$IMP_ROOT/bin/imp-init"
    [[ "$status" -ne 0 ]]
