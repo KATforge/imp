@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.11] - 2026-03-15
+
+### Added
+- Add __main__ entry point and dynamic version from metadata
+
+### Changed
+- Use builtin print instead of console.out.print
+- Update install instructions for python package
+- Add ai tests, command tests, and update imports
+- Move sanitize to ai module and add truncate helper
+- Remove deprecated bash scripts and bin wrapper
+- Sync (alias).
+- Rewrite in python
+
+### Fixed
+- Rename range to rev_range, add git timeout, fix split paths
+
 ## [0.0.10] - 2026-02-26
 
 - Added: add split, done, clean commands and branch switching

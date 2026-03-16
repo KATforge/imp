@@ -1,4 +1,11 @@
+*.egg-info/
+*.pyc
 *.swp
 *.swo
 *~
 .DS_Store
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+dist/

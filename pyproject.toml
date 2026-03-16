@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "imp"
+version = "0.1.0"
+description = "AI-powered git workflow CLI"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+   "questionary>=2.0.0",
+   "rich>=13.0.0",
+   "typer>=0.15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+   "pytest>=8.0",
+   "ruff",
+]
+
+[project.scripts]
+imp = "imp.main:app"

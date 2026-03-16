@@ -1,0 +1,37 @@
+import typer
+
+from imp import ai, console, git, prompts
+
+
+def review ():
+   """AI code review of current changes."""
+
+   git.require ()
+
+   console.header ("Review")
+
+   d = git.diff (staged=True)
+   context = "staged changes"
+
+   if not d:
+      d = git.diff ()
+      context = "unstaged changes"
+
+   if not d:
+      console.muted ("No changes to review")
+      console.hint ("make some changes first")
+      raise typer.Exit (0)
+
+   d = ai.truncate (d)
+
+   result = console.spin (
+      f"Reviewing {context}...",
+      ai.smart,
+      prompts.review (d),
+   )
+
+   console.divider ()
+   console.md (result)
+   console.divider ()
+
+   console.hint ("imp commit to commit, or keep editing")

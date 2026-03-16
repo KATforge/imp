@@ -9,16 +9,21 @@ imp review           # AI code review of your changes
 imp release          # squash, changelog, tag, push
 ```
 
-Every command works with or without a network connection (swap Claude for a local Ollama model). No frameworks, no config files, no lock-in: just bash scripts that wrap git.
+Every command works with or without a network connection (swap Claude for a local Ollama model). No config files, no lock-in: a Python CLI that wraps git.
 
 ## Install
 
 ```bash
 git clone https://github.com/anders458/imp.git
 cd imp
-./install.sh
-source ~/.bashrc
+pip install -e .
 imp doctor    # verify setup
+```
+
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv pip install -e .
 ```
 
 ## Commands
@@ -30,7 +35,6 @@ imp commit [-a]    Generate commit message from diff (-a to stage all)
 imp amend          Rewrite last commit message
 imp undo [N]       Undo last N commits, keep changes staged
 imp revert         Safely undo a pushed commit
-imp stash          Stash with AI-generated message (also: list, pop)
 imp sync           Pull, rebase, push in one step
 ```
 
@@ -40,14 +44,14 @@ imp sync           Pull, rebase, push in one step
 imp branch <desc>  Create branch from plain English description
 imp fix <issue>    Create branch from GitHub issue number
 imp pr             Create pull request with AI title and body
+imp done           Clean up after PR merge
 ```
 
 ### Analysis
 
 ```
-imp diff           Explain changes in plain English
 imp review         AI code review of staged or unstaged changes
-imp describe       Summarize what a branch does
+imp split          Group dirty files into logical commits via AI
 imp status         Repo overview: branch, changes, commits
 imp log [-n N]     Pretty commit graph
 ```
@@ -56,7 +60,14 @@ imp log [-n N]     Pretty commit graph
 
 ```
 imp release        Squash commits, generate changelog, tag, push
-imp init           Initialize repo with AI-generated .gitignore
+```
+
+### Utilities
+
+```
+imp clean          Delete merged branches
+imp doctor         Verify tools (git, claude, ollama, gh)
+imp help           Show workflow guide
 ```
 
 ## Examples
@@ -95,19 +106,19 @@ imp commit -a  ->  imp commit -a  ->  imp release
 
 **Feature branch:**
 ```
-imp branch  ->  imp commit -a  ->  imp pr
+imp branch  ->  imp commit -a  ->  imp pr  ->  imp done
 ```
 
 **Hotfix:**
 ```
-imp fix 42  ->  imp commit -a  ->  imp pr
+imp fix 42  ->  imp commit -a  ->  imp pr  ->  imp done
 ```
 
 ## Configuration
 
 ```bash
 export IMP_AI_PROVIDER=claude     # claude (default) or ollama
-export IMP_AI_MODEL_FAST=haiku    # quick tasks: commit, branch, stash
+export IMP_AI_MODEL_FAST=haiku    # quick tasks: commit, branch
 export IMP_AI_MODEL_SMART=sonnet  # complex tasks: review, PR, release
 ```
 
@@ -121,12 +132,10 @@ export IMP_AI_MODEL_SMART=llama3.2
 
 ## Requirements
 
-- bash, git
+- Python 3.10+
+- git
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Ollama](https://ollama.com)
-- [gh](https://cli.github.com) (optional: `imp fix`, `imp pr`)
-- [jq](https://jqlang.github.io/jq/download) (optional: Ollama provider, `imp fix`)
-- [gum](https://github.com/charmbracelet/gum) (optional: interactive prompts)
-- [glow](https://github.com/charmbracelet/glow) (optional: rich markdown rendering)
+- [gh](https://cli.github.com) (optional: `imp fix`, `imp pr`, `imp release`)
 
 ## License
 
