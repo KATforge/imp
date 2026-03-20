@@ -4,7 +4,12 @@ from imp import ai, console, git, prompts
 
 
 def review ():
-   """AI code review of current changes."""
+   """AI code review of current changes.
+
+   Sends staged changes (or unstaged if nothing is staged) to the smart
+   AI model for review. Outputs feedback in markdown covering bugs, style
+   issues, and suggestions.
+   """
 
    git.require ()
 

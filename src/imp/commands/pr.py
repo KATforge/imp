@@ -6,7 +6,12 @@ import typer
 from imp import ai, console, git, prompts
 
 def pr ():
-   """Create a GitHub pull request with AI-generated description."""
+   """Create a GitHub pull request with AI-generated description.
+
+   Diffs the current branch against the base branch, then uses AI to
+   generate a PR title and description. Pushes to origin if needed and
+   creates the PR via the gh CLI. Requires gh to be installed.
+   """
 
    git.require ()
 

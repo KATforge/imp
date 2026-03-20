@@ -4,7 +4,12 @@ from imp import console, git
 
 
 def clean ():
-   """Delete branches already merged into base."""
+   """Delete branches already merged into base.
+
+   Fetches from origin, finds local branches fully merged into the base
+   branch (main/master), and deletes them locally and remotely. Prompts
+   for confirmation before deleting.
+   """
 
    git.require ()
 

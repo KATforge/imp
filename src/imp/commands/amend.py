@@ -4,7 +4,12 @@ from imp import ai, console, git, prompts
 
 
 def amend ():
-   """Amend last commit with a new AI-generated message."""
+   """Amend last commit with a new AI-generated message.
+
+   Stages any uncommitted changes, regenerates the commit message from the
+   full diff, and amends the previous commit. You can review, edit, or
+   cancel the new message before it's applied.
+   """
 
    git.require ()
 
@@ -41,7 +46,11 @@ def amend ():
    choice = console.review (msg)
 
    if choice == "Edit":
-      git.commit (msg, edit=True, amend=True)
+      msg = console.edit (msg)
+      if not msg.strip ():
+         console.muted ("Empty message, cancelled")
+         raise typer.Exit (0)
+      git.commit (msg, amend=True)
    elif choice == "Yes":
       git.commit (msg, amend=True)
    else:

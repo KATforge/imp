@@ -251,6 +251,110 @@ class TestUnstage:
       assert git.diff (staged=True) == ""
 
 
+class TestMerge:
+
+   def test_no_ff_creates_merge_commit (self, repo):
+      subprocess.run (
+         [ "git", "checkout", "-b", "feat/merge-me" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      (repo / "feature.txt").write_text ("feature\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+      subprocess.run (
+         [ "git", "commit", "-m", "feat: add feature" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      subprocess.run (
+         [ "git", "checkout", "main" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+
+      result = git.merge ("feat/merge-me", no_ff=True)
+
+      assert result is True
+      log = subprocess.run (
+         [ "git", "log", "-1", "--format=%s" ],
+         cwd=repo, capture_output=True, text=True,
+      )
+      assert "Merge branch" in log.stdout
+
+   def test_returns_false_on_conflict (self, repo):
+      (repo / "file.txt").write_text ("main version\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+      subprocess.run (
+         [ "git", "commit", "-m", "main change" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+
+      subprocess.run (
+         [ "git", "checkout", "-b", "feat/conflict", "HEAD~1" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      (repo / "file.txt").write_text ("branch version\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+      subprocess.run (
+         [ "git", "commit", "-m", "branch change" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+
+      subprocess.run (
+         [ "git", "checkout", "main" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+
+      result = git.merge ("feat/conflict", no_ff=True)
+
+      assert result is False
+
+      subprocess.run (
+         [ "git", "merge", "--abort" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+
+
+class TestIsMerged:
+
+   def test_returns_true_when_ancestor (self, repo):
+      subprocess.run (
+         [ "git", "checkout", "-b", "feat/done" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      (repo / "done.txt").write_text ("done\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+      subprocess.run (
+         [ "git", "commit", "-m", "feat: done" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      subprocess.run (
+         [ "git", "checkout", "main" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      subprocess.run (
+         [ "git", "merge", "--no-ff", "feat/done" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+
+      assert git.is_merged ("feat/done", "main") is True
+
+   def test_returns_false_when_not_merged (self, repo):
+      subprocess.run (
+         [ "git", "checkout", "-b", "feat/pending" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      (repo / "pending.txt").write_text ("pending\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+      subprocess.run (
+         [ "git", "commit", "-m", "feat: pending" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+      subprocess.run (
+         [ "git", "checkout", "main" ],
+         cwd=repo, check=True, capture_output=True,
+      )
+
+      assert git.is_merged ("feat/pending", "main") is False
+
+
 class TestBranchesMergedLstrip:
 
    def test_branch_starting_with_star_or_space (self, repo):

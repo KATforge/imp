@@ -18,7 +18,12 @@ def _file_style (code: str) -> str:
 
 
 def status ():
-   """Show repository overview."""
+   """Show repository overview.
+
+   Displays the current branch, file changes with line-level stats,
+   commits since the last tag, worktrees, and the last release version.
+   Suggests a next action based on the current state.
+   """
 
    git.require ()
 
@@ -47,7 +52,7 @@ def status ():
          if len (line) < 4:
             continue
          code = line [:2]
-         path = line [3:]
+         path = line [2:].lstrip (" ")
          style = _file_style (code)
 
          stat_str = ""

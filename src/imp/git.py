@@ -120,10 +120,8 @@ def branches_merged (base: str) -> list [str]:
    return merged
 
 
-def commit (msg: str, edit: bool = False, amend: bool = False):
+def commit (msg: str, amend: bool = False):
    args = [ "commit", "-m", msg ]
-   if edit:
-      args.insert (1, "-e")
    if amend:
       args.insert (1, "--amend")
 
@@ -257,6 +255,20 @@ def push (
    elif ref:
       args.extend ([ "origin", ref ])
    _run (*args)
+
+
+def merge (ref: str, no_ff: bool = False) -> bool:
+   args = [ "merge" ]
+   if no_ff:
+      args.append ("--no-ff")
+   args.append (ref)
+   result = _run (*args, check=False)
+   return result.returncode == 0
+
+
+def is_merged (branch_name: str, into: str) -> bool:
+   result = _run ("merge-base", "--is-ancestor", branch_name, into, check=False)
+   return result.returncode == 0
 
 
 def pull ():

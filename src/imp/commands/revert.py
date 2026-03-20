@@ -8,7 +8,13 @@ from imp import ai, console, git, prompts
 def revert (
    ref: Optional [str] = typer.Argument (None, help="Commit hash to revert"),
 ):
-   """Safely revert a pushed commit."""
+   """Safely revert a pushed commit.
+
+   Pass a commit hash, or omit it to pick from the last 10 commits
+   interactively. Shows the changes that will be undone, then uses AI to
+   generate a revert commit message that you can review or edit before
+   committing.
+   """
 
    git.require ()
 
@@ -61,7 +67,12 @@ def revert (
    choice = console.review (msg)
 
    if choice == "Edit":
-      git.commit (msg, edit=True)
+      msg = console.edit (msg)
+      if not msg.strip ():
+         git.revert_abort ()
+         console.muted ("Empty message, cancelled")
+         raise typer.Exit (0)
+      git.commit (msg)
    elif choice == "Yes":
       git.commit (msg)
    else:

@@ -10,7 +10,12 @@ from imp import ai, console, git, prompts, validate
 def fix (
    issue: int = typer.Argument (..., help="GitHub issue number"),
 ):
-   """Create a branch from a GitHub issue."""
+   """Create a branch from a GitHub issue.
+
+   Fetches the issue title and body from GitHub using the gh CLI, then
+   uses AI to generate a branch name. After creation, displays the issue
+   context so you can start working immediately.
+   """
 
    git.require ()
 
@@ -31,8 +36,8 @@ def fix (
          check=True,
       )
       data = json.loads (result.stdout)
-   except Exception:
-      console.err (f"Could not fetch issue #{issue}")
+   except Exception as e:
+      console.err (f"Could not fetch issue #{issue}: {e}")
       raise typer.Exit (1)
 
    title = data.get ("title", "")

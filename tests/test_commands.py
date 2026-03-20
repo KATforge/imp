@@ -7,6 +7,7 @@ from imp import ai, console, git
 from imp.commands import branch as branch_cmd
 from imp.commands import commit as commit_cmd
 from imp.commands import review as review_cmd
+from imp.commands import status as status_cmd
 
 
 class TestCommitCommand:
@@ -133,3 +134,33 @@ class TestReviewCommand:
    def test_review_no_changes (self, repo):
       with pytest.raises (typer.Exit):
          review_cmd.review ()
+
+
+class TestStatusParsing:
+
+   def test_path_not_truncated (self, repo):
+      """Regression: line[2:].lstrip(' ') must not strip path characters."""
+
+      (repo / "settings.py").write_text ("CONFIG = True\n")
+
+      raw = git.status_short ()
+      for line in raw.splitlines ():
+         if len (line) < 4:
+            continue
+         path = line [2:].lstrip (" ")
+         assert path == "settings.py", f"Path was truncated to '{path}'"
+
+   def test_modified_path_preserved (self, repo):
+      """Paths starting with space-like chars survive lstrip(' ')."""
+
+      (repo / "  spaced.txt").write_text ("edge case\n")
+
+      raw = git.status_short ()
+      found = False
+      for line in raw.splitlines ():
+         if len (line) < 4:
+            continue
+         path = line [2:].lstrip (" ")
+         if "spaced.txt" in path:
+            found = True
+      assert found, "File with leading spaces not found in status"

@@ -8,7 +8,12 @@ from imp import ai, console, git, prompts, validate
 def branch (
    description: Optional [list [str]] = typer.Argument (None, help="Branch description"),
 ):
-   """Create or switch branches. No args: interactive picker."""
+   """Create or switch branches. No args: interactive picker.
+
+   With arguments, uses AI to generate a clean branch name from your
+   description. Without arguments, shows local branches with their age
+   and lets you pick one to switch to.
+   """
 
    git.require ()
 

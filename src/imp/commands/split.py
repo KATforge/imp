@@ -68,7 +68,13 @@ def _validate_response (response: str, all_files: list [str]) -> list [dict] | N
 
 
 def split ():
-   """Group dirty files into logical commits via AI."""
+   """Group dirty files into logical commits via AI.
+
+   Analyzes all changed files and uses AI to partition them into logical
+   groups, each with its own Conventional Commits message. Commits each
+   group sequentially. Rolls back if any commit fails. Requires at least
+   two changed files.
+   """
 
    git.require ()
 
@@ -94,11 +100,7 @@ def split ():
    file_diffs = ai.truncate (file_diffs)
    b = git.branch ()
 
-   response = console.spin (
-      "Analyzing changes...",
-      ai.smart,
-      prompts.split (file_diffs, b),
-   )
+   response = ai.smart (prompts.split (file_diffs, b))
    response = re.sub (r"^```\w*\n?", "", response, flags=re.MULTILINE)
    response = re.sub (r"\n?```$", "", response.strip ())
 
@@ -106,11 +108,7 @@ def split ():
 
    if groups is None:
       console.warn ("Retrying...")
-      response = console.spin (
-         "Re-analyzing...",
-         ai.smart,
-         prompts.split (file_diffs, b),
-      )
+      response = ai.smart (prompts.split (file_diffs, b))
       response = re.sub (r"^```\w*\n?", "", response, flags=re.MULTILINE)
       response = re.sub (r"\n?```$", "", response.strip ())
       groups = _validate_response (response, files)
@@ -145,11 +143,11 @@ def split ():
          git.add (g ["files"])
          git.commit (g ["message"])
          console.success (f"Group {i + 1}: {g ['message']}")
-   except Exception:
+   except Exception as e:
+      console.err (f"Split failed: {e}")
       console.warn ("Rolling back...")
       git.reset (original_head, soft=True)
       git.unstage ()
-      console.err ("Split failed")
       raise typer.Exit (1)
 
    console.hint ("imp log to review")

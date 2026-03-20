@@ -9,7 +9,12 @@ def log (
    count: int = typer.Option (20, "-n", help="Number of commits"),
    ref: Optional [str] = typer.Argument (None, help="Branch or commit ref"),
 ):
-   """Show pretty commit graph."""
+   """Show pretty commit graph.
+
+   Displays a decorated commit graph with branch topology. Defaults to
+   the last 20 commits; use -n to adjust. Optionally pass a branch or
+   ref to view its history instead of the current branch.
+   """
 
    git.require ()
 

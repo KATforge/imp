@@ -34,7 +34,13 @@ def _check (name: str, cmd: str, url: str, required: bool = True) -> bool:
 
 
 def doctor ():
-   """Check tools and configuration."""
+   """Check tools and configuration.
+
+   Verifies that required (git) and optional (claude, ollama, gh) tools are
+   installed, shows their versions, and confirms at least one AI provider is
+   available. Also displays the active provider and model settings from
+   IMP_AI_PROVIDER, IMP_AI_MODEL_FAST, and IMP_AI_MODEL_SMART.
+   """
 
    console.header ("Doctor")
 

@@ -2,7 +2,12 @@ from imp import console
 
 
 def help ():
-   """Show workflow guide and common commands."""
+   """Show workflow guide and common commands.
+
+   Prints a quick-reference of all imp commands organized by workflow
+   phase (starting, working, syncing, shipping) with common flow
+   examples for solo, feature-branch, and hotfix patterns.
+   """
 
    console.header ("imp workflow")
 

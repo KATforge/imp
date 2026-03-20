@@ -4,7 +4,12 @@ from imp import console, git
 
 
 def sync ():
-   """Pull, rebase, and push current branch."""
+   """Pull, rebase, and push current branch.
+
+   Fetches from origin, rebases local commits on top of upstream changes,
+   and offers to push. Requires a clean working tree and an upstream
+   tracking branch. Aborts cleanly if the rebase fails.
+   """
 
    git.require ()
    git.require_clean ("imp commit first")

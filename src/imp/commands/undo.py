@@ -8,7 +8,12 @@ from imp import console, git
 def undo (
    count: Optional [int] = typer.Argument (1, help="Number of commits to undo"),
 ):
-   """Undo last N commits, keeping changes staged."""
+   """Undo last N commits, keeping changes staged.
+
+   Soft-resets HEAD back by N commits so the changes remain staged and
+   ready to recommit. Warns if any of the commits have already been
+   pushed to the remote.
+   """
 
    git.require ()
 

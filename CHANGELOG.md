@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.12] - 2026-03-20
+
+### Added
+- Overhaul done to merge locally and delete branch
+
+### Changed
+- Expand command docstrings with behavior descriptions
+- Replace git edit flag with interactive console.edit
+
+### Fixed
+- Include exception details in error messages
+- Parse status file paths with lstrip instead of fixed index
+
 ## [0.0.11] - 2026-03-15
 
 ### Added

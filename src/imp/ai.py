@@ -52,8 +52,8 @@ def _ollama (prompt: str, model: str) -> str:
       with urllib.request.urlopen (req, timeout=30) as resp:
          body = json.loads (resp.read ())
          return body.get ("response", "")
-   except Exception:
-      console.err ("ollama request failed")
+   except Exception as e:
+      console.err (f"ollama request failed: {e}")
       raise typer.Exit (1)
 
 

@@ -9,7 +9,13 @@ from imp import console, git, version
 
 
 def release ():
-   """Squash, changelog, tag, and push a release."""
+   """Squash, changelog, tag, and push a release.
+
+   Collects commits since the last tag, lets you pick a semver bump,
+   generates a changelog entry, squashes unpushed commits into one, tags
+   the release, and optionally pushes with a GitHub release. Rolls back
+   automatically if anything fails.
+   """
 
    git.require ()
    git.require_clean ("imp commit first")
@@ -198,7 +204,8 @@ def release ():
       git.tag (f"v{new_version}")
       console.success (f"Tagged v{new_version}")
 
-   except Exception:
+   except Exception as e:
+      console.err (f"Release failed: {e}")
       rollback ()
       raise typer.Exit (1)
 
@@ -232,8 +239,8 @@ def release ():
                console.success ("Created GitHub release")
             except subprocess.CalledProcessError:
                console.muted ("GitHub release skipped (gh auth or repo issue)")
-      except Exception:
-         console.err ("Push failed")
+      except Exception as e:
+         console.err (f"Push failed: {e}")
          raise typer.Exit (1)
 
    console.hint ("make changes, then imp commit")
