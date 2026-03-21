@@ -5,7 +5,25 @@ import typer
 
 from imp import ai, console, git, prompts
 
-def pr ():
+
+def _parse_response (content: str) -> tuple [str, str]:
+   title = ""
+   for line in content.splitlines ():
+      if line.startswith ("TITLE:"):
+         title = line [6:].strip ()
+         break
+
+   description = ""
+   parts = content.split ("DESCRIPTION:", 1)
+   if len (parts) > 1:
+      description = parts [1].strip ()
+
+   return title, description
+
+
+def pr (
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+):
    """Create a GitHub pull request with AI-generated description.
 
    Diffs the current branch against the base branch, then uses AI to
@@ -47,19 +65,10 @@ def pr ():
    pr_content = console.spin (
       "Generating PR...",
       ai.smart,
-      prompts.pr (b, log, d),
+      prompts.pr (b, log, d, whisper),
    )
 
-   title = ""
-   description = ""
-   for line in pr_content.splitlines ():
-      if line.startswith ("TITLE:"):
-         title = line [6:].strip ()
-         break
-
-   desc_parts = pr_content.split ("DESCRIPTION:", 1)
-   if len (desc_parts) > 1:
-      description = desc_parts [1].strip ()
+   title, description = _parse_response (pr_content)
 
    if not title:
       console.warn ("Could not parse title, using branch name")
@@ -104,7 +113,7 @@ def pr ():
       pr_url = result.stdout.strip ()
    except subprocess.CalledProcessError:
       console.err ("Failed to create PR")
-      raise typer.Exit (1)
+      raise typer.Exit (1) from None
 
    console.out.print ()
    console.success ("Created PR")

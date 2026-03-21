@@ -1,12 +1,10 @@
-from typing import Optional
-
 import typer
 
 from imp import console, git
 
 
 def undo (
-   count: Optional [int] = typer.Argument (1, help="Number of commits to undo"),
+   count: int | None = typer.Argument (1, help="Number of commits to undo"),
 ):
    """Undo last N commits, keeping changes staged.
 

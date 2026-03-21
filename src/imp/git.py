@@ -16,7 +16,7 @@ def _run (*args: str, check: bool = True, timeout: int = 60) -> subprocess.Compl
       )
    except subprocess.TimeoutExpired:
       console.err (f"git {args [0]} timed out")
-      raise typer.Exit (1)
+      raise typer.Exit (1) from None
 
 
 def require ():
@@ -242,7 +242,7 @@ def rebase () -> bool:
 def push (
    force_lease: bool = False,
    set_upstream: bool = False,
-   branch: str = "",
+   target: str = "",
    ref: str = "",
 ):
    args = [ "push" ]
@@ -250,8 +250,8 @@ def push (
       args.append ("--force-with-lease")
    if set_upstream:
       args.extend ([ "-u", "origin" ])
-      if branch:
-         args.append (branch)
+      if target:
+         args.append (target)
    elif ref:
       args.extend ([ "origin", ref ])
    _run (*args)
@@ -305,10 +305,10 @@ def checkout (ref: str, create: bool = False):
    _run (*args)
 
 
-def show (ref: str = "HEAD", format: str = "", stat: bool = False) -> str:
+def show (ref: str = "HEAD", fmt: str = "", stat: bool = False) -> str:
    args = [ "show" ]
-   if format:
-      args.append (f"--format={format}")
+   if fmt:
+      args.append (f"--format={fmt}")
    else:
       args.append ("--format=")
    if stat:
@@ -358,8 +358,8 @@ def repo_root () -> str:
 
 
 def repo_name () -> str:
-   import os
-   return os.path.basename (repo_root ())
+   from pathlib import Path
+   return Path (repo_root ()).name
 
 
 def rev_parse (ref: str) -> str:

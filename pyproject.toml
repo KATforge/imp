@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "imp"
-version = "0.1.0"
+version = "0.0.12"
 description = "AI-powered git workflow CLI"
 readme = "README.md"
 license = "MIT"
@@ -23,3 +23,51 @@ dev = [
 
 [project.scripts]
 imp = "imp.main:app"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+   "F",      # pyflakes
+   "E",      # pycodestyle errors
+   "W",      # pycodestyle warnings
+   "I",      # isort
+   "N",      # pep8-naming
+   "UP",     # pyupgrade
+   "B",      # flake8-bugbear
+   "A",      # flake8-builtins
+   "SIM",    # flake8-simplify
+   "RET",    # flake8-return
+   "ARG",    # flake8-unused-arguments
+   "PTH",    # flake8-use-pathlib
+   "RUF",    # ruff-specific
+]
+ignore = [
+   "A001",   # variable shadows builtin (help command, intentional)
+   "A002",   # argument shadows builtin (typer's `all` param, intentional)
+   "A004",   # import shadows builtin (help command, intentional)
+   "A005",   # module shadows stdlib (imp is deprecated, intentional name)
+   "B008",   # function call in default arg (typer convention)
+   "E201",   # whitespace after '(' (intentional style)
+   "E202",   # whitespace before ')' (intentional style)
+   "E211",   # whitespace before '(' (intentional style)
+   "E231",   # missing whitespace after ':' (intentional style)
+   "E251",   # unexpected spaces around keyword / parameter default (intentional style)
+   "E271",   # multiple spaces after keyword (intentional style)
+   "ARG001", # unused function argument (typer convention)
+   "ARG002", # unused method argument (typer/pytest convention)
+   "ARG005", # unused lambda argument (monkeypatch lambdas)
+   "RET505", # unnecessary elif after return (sometimes clearer)
+   "SIM102", # nested if (sometimes clearer than combined condition)
+   "SIM108", # ternary less readable for multi-line calls
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+   "ARG",    # unused arguments common in fixtures
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["imp"]

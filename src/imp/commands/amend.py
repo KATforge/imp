@@ -3,7 +3,9 @@ import typer
 from imp import ai, console, git, prompts
 
 
-def amend ():
+def amend (
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+):
    """Amend last commit with a new AI-generated message.
 
    Stages any uncommitted changes, regenerates the commit message from the
@@ -21,7 +23,7 @@ def amend ():
       console.hint ("imp commit first")
       raise typer.Exit (1)
 
-   last_msg = git.show ("HEAD", format="%s")
+   last_msg = git.show ("HEAD", fmt="%s")
 
    if total == 1:
       combined = git.show ("HEAD")
@@ -35,7 +37,7 @@ def amend ():
       console.err ("Nothing to amend")
       raise typer.Exit (1)
 
-   msg = ai.commit_message (prompts.commit (combined))
+   msg = ai.commit_message (prompts.commit (combined, whisper=whisper))
 
    console.label ("Previous")
    console.item (last_msg)

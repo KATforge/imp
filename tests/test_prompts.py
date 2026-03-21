@@ -21,6 +21,14 @@ class TestCommit:
       result = prompts.commit ("diff", "feat/add-login")
       assert "Include ticket" not in result
 
+   def test_whisper (self):
+      result = prompts.commit ("diff", whisper="use IMP-99999")
+      assert "User hint: use IMP-99999" in result
+
+   def test_no_whisper (self):
+      result = prompts.commit ("diff")
+      assert "User hint" not in result
+
 
 class TestReview:
 
@@ -33,6 +41,10 @@ class TestReview:
       assert "Bugs" in result
       assert "Security" in result
 
+   def test_whisper (self):
+      result = prompts.review ("diff", whisper="focus on SQL injection")
+      assert "User hint: focus on SQL injection" in result
+
 
 class TestBranchName:
 
@@ -43,6 +55,10 @@ class TestBranchName:
    def test_contains_format (self):
       result = prompts.branch_name ("desc")
       assert "type/short-name" in result
+
+   def test_whisper (self):
+      result = prompts.branch_name ("desc", whisper="use feat/ prefix")
+      assert "User hint: use feat/ prefix" in result
 
 
 class TestRevert:

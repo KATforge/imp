@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.13] - 2026-03-20
+
+### Added
+- Add whisper option to AI commands
+
 ## [0.0.12] - 2026-03-20
 
 ### Added

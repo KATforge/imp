@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 
 from imp import console, git
@@ -7,7 +5,7 @@ from imp import console, git
 
 def log (
    count: int = typer.Option (20, "-n", help="Number of commits"),
-   ref: Optional [str] = typer.Argument (None, help="Branch or commit ref"),
+   ref: str | None = typer.Argument (None, help="Branch or commit ref"),
 ):
    """Show pretty commit graph.
 

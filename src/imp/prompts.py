@@ -10,10 +10,16 @@ def _ticket_rule (branch: str) -> str:
    return f'- Include ticket {ticket} after the type, e.g. "fix: {ticket} message"\n'
 
 
-def commit (diff: str, branch: str = "") -> str:
+def _whisper (text: str) -> str:
+   if not text:
+      return ""
+   return f"\nUser hint: {text}\n"
+
+
+def commit (diff: str, branch: str = "", whisper: str = "") -> str:
    return f"""\
 Generate a Conventional Commits message for this diff.
-
+{_whisper (whisper)}\
 Format: type: message
 Types: feat, fix, refactor, build, chore, docs, test, style, perf, ci
 {_ticket_rule (branch)}
@@ -32,10 +38,10 @@ Diff:
 Output ONLY the commit message, nothing else:"""
 
 
-def review (diff: str) -> str:
+def review (diff: str, whisper: str = "") -> str:
    return f"""\
 Review this code diff. Be concise and actionable.
-
+{_whisper (whisper)}\
 Check for:
 - Bugs or logic errors
 - Security issues
@@ -51,10 +57,10 @@ Diff:
 Output ONLY the review:"""
 
 
-def branch_name (description: str) -> str:
+def branch_name (description: str, whisper: str = "") -> str:
    return f"""\
 Suggest a git branch name for: {description}
-
+{_whisper (whisper)}\
 Rules:
 - Lowercase, hyphens only, no spaces
 - Max 30 chars
@@ -64,10 +70,10 @@ Rules:
 Output ONLY the branch name:"""
 
 
-def revert (commit_msg: str, diff: str) -> str:
+def revert (commit_msg: str, diff: str, whisper: str = "") -> str:
    return f"""\
 Generate a commit message for reverting this change. Start with 'Revert:'. Max 50 chars:
-
+{_whisper (whisper)}\
 Original: {commit_msg}
 
 Changes reverted:
@@ -76,10 +82,10 @@ Changes reverted:
 Output ONLY the commit message:"""
 
 
-def fix (title: str, body: str) -> str:
+def fix (title: str, body: str, whisper: str = "") -> str:
    return f"""\
 Suggest a git branch name for fixing this issue:
-
+{_whisper (whisper)}\
 Title: {title}
 Description: {body}
 
@@ -92,10 +98,10 @@ Rules:
 Output ONLY the branch name:"""
 
 
-def pr (branch: str, log: str, diff: str) -> str:
+def pr (branch: str, log: str, diff: str, whisper: str = "") -> str:
    return f"""\
 Generate a GitHub pull request title and description.
-
+{_whisper (whisper)}\
 Branch: {branch}
 Commits:
 {log}
@@ -116,10 +122,10 @@ DESCRIPTION:
 Output ONLY in this format:"""
 
 
-def split (file_diffs: str, branch: str = "") -> str:
+def split (file_diffs: str, branch: str = "", whisper: str = "") -> str:
    return f"""\
 Group these changed files into logical commits. Each group = one commit.
-
+{_whisper (whisper)}\
 Format: type: message
 Types: feat, fix, refactor, build, chore, docs, test, style, perf, ci
 {_ticket_rule (branch)}

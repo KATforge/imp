@@ -4,19 +4,19 @@ import typer
 from imp import ai
 
 
-class TestSanitize:
+class TestOneline:
 
    def test_strips_newlines (self):
-      assert ai.sanitize ("hello\nworld\n") == "helloworld"
+      assert ai.oneline ("hello\nworld\n") == "helloworld"
 
    def test_strips_whitespace (self):
-      assert ai.sanitize ("  hello  ") == "hello"
+      assert ai.oneline ("  hello  ") == "hello"
 
    def test_empty (self):
-      assert ai.sanitize ("") == ""
+      assert ai.oneline ("") == ""
 
    def test_only_newlines (self):
-      assert ai.sanitize ("\n\n\n") == ""
+      assert ai.oneline ("\n\n\n") == ""
 
 
 class TestTruncate:

@@ -17,10 +17,7 @@ def commit (msg: str) -> bool:
       return False
 
    desc = subject.split (": ", 1) [1]
-   if desc [0].isupper () and not _TICKET_RE.match (desc):
-      return False
-
-   return True
+   return not (desc [0].isupper () and not _TICKET_RE.match (desc))
 
 
 def branch (name: str) -> bool:

@@ -5,6 +5,7 @@ from imp import ai, console, git, prompts
 
 def commit (
    all: bool = typer.Option (False, "--all", "-a", help="Stage all changes first"),
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Generate an AI commit message for staged changes.
 
@@ -27,7 +28,7 @@ def commit (
    console.header ("Commit")
 
    b = git.branch ()
-   msg = ai.commit_message (prompts.commit (d, b))
+   msg = ai.commit_message (prompts.commit (d, b, whisper))
 
    choice = console.review (msg)
 

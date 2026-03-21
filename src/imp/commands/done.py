@@ -1,12 +1,10 @@
-from typing import Optional
-
 import typer
 
 from imp import console, git
 
 
 def done (
-   target: Optional [str] = typer.Argument (None, help="Branch to merge into"),
+   target: str | None = typer.Argument (None, help="Branch to merge into"),
 ):
    """Merge feature branch into target, then clean up.
 
@@ -50,7 +48,7 @@ def done (
    console.item (f"Switch to {base}")
 
    if already_merged:
-      console.item (f"Pull latest (already merged remotely)")
+      console.item ("Pull latest (already merged remotely)")
    else:
       console.item (f"Merge {feature} into {base} (--no-ff)")
 
@@ -75,8 +73,8 @@ def done (
          git.pull ()
 
       if not git.merge (feature, no_ff=True):
-         console.err (f"Merge conflict")
-         console.hint (f"resolve conflicts, then: git merge --continue")
+         console.err ("Merge conflict")
+         console.hint ("resolve conflicts, then: git merge --continue")
          raise typer.Exit (1)
 
       console.success (f"Merged {feature} into {base}")

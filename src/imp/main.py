@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from rich.console import Console
 
@@ -22,7 +20,6 @@ from imp.commands.status import status
 from imp.commands.sync import sync
 from imp.commands.undo import undo
 
-
 app = typer.Typer (
    name="imp",
    no_args_is_help=True,
@@ -39,7 +36,7 @@ def _version (value: bool):
 
 @app.callback ()
 def main (
-   version: Optional [bool] = typer.Option (
+   version: bool | None = typer.Option (
       None,
       "--version", "-v",
       help="Show version and exit",

@@ -1,7 +1,10 @@
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
+
+from imp import ai
 
 
 @pytest.fixture
@@ -45,7 +48,7 @@ def repo (tmp_path):
       capture_output=True,
    )
 
-   old_cwd = os.getcwd ()
+   old_cwd = Path.cwd ()
    os.chdir (tmp_path)
    yield tmp_path
    os.chdir (old_cwd)
@@ -56,15 +59,6 @@ def mock_ai (monkeypatch):
    """Return a function that sets a canned AI response."""
 
    def _mock (response: str):
-      fake_bin = os.path.join (os.environ.get ("TMPDIR", "/tmp"), "imp-test-bin")
-      os.makedirs (fake_bin, exist_ok=True)
-
-      script = os.path.join (fake_bin, "claude")
-      with open (script, "w") as f:
-         f.write (f"#!/bin/bash\nprintf '%s\\n' {repr (response)}\n")
-      os.chmod (script, 0o755)
-
-      monkeypatch.setenv ("PATH", f"{fake_bin}:{os.environ ['PATH']}")
-      monkeypatch.setenv ("IMP_AI_PROVIDER", "claude")
+      monkeypatch.setattr (ai, "_call", lambda prompt, model: response)
 
    return _mock

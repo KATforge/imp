@@ -9,6 +9,7 @@ from imp import ai, console, git, prompts, validate
 
 def fix (
    issue: int = typer.Argument (..., help="GitHub issue number"),
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Create a branch from a GitHub issue.
 
@@ -38,7 +39,7 @@ def fix (
       data = json.loads (result.stdout)
    except Exception as e:
       console.err (f"Could not fetch issue #{issue}: {e}")
-      raise typer.Exit (1)
+      raise typer.Exit (1) from None
 
    title = data.get ("title", "")
    body = (data.get ("body", "") or "") [:500]
@@ -47,8 +48,8 @@ def fix (
    console.item (f"#{issue}: {title}")
    console.out.print ()
 
-   name = ai.fast (prompts.fix (title, body))
-   name = ai.sanitize (name)
+   name = ai.fast (prompts.fix (title, body, whisper))
+   name = ai.oneline (name)
 
    if not validate.branch (name):
       console.err (f"Invalid branch name: {name}")

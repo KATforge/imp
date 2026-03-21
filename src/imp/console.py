@@ -1,9 +1,11 @@
-import os
 import subprocess
 import tempfile
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, TypeVar
 
 import questionary
+import typer
 from prompt_toolkit.styles import Style as PTStyle
 from rich.console import Console
 from rich.markdown import Markdown
@@ -76,6 +78,11 @@ def err (msg: str):
    ))
 
 
+def fatal (msg: str):
+   err (msg)
+   raise typer.Exit (1)
+
+
 def warn (msg: str):
    out.print (f"[warning]{msg}[/warning]")
 
@@ -126,9 +133,9 @@ def choose (title: str, options: list [str]) -> str:
    return result
 
 
-def input (prompt: str, placeholder: str = "") -> str:
+def prompt (label: str, placeholder: str = "") -> str:
    result = questionary.text (
-      prompt,
+      label,
       default=placeholder,
       style=_pt_style,
       qmark="▸",
@@ -138,6 +145,8 @@ def input (prompt: str, placeholder: str = "") -> str:
 
 
 def edit (text: str) -> str:
+   import os
+
    editor = os.environ.get ("EDITOR", "vim")
    with tempfile.NamedTemporaryFile (
       mode="w",
@@ -145,14 +154,13 @@ def edit (text: str) -> str:
       delete=False,
    ) as f:
       f.write (text)
-      path = f.name
+      path = Path (f.name)
 
    try:
-      subprocess.run ([ editor, path ], check=True)
-      with open (path) as f:
-         return f.read ()
+      subprocess.run ([ editor, str (path) ], check=True)
+      return path.read_text ()
    finally:
-      os.unlink (path)
+      path.unlink ()
 
 
 def spin (title: str, fn: Callable [..., T], *args: Any) -> T:

@@ -3,7 +3,9 @@ import typer
 from imp import ai, console, git, prompts
 
 
-def review ():
+def review (
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+):
    """AI code review of current changes.
 
    Sends staged changes (or unstaged if nothing is staged) to the smart
@@ -32,7 +34,7 @@ def review ():
    result = console.spin (
       f"Reviewing {context}...",
       ai.smart,
-      prompts.review (d),
+      prompts.review (d, whisper),
    )
 
    console.divider ()

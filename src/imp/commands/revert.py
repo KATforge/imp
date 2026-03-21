@@ -1,12 +1,11 @@
-from typing import Optional
-
 import typer
 
 from imp import ai, console, git, prompts
 
 
 def revert (
-   ref: Optional [str] = typer.Argument (None, help="Commit hash to revert"),
+   ref: str | None = typer.Argument (None, help="Commit hash to revert"),
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Safely revert a pushed commit.
 
@@ -38,7 +37,7 @@ def revert (
       console.err (f"Invalid commit: {ref}")
       raise typer.Exit (1)
 
-   commit_msg = git.show (ref, format="%s")
+   commit_msg = git.show (ref, fmt="%s")
    commit_hash = git.rev_parse_short (ref)
 
    console.label ("Reverting")
@@ -59,8 +58,8 @@ def revert (
 
    d = git.diff_range (f"{ref}~1..{ref}", max_lines=500)
 
-   msg = ai.fast (prompts.revert (commit_msg, d))
-   msg = ai.sanitize (msg)
+   msg = ai.fast (prompts.revert (commit_msg, d, whisper))
+   msg = ai.oneline (msg)
 
    git.revert_commit (ref, no_commit=True)
 

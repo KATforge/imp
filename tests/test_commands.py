@@ -7,7 +7,6 @@ from imp import ai, console, git
 from imp.commands import branch as branch_cmd
 from imp.commands import commit as commit_cmd
 from imp.commands import review as review_cmd
-from imp.commands import status as status_cmd
 
 
 class TestCommitCommand:

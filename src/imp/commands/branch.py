@@ -1,12 +1,11 @@
-from typing import Optional
-
 import typer
 
 from imp import ai, console, git, prompts, validate
 
 
 def branch (
-   description: Optional [list [str]] = typer.Argument (None, help="Branch description"),
+   description: list [str] | None = typer.Argument (None, help="Branch description"),
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Create or switch branches. No args: interactive picker.
 
@@ -20,7 +19,7 @@ def branch (
    if not description:
       _switch ()
    else:
-      _create (" ".join (description))
+      _create (" ".join (description), whisper)
 
 
 def _switch ():
@@ -49,11 +48,11 @@ def _switch ():
    console.success (f"Switched to {target}")
 
 
-def _create (desc: str):
+def _create (desc: str, whisper: str = ""):
    console.header ("Branch")
 
-   name = ai.fast (prompts.branch_name (desc))
-   name = ai.sanitize (name)
+   name = ai.fast (prompts.branch_name (desc, whisper))
+   name = ai.oneline (name)
 
    if not validate.branch (name):
       console.err (f"Invalid branch name: {name}")

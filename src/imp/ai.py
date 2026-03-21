@@ -54,7 +54,7 @@ def _ollama (prompt: str, model: str) -> str:
          return body.get ("response", "")
    except Exception as e:
       console.err (f"ollama request failed: {e}")
-      raise typer.Exit (1)
+      raise typer.Exit (1) from None
 
 
 def _call (prompt: str, model: str) -> str:
@@ -85,7 +85,7 @@ def smart (prompt: str) -> str:
    return result
 
 
-def sanitize (text: str) -> str:
+def oneline (text: str) -> str:
    return text.replace ("\n", "").strip ()
 
 
@@ -100,12 +100,12 @@ def commit_message (prompt: str) -> str:
    from imp import validate
 
    msg = fast (prompt)
-   msg = sanitize (msg)
+   msg = oneline (msg)
 
    if not validate.commit (msg):
       console.warn ("Retrying (invalid format)...")
       msg = fast (prompt)
-      msg = sanitize (msg)
+      msg = oneline (msg)
 
       if not validate.commit (msg):
          console.err ("AI output not in Conventional Commits format")

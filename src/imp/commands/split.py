@@ -1,6 +1,6 @@
 import json
-import os
 import re
+from pathlib import Path
 
 import typer
 
@@ -12,11 +12,10 @@ def _build_file_diffs (root: str, files: list [str]) -> str:
    for f in files:
       d = git.diff_file (f)
 
-      full = os.path.join (root, f)
-      if not d and os.path.isfile (full):
+      full = Path (root) / f
+      if not d and full.is_file ():
          try:
-            with open (full) as fh:
-               lines = fh.readlines () [:30]
+            lines = full.read_text ().splitlines (keepends=True) [:30]
             d = "".join ("+" + line for line in lines)
          except Exception:
             pass
@@ -67,7 +66,9 @@ def _validate_response (response: str, all_files: list [str]) -> list [dict] | N
    return groups
 
 
-def split ():
+def split (
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+):
    """Group dirty files into logical commits via AI.
 
    Analyzes all changed files and uses AI to partition them into logical
@@ -100,7 +101,7 @@ def split ():
    file_diffs = ai.truncate (file_diffs)
    b = git.branch ()
 
-   response = ai.smart (prompts.split (file_diffs, b))
+   response = ai.smart (prompts.split (file_diffs, b, whisper))
    response = re.sub (r"^```\w*\n?", "", response, flags=re.MULTILINE)
    response = re.sub (r"\n?```$", "", response.strip ())
 
@@ -108,7 +109,7 @@ def split ():
 
    if groups is None:
       console.warn ("Retrying...")
-      response = ai.smart (prompts.split (file_diffs, b))
+      response = ai.smart (prompts.split (file_diffs, b, whisper))
       response = re.sub (r"^```\w*\n?", "", response, flags=re.MULTILINE)
       response = re.sub (r"\n?```$", "", response.strip ())
       groups = _validate_response (response, files)
@@ -139,7 +140,7 @@ def split ():
 
    try:
       for i, g in enumerate (groups):
-         git.reset ("HEAD", soft=False)
+         git.reset ("HEAD")
          git.add (g ["files"])
          git.commit (g ["message"])
          console.success (f"Group {i + 1}: {g ['message']}")
@@ -148,6 +149,6 @@ def split ():
       console.warn ("Rolling back...")
       git.reset (original_head, soft=True)
       git.unstage ()
-      raise typer.Exit (1)
+      raise typer.Exit (1) from None
 
    console.hint ("imp log to review")

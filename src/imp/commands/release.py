@@ -1,11 +1,93 @@
-import os
 import shutil
 import subprocess
 from datetime import date
+from pathlib import Path
 
 import typer
 
 from imp import console, git, version
+
+
+def _write_changelog (path: Path, new_entry: str):
+   if path.is_file ():
+      content = path.read_text ()
+
+      lines = content.splitlines (keepends=True)
+      insert_at = None
+      for i, line in enumerate (lines):
+         if line.lstrip ().startswith ("## "):
+            insert_at = i
+            break
+
+      if insert_at is not None:
+         before = "".join (lines [:insert_at])
+         after = "".join (lines [insert_at:])
+         content = before + new_entry + "\n\n" + after
+      else:
+         content = content + "\n" + new_entry + "\n"
+
+      path.write_text (content)
+   else:
+      path.write_text (
+         f"# Changelog\n\n"
+         f"All notable changes to this project will be documented in this file.\n\n"
+         f"{new_entry}\n"
+      )
+
+
+def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) -> bool:
+   can_squash = False
+   if tag:
+      if git.has_upstream ():
+         unpushed = git.log_oneline (rev_range="@{u}..HEAD")
+         if unpushed:
+            can_squash = True
+      else:
+         can_squash = True
+
+   if can_squash:
+      git.reset (tag, soft=True)
+      git.stage (all=True)
+      git.commit (summary)
+      console.success (f"Squashed {count} commits")
+   else:
+      git.add ([ str (changelog_path) ])
+      git.commit (summary)
+      if tag:
+         console.muted ("Commits already pushed, skipped squash")
+
+   return can_squash
+
+
+def _push_release (ver: str, entry: str, can_squash: bool):
+   if git.has_upstream ():
+      if can_squash:
+         git.push (force_lease=True)
+      else:
+         git.push ()
+   else:
+      b = git.branch ()
+      git.push (set_upstream=True, target=b)
+
+   git.push (ref=f"v{ver}")
+   console.success ("Pushed to origin")
+
+   if shutil.which ("gh"):
+      try:
+         subprocess.run (
+            [
+               "gh", "release", "create",
+               f"v{ver}",
+               "--title", f"v{ver}",
+               "--notes", entry,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+         )
+         console.success ("Created GitHub release")
+      except subprocess.CalledProcessError:
+         console.muted ("GitHub release skipped (gh auth or repo issue)")
 
 
 def release ():
@@ -70,7 +152,7 @@ def release ():
    elif choice.startswith ("major"):
       new_version = major_ver
    elif choice == "custom":
-      new_version = console.input ("Version:", patch_ver)
+      new_version = console.prompt ("Version:", patch_ver)
    else:
       console.muted ("Cancelled")
       raise typer.Exit (0)
@@ -125,13 +207,12 @@ def release ():
    new_entry = f"## [{new_version}] - {today}\n\n{entry}"
 
    root = git.repo_root ()
-   changelog_path = os.path.join (root, "CHANGELOG.md")
+   changelog_path = Path (root) / "CHANGELOG.md"
 
    original_head = git.rev_parse ("HEAD")
    original_changelog = ""
-   if os.path.isfile (changelog_path):
-      with open (changelog_path) as f:
-         original_changelog = f.read ()
+   if changelog_path.is_file ():
+      original_changelog = changelog_path.read_text ()
 
    committed = False
 
@@ -142,64 +223,17 @@ def release ():
       if committed:
          git.reset (original_head, hard=True)
       if original_changelog:
-         with open (changelog_path, "w") as f:
-            f.write (original_changelog)
-      elif os.path.isfile (changelog_path):
-         os.unlink (changelog_path)
+         changelog_path.write_text (original_changelog)
+      elif changelog_path.is_file ():
+         changelog_path.unlink ()
       console.err ("Release failed")
 
    try:
-      if os.path.isfile (changelog_path):
-         with open (changelog_path) as f:
-            content = f.read ()
-
-         lines = content.splitlines (keepends=True)
-         insert_at = None
-         for i, line in enumerate (lines):
-            if line.lstrip ().startswith ("## "):
-               insert_at = i
-               break
-
-         if insert_at is not None:
-            before = "".join (lines [:insert_at])
-            after = "".join (lines [insert_at:])
-            content = before + new_entry + "\n\n" + after
-         else:
-            content = content + "\n" + new_entry + "\n"
-
-         with open (changelog_path, "w") as f:
-            f.write (content)
-      else:
-         with open (changelog_path, "w") as f:
-            f.write (
-               f"# Changelog\n\n"
-               f"All notable changes to this project will be documented in this file.\n\n"
-               f"{new_entry}\n"
-            )
-
+      _write_changelog (changelog_path, new_entry)
       console.success ("Updated CHANGELOG.md")
 
-      can_squash = False
-      if tag:
-         if git.has_upstream ():
-            unpushed = git.log_oneline (rev_range="@{u}..HEAD")
-            if unpushed:
-               can_squash = True
-         else:
-            can_squash = True
-
-      if can_squash:
-         git.reset (tag, soft=True)
-         git.stage (all=True)
-         git.commit (summary)
-         committed = True
-         console.success (f"Squashed {count} commits")
-      else:
-         git.add ([ changelog_path ])
-         git.commit (summary)
-         committed = True
-         if tag:
-            console.muted ("Commits already pushed, skipped squash")
+      can_squash = _squash_commits (tag, summary, changelog_path, count)
+      committed = True
 
       git.tag (f"v{new_version}")
       console.success (f"Tagged v{new_version}")
@@ -207,40 +241,13 @@ def release ():
    except Exception as e:
       console.err (f"Release failed: {e}")
       rollback ()
-      raise typer.Exit (1)
+      raise typer.Exit (1) from None
 
    if will_push:
       try:
-         if git.has_upstream ():
-            if can_squash:
-               git.push (force_lease=True)
-            else:
-               git.push ()
-         else:
-            b = git.branch ()
-            git.push (set_upstream=True, branch=b)
-
-         git.push (ref=f"v{new_version}")
-         console.success ("Pushed to origin")
-
-         if shutil.which ("gh"):
-            try:
-               subprocess.run (
-                  [
-                     "gh", "release", "create",
-                     f"v{new_version}",
-                     "--title", f"v{new_version}",
-                     "--notes", entry,
-                  ],
-                  capture_output=True,
-                  text=True,
-                  check=True,
-               )
-               console.success ("Created GitHub release")
-            except subprocess.CalledProcessError:
-               console.muted ("GitHub release skipped (gh auth or repo issue)")
+         _push_release (new_version, entry, can_squash)
       except Exception as e:
          console.err (f"Push failed: {e}")
-         raise typer.Exit (1)
+         raise typer.Exit (1) from None
 
    console.hint ("make changes, then imp commit")
