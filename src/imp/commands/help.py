@@ -44,6 +44,7 @@ def help ():
    console.out.print ("  imp done                                  [muted]# clean up after PR merge[/muted]")
    console.out.print ("  imp clean                                 [muted]# delete merged branches[/muted]")
    console.out.print ("  imp release                               [muted]# squash + changelog + tag + push[/muted]")
+   console.out.print ("  imp ship [level]                           [muted]# commit + release, no prompts[/muted]")
    console.out.print ()
 
    console.divider ()

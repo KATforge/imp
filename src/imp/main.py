@@ -15,6 +15,7 @@ from imp.commands.pr import pr
 from imp.commands.release import release
 from imp.commands.revert import revert
 from imp.commands.review import review
+from imp.commands.ship import ship
 from imp.commands.split import split
 from imp.commands.status import status
 from imp.commands.sync import sync
@@ -60,6 +61,7 @@ app.command () (pr)
 app.command () (release)
 app.command () (revert)
 app.command () (review)
+app.command () (ship)
 app.command () (split)
 app.command () (status)
 app.command () (sync)

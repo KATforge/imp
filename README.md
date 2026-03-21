@@ -2,8 +2,6 @@
    <img src="logo.png" alt="imp" width="200">
 </p>
 
-<h1 align="center">imp</h1>
-
 <p align="center">
    AI-powered git workflow.<br>
    Commit, branch, review, and release without writing commit messages, branch names, or PR descriptions.
@@ -126,6 +124,7 @@ imp release
 | Command | Description |
 |---|---|
 | `imp release` | Squash commits, generate changelog, tag, push, create GitHub release. |
+| `imp ship [level]` | Commit all + release in one shot, no prompts. Default: patch. |
 
 ### Utilities
 
