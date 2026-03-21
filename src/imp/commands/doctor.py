@@ -18,7 +18,7 @@ def _check (name: str, cmd: str, url: str, required: bool = True) -> bool:
             timeout=5,
          )
          version = result.stdout.strip ().splitlines () [0] if result.stdout.strip () else "installed"
-      except Exception:
+      except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
          version = "installed"
       console.success (f"{name} ({version})")
       return True

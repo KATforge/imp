@@ -37,7 +37,7 @@ def fix (
          check=True,
       )
       data = json.loads (result.stdout)
-   except Exception as e:
+   except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as e:
       console.err (f"Could not fetch issue #{issue}: {e}")
       raise typer.Exit (1) from None
 

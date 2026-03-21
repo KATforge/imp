@@ -43,11 +43,11 @@ def changelog_from_commits (subjects: str) -> str:
          kind = match.group (1)
          desc = match.group (3)
       else:
-         desc = line [0].upper () + line [1:] if line else line
+         desc = line [0].upper () + line [1:] if len (line) > 1 else line
          changed.append (f"- {desc}")
          continue
 
-      desc = desc [0].upper () + desc [1:] if desc else desc
+      desc = desc [0].upper () + desc [1:] if len (desc) > 1 else desc
 
       if kind == "feat":
          added.append (f"- {desc}")

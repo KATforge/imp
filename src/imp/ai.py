@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import urllib.error
 import urllib.request
 
 import typer
@@ -52,7 +53,7 @@ def _ollama (prompt: str, model: str) -> str:
       with urllib.request.urlopen (req, timeout=30) as resp:
          body = json.loads (resp.read ())
          return body.get ("response", "")
-   except Exception as e:
+   except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
       console.err (f"ollama request failed: {e}")
       raise typer.Exit (1) from None
 

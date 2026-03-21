@@ -16,7 +16,11 @@ def commit (msg: str) -> bool:
    if not _COMMIT_RE.match (subject):
       return False
 
-   desc = subject.split (": ", 1) [1]
+   parts = subject.split (": ", 1)
+   if len (parts) < 2 or not parts [1]:
+      return False
+
+   desc = parts [1]
    return not (desc [0].isupper () and not _TICKET_RE.match (desc))
 
 

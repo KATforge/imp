@@ -17,7 +17,7 @@ def _build_file_diffs (root: str, files: list [str]) -> str:
          try:
             lines = full.read_text ().splitlines (keepends=True) [:30]
             d = "".join ("+" + line for line in lines)
-         except Exception:
+         except OSError:
             pass
 
       if d:

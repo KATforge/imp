@@ -160,7 +160,7 @@ def edit (text: str) -> str:
       subprocess.run ([ editor, str (path) ], check=True)
       return path.read_text ()
    finally:
-      path.unlink ()
+      path.unlink (missing_ok=True)
 
 
 def spin (title: str, fn: Callable [..., T], *args: Any) -> T:

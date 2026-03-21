@@ -8,6 +8,24 @@ import typer
 from imp import console, git, version
 
 
+def _rollback_release (
+   ver: str,
+   original_head: str,
+   changelog_path: Path,
+   original_changelog: str,
+   committed: bool,
+):
+   console.warn ("Rolling back...")
+   git.tag_delete (f"v{ver}")
+   if committed:
+      git.reset (original_head, hard=True)
+   if original_changelog:
+      changelog_path.write_text (original_changelog)
+   elif changelog_path.is_file ():
+      changelog_path.unlink ()
+   console.err ("Release failed")
+
+
 def _write_changelog (path: Path, new_entry: str):
    if path.is_file ():
       content = path.read_text ()
@@ -216,18 +234,6 @@ def release ():
 
    committed = False
 
-   def rollback ():
-      nonlocal committed
-      console.warn ("Rolling back...")
-      git.tag_delete (f"v{new_version}")
-      if committed:
-         git.reset (original_head, hard=True)
-      if original_changelog:
-         changelog_path.write_text (original_changelog)
-      elif changelog_path.is_file ():
-         changelog_path.unlink ()
-      console.err ("Release failed")
-
    try:
       _write_changelog (changelog_path, new_entry)
       console.success ("Updated CHANGELOG.md")
@@ -238,15 +244,18 @@ def release ():
       git.tag (f"v{new_version}")
       console.success (f"Tagged v{new_version}")
 
-   except Exception as e:
+   except (subprocess.CalledProcessError, OSError) as e:
       console.err (f"Release failed: {e}")
-      rollback ()
+      _rollback_release (
+         new_version, original_head, changelog_path,
+         original_changelog, committed,
+      )
       raise typer.Exit (1) from None
 
    if will_push:
       try:
          _push_release (new_version, entry, can_squash)
-      except Exception as e:
+      except (subprocess.CalledProcessError, OSError) as e:
          console.err (f"Push failed: {e}")
          raise typer.Exit (1) from None
 
