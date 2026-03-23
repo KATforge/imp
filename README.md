@@ -29,11 +29,13 @@ Every command works with or without a network connection (swap Claude for a loca
 
 ## Why
 
-Writing good commit messages, branch names, and PR descriptions slows you down without making your code better. And across a team, everyone formats them differently.
+AI agents can run git for you, but they improvise every time. Imp is opinionated: same format, same workflow, same result, every time.
 
-imp removes that friction and enforces consistency. Every message follows [Conventional Commits](https://www.conventionalcommits.org/), every branch name is clean, every PR has a real description. Your git history reads the same whether one person wrote it or ten.
-
-No new concepts to learn. No workflow to adopt. It's still git underneath. imp just handles the parts you were going to half-ass anyway.
+- **Consistent commits** across your whole team, validated against [Conventional Commits](https://www.conventionalcommits.org/) before anything touches git
+- **One-command releases** that squash, changelog, tag, and push with automatic rollback on failure
+- **Fast and deterministic.** One command, not a conversation. No reasoning, no retries, no surprises.
+- **AI writes the words, Imp controls the workflow.** What gets staged, how it's validated, when it's safe to push.
+- **Works offline** with local models via Ollama. No API key required.
 
 ## Table of Contents
 

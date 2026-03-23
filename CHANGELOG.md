@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.17] - 2026-03-23
+
+### Changed
+- Rewrite why section to emphasize opinionated approach
+
 ## [0.0.16] - 2026-03-23
 
 ### Added
