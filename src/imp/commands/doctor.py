@@ -1,10 +1,9 @@
-import os
 import shutil
 import subprocess
 
 import typer
 
-from imp import console
+from imp import ai, config, console
 
 
 def _check (name: str, cmd: str, url: str, required: bool = True) -> bool:
@@ -39,7 +38,7 @@ def doctor ():
    Verifies that required (git) and optional (claude, ollama, gh) tools are
    installed, shows their versions, and confirms at least one AI provider is
    available. Also displays the active provider and model settings from
-   IMP_AI_PROVIDER, IMP_AI_MODEL_FAST, and IMP_AI_MODEL_SMART.
+   ~/.config/imp/config.json.
    """
 
    console.header ("Doctor")
@@ -59,16 +58,25 @@ def doctor ():
       console.err ("No AI provider found (need claude or ollama)")
       ok = False
 
-   provider = os.environ.get ("IMP_AI_PROVIDER", "")
-   console.muted (f"Provider: {provider or 'claude (default)'}")
+   cfg = config.load ()
+   provider = cfg ["provider"]
+   console.muted (f"Provider: {provider}")
+   console.muted (f"Fast model: {cfg ['model:fast']}")
+   console.muted (f"Smart model: {cfg ['model:smart']}")
+   console.muted (f"Config: {config.path ()}")
 
-   fast = os.environ.get ("IMP_AI_MODEL_FAST", "")
-   if fast:
-      console.muted (f"Fast model: {fast}")
+   console.out.print ()
 
-   smart = os.environ.get ("IMP_AI_MODEL_SMART", "")
-   if smart:
-      console.muted (f"Smart model: {smart}")
+   if has_claude or has_ollama:
+      if console.spin ("Testing AI connection...", ai.ping):
+         console.success ("AI responding")
+      else:
+         console.err ("AI not responding")
+         if provider == "claude":
+            console.hint ("run: claude to authenticate")
+         else:
+            console.hint ("is ollama running? try: ollama serve")
+         ok = False
 
    console.out.print ()
 

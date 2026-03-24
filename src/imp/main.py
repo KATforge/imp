@@ -6,6 +6,7 @@ from imp.commands.amend import amend
 from imp.commands.branch import branch
 from imp.commands.clean import clean
 from imp.commands.commit import commit
+from imp.commands.config import configure
 from imp.commands.doctor import doctor
 from imp.commands.done import done
 from imp.commands.fix import fix
@@ -52,6 +53,7 @@ app.command () (amend)
 app.command () (branch)
 app.command () (clean)
 app.command () (commit)
+app.command ("config") (configure)
 app.command () (doctor)
 app.command () (done)
 app.command () (fix)

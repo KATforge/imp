@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.18] - 2026-03-24
+
+### Added
+- Add interactive config management
+
 ## [0.0.17] - 2026-03-23
 
 ### Changed

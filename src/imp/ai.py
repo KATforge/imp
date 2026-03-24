@@ -1,16 +1,11 @@
 import json
-import os
 import subprocess
 import urllib.error
 import urllib.request
 
 import typer
 
-from imp import console
-
-_PROVIDER = os.environ.get ("IMP_AI_PROVIDER", "claude")
-_MODEL_FAST = os.environ.get ("IMP_AI_MODEL_FAST", "haiku")
-_MODEL_SMART = os.environ.get ("IMP_AI_MODEL_SMART", "sonnet")
+from imp import config, console
 
 MAX_DIFF_LINES = 2000
 
@@ -59,17 +54,19 @@ def _ollama (prompt: str, model: str) -> str:
 
 
 def _call (prompt: str, model: str) -> str:
-   if _PROVIDER == "claude":
+   provider = config.get ("provider")
+   if provider == "claude":
       return _claude (prompt, model)
-   elif _PROVIDER == "ollama":
+   elif provider == "ollama":
       return _ollama (prompt, model)
    else:
-      console.err (f"Unknown AI provider: {_PROVIDER}")
+      console.err (f"Unknown AI provider: {provider}")
       raise typer.Exit (1)
 
 
 def fast (prompt: str) -> str:
-   result = console.spin ("Generating...", _call, prompt, _MODEL_FAST)
+   model = config.get ("model:fast")
+   result = console.spin ("Generating...", _call, prompt, model)
    if not result or not result.strip ():
       console.err ("Empty response from AI")
       raise typer.Exit (1)
@@ -78,12 +75,24 @@ def fast (prompt: str) -> str:
 
 
 def smart (prompt: str) -> str:
-   result = console.spin ("Thinking...", _call, prompt, _MODEL_SMART)
+   model = config.get ("model:smart")
+   result = console.spin ("Thinking...", _call, prompt, model)
    if not result or not result.strip ():
       console.err ("Empty response from AI")
       raise typer.Exit (1)
 
    return result
+
+
+def ping () -> bool:
+   try:
+      model = config.get ("model:fast")
+      result = _call ("Reply with OK", model)
+      return bool (result and result.strip ())
+   except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+      return False
+   except SystemExit:
+      return False
 
 
 def oneline (text: str) -> str:

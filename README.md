@@ -59,15 +59,13 @@ AI agents can run git for you, but they improvise every time. Imp is opinionated
 ## Install
 
 ```bash
-pip install imp-git
+uv tool install git+https://github.com/anders458/imp.git
 ```
 
-Or from source:
+Or with pip:
 
 ```bash
-git clone https://github.com/anders458/imp.git
-cd imp
-pip install -e .
+pip install git+https://github.com/anders458/imp.git
 ```
 
 Verify your setup:
@@ -142,7 +140,8 @@ imp release
 | Command | Description |
 |---|---|
 | `imp clean` | Delete merged branches (local and remote). |
-| `imp doctor` | Verify tools: git, claude, ollama, gh. |
+| `imp config` | Interactive AI provider and model setup. |
+| `imp doctor` | Verify tools, config, and AI connection. |
 | `imp help` | Show workflow guide and commit format reference. |
 
 ## AI Whisper
@@ -210,28 +209,54 @@ imp fix 42  ->  imp commit -a  ->  imp pr  ->  imp done
 
 ## Configuration
 
-imp uses environment variables. No config files needed.
-
-| Variable | Default | Description |
-|---|---|---|
-| `IMP_AI_PROVIDER` | `claude` | AI provider: `claude` or `ollama` |
-| `IMP_AI_MODEL_FAST` | `haiku` | Model for quick tasks (commit, branch) |
-| `IMP_AI_MODEL_SMART` | `sonnet` | Model for complex tasks (review, PR, split) |
-
-**Fully local with Ollama:**
-
 ```bash
-export IMP_AI_PROVIDER=ollama
-export IMP_AI_MODEL_FAST=llama3.2
-export IMP_AI_MODEL_SMART=llama3.2
+imp config
 ```
+
+Interactive menu to set your AI provider and models. Stored in `~/.config/imp/config.json`.
+
+| Setting | Default | Description |
+|---|---|---|
+| `provider` | `claude` | AI provider: `claude` or `ollama` |
+| `model:fast` | `haiku` | Model for quick tasks (commit, branch) |
+| `model:smart` | `sonnet` | Model for complex tasks (review, PR, split) |
+
+Environment variables (`IMP_AI_PROVIDER`, `IMP_AI_MODEL_FAST`, `IMP_AI_MODEL_SMART`) override the config file when set, useful for CI.
 
 ## Requirements
 
 - Python 3.10+
 - git
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Ollama](https://ollama.com)
 - [gh](https://cli.github.com) (optional, for `imp fix`, `imp pr`, `imp release`)
+- An AI provider (one of the following):
+
+### Claude Code (default)
+
+Imp uses [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its default AI provider. You need an active Claude Code subscription.
+
+```bash
+# Install Claude Code
+npm install -g @anthropic-ai/claude-code
+
+# Authenticate (opens browser)
+claude
+
+# Verify
+imp doctor
+```
+
+### Ollama (local, free)
+
+For fully offline usage with no API key:
+
+```bash
+# Install from https://ollama.com, then:
+ollama pull llama3.2
+imp config              # select ollama and your models
+
+# Verify
+imp doctor
+```
 
 ## Development
 

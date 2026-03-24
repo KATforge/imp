@@ -47,6 +47,11 @@ def help ():
    console.out.print ("  imp ship [level]                           [muted]# commit + release, no prompts[/muted]")
    console.out.print ()
 
+   console.out.print ("[bold]Setup[/bold]")
+   console.out.print ("  imp config                                [muted]# configure AI provider and models[/muted]")
+   console.out.print ("  imp doctor                                [muted]# verify tools and connection[/muted]")
+   console.out.print ()
+
    console.divider ()
    console.out.print ()
 
