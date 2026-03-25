@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.21] - 2026-03-24
+
+### Changed
+- Implement dynamic vcs-based versioning with hatch-vcs
+
 ## [0.0.20] - 2026-03-24
 
 ### Added
