@@ -11,7 +11,6 @@
    <a href="#install">Install</a> &middot;
    <a href="#quick-start">Quick Start</a> &middot;
    <a href="#commands">Commands</a> &middot;
-   <a href="#commit-format">Commit Format</a> &middot;
    <a href="#configuration">Configuration</a> &middot;
    <a href="#license">License</a>
 </p>
@@ -35,25 +34,6 @@ AI agents can run git for you, but they improvise every time. Imp is opinionated
 - **AI writes the words, Imp controls the workflow.** What gets staged, how it's validated, when it's safe to push.
 - **Works offline** with local models via Ollama. No API key required.
 
-## Table of Contents
-
-- [Why](#why)
-- [Install](#install)
-- [Quick Start](#quick-start)
-- [Commands](#commands)
-  - [Daily Workflow](#daily-workflow)
-  - [Branching](#branching)
-  - [Analysis](#analysis)
-  - [Release](#release)
-  - [Utilities](#utilities)
-- [AI Whisper](#ai-whisper)
-- [Commit Format](#commit-format)
-- [Workflows](#workflows)
-- [Configuration](#configuration)
-- [Requirements](#requirements)
-- [Development](#development)
-- [License](#license)
-
 ## Install
 
 ```bash
@@ -66,9 +46,10 @@ Or with pip:
 pip install git+https://github.com/anders458/imp.git
 ```
 
-Verify your setup:
+Then set up your AI provider and verify:
 
 ```bash
+imp config
 imp doctor
 ```
 
@@ -134,57 +115,21 @@ imp release
 | `imp release` | Squash commits, generate changelog, tag, push, create GitHub release. |
 | `imp ship [level]` | Commit all + release in one shot, no prompts. Default: patch. |
 
-### Utilities
+### Setup
 
 | Command | Description |
 |---|---|
-| `imp clean` | Delete merged branches (local and remote). |
 | `imp config` | Interactive AI provider and model setup. |
 | `imp doctor` | Verify tools, config, and AI connection. |
+| `imp clean` | Delete merged branches (local and remote). |
 | `imp help` | Show workflow guide and commit format reference. |
 
-## AI Whisper
-
-Every AI command accepts `--whisper` / `-w` to give the AI a hint without overriding its rules:
+Any AI command accepts `--whisper` / `-w` to hint the AI without overriding its rules:
 
 ```bash
-imp commit -a -w "use IMP-99999 as ticket"
-imp branch "auth flow" -w "use feat/ prefix"
+imp commit -a -w "use IMP-42 as ticket"
 imp review -w "focus on error handling"
-imp pr -w "mention the database migration"
 ```
-
-The hint is injected as context before the AI's format rules, so the output still conforms to Conventional Commits, length limits, etc.
-
-## Commit Format
-
-Imp generates [Conventional Commits](https://www.conventionalcommits.org/) messages. All commit messages are validated before use.
-
-**Format:**
-
-```
-type: message
-type(scope): message
-type!: message              # breaking change
-```
-
-**Types:**
-
-| Type | Purpose | Type | Purpose |
-|---|---|---|---|
-| `feat` | New feature | `build` | Build system, deps |
-| `fix` | Bug fix | `chore` | Maintenance, config |
-| `refactor` | Restructure code | `docs` | Documentation |
-| `test` | Add/update tests | `style` | Formatting, whitespace |
-| `perf` | Performance | `ci` | CI/CD pipelines |
-
-**Rules:**
-
-- All lowercase after the colon (except ticket IDs like `IMP-123`)
-- Imperative mood: "add" not "added", "fix" not "fixes"
-- Max 72 characters, no period at the end
-- Tickets go after the colon: `fix: IMP-123 resolve timeout`
-- Scopes are optional: `refactor(auth): simplify flow`
 
 ## Workflows
 
@@ -194,6 +139,18 @@ type!: message              # breaking change
 | **Feature branch** | `branch` → `commit -a` → `pr` → `done` |
 | **Hotfix** | `fix 42` → `commit -a` → `pr` → `done` |
 | **Merge conflict** | `sync` or `done` → `resolve` → continue |
+
+## Commit Format
+
+Imp generates [Conventional Commits](https://www.conventionalcommits.org/) messages, validated before use.
+
+```
+type: message              feat, fix, refactor, build, chore,
+type(scope): message       docs, test, style, perf, ci
+type!: message             (breaking change)
+```
+
+All lowercase after the colon (except ticket IDs). Imperative mood. Max 72 chars, no period. Tickets after the colon: `fix: IMP-42 resolve timeout`. Scopes optional: `refactor(auth): simplify flow`.
 
 ## Configuration
 
@@ -216,21 +173,15 @@ Environment variables (`IMP_AI_PROVIDER`, `IMP_AI_MODEL_FAST`, `IMP_AI_MODEL_SMA
 - Python 3.10+
 - git
 - [gh](https://cli.github.com) (optional, for `imp fix`, `imp pr`, `imp release`)
-- An AI provider (one of the following):
 
 ### Claude Code (default)
 
 Imp uses [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its default AI provider. You need an active Claude Code subscription.
 
 ```bash
-# Install Claude Code
 npm install -g @anthropic-ai/claude-code
-
-# Authenticate (opens browser)
-claude
-
-# Verify
-imp doctor
+claude          # authenticate
+imp doctor      # verify
 ```
 
 ### Ollama (local, free)
@@ -240,10 +191,8 @@ For fully offline usage with no API key:
 ```bash
 # Install from https://ollama.com, then:
 ollama pull llama3.2
-imp config              # select ollama and your models
-
-# Verify
-imp doctor
+imp config      # select ollama and your models
+imp doctor      # verify
 ```
 
 ## Development
@@ -252,11 +201,7 @@ imp doctor
 git clone https://github.com/anders458/imp.git
 cd imp
 pip install -e ".[dev]"
-
-# Run tests
 pytest -v
-
-# Lint
 ruff check src/ tests/
 ```
 
