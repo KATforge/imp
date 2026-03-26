@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.24] - 2026-03-26
+
+### Added
+- Add push command
+
 ## [0.0.23] - 2026-03-26
 
 ### Added

@@ -63,9 +63,12 @@ def _call (prompt: str, model: str) -> str:
       raise typer.Exit (1)
 
 
-def fast (prompt: str) -> str:
+def fast (prompt: str, spin: bool = True) -> str:
    model = config.get ("model:fast")
-   result = console.spin ("Generating...", _call, prompt, model)
+   if spin:
+      result = console.spin ("Thinking...", _call, prompt, model)
+   else:
+      result = _call (prompt, model)
    if not result or not result.strip ():
       console.err ("Empty response from AI")
       raise typer.Exit (1)
@@ -73,9 +76,12 @@ def fast (prompt: str) -> str:
    return result
 
 
-def smart (prompt: str) -> str:
+def smart (prompt: str, spin: bool = True) -> str:
    model = config.get ("model:smart")
-   result = console.spin ("Thinking...", _call, prompt, model)
+   if spin:
+      result = console.spin ("Thinking...", _call, prompt, model)
+   else:
+      result = _call (prompt, model)
    if not result or not result.strip ():
       console.err ("Empty response from AI")
       raise typer.Exit (1)

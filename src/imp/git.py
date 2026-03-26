@@ -49,6 +49,11 @@ def add (files: list [str]):
    _run ("add", "--", *files)
 
 
+def staged_files () -> list [str]:
+   result = _run ("diff", "--cached", "--name-only", check=False)
+   return [ f.strip () for f in result.stdout.splitlines () if f.strip () ]
+
+
 def diff (staged: bool = False) -> str:
    args = [ "diff" ]
    if staged:
@@ -357,8 +362,16 @@ def delete_branch (name: str, force: bool = False, remote: bool = False) -> bool
       return result.returncode == 0
 
 
-def unstage ():
-   _run ("reset", "HEAD", check=False)
+def unstage (files: list [str] | None = None):
+   if files:
+      if commit_count () > 0:
+         _run ("reset", "HEAD", "--", *files, check=False)
+      else:
+         _run ("rm", "--cached", "--", *files, check=False)
+   elif commit_count () > 0:
+      _run ("reset", "HEAD", check=False)
+   else:
+      _run ("rm", "-r", "--cached", ".", check=False)
 
 
 def repo_root () -> str:

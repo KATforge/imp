@@ -18,7 +18,7 @@ def _build_file_diffs (root: str, files: list [str]) -> str:
          try:
             lines = full.read_text ().splitlines (keepends=True) [:30]
             d = "".join ("+" + line for line in lines)
-         except OSError:
+         except (OSError, UnicodeDecodeError):
             pass
 
       if d:
@@ -146,12 +146,13 @@ def split (
    groups.sort (key=lambda g: g ["date"])
 
    original_head = git.rev_parse ("HEAD")
+   is_fresh = git.commit_count () == 0
 
    git.stage (all=True)
 
    try:
       for i, g in enumerate (groups):
-         git.reset ("HEAD")
+         git.unstage ()
          git.add (g ["files"])
 
          date = ""
@@ -164,8 +165,11 @@ def split (
    except Exception as e:
       console.err (f"Split failed: {e}")
       console.warn ("Rolling back...")
-      git.reset (original_head, soft=True)
-      git.unstage ()
+      if is_fresh:
+         git.unstage ()
+      else:
+         git.reset (original_head, soft=True)
+         git.unstage ()
       raise typer.Exit (1) from None
 
    console.hint ("imp log to review")

@@ -1,0 +1,42 @@
+import subprocess
+
+import typer
+
+from imp import console, git
+
+
+def push ():
+   """Push commits to origin.
+
+   Pushes the current branch. Sets upstream tracking on first push.
+   Does not create tags, changelogs, or releases.
+   """
+
+   git.require ()
+   git.require_clean ()
+
+   console.header ("Push")
+
+   b = git.branch ()
+
+   if not git.remote_exists ():
+      console.err ("No remote configured")
+      console.hint ("git remote add origin <url>")
+      raise typer.Exit (1)
+
+   ahead = 0
+   if git.has_upstream ():
+      git.fetch ()
+      ahead = git.count_ahead ()
+
+      if ahead == 0:
+         console.success ("Nothing to push")
+         raise typer.Exit (0)
+
+      console.item (f"{ahead} commits on {b}")
+      git.push ()
+   else:
+      console.item (f"Setting upstream for {b}")
+      git.push (set_upstream=True, target=b)
+
+   console.success ("Pushed to origin")

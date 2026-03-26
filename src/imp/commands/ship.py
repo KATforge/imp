@@ -112,7 +112,8 @@ def ship (
       console.success (f"Tagged v{new_version}")
 
    except (subprocess.CalledProcessError, OSError) as e:
-      console.err (f"Release failed: {e}")
+      msg = getattr (e, "stderr", "") or str (e)
+      console.err (f"Release failed: {msg.strip ()}")
       _rollback_release (
          new_version, original_head, changelog_path,
          original_changelog, committed,
@@ -123,7 +124,8 @@ def ship (
       try:
          _push_release (new_version, entry, can_squash)
       except (subprocess.CalledProcessError, OSError) as e:
-         console.err (f"Push failed: {e}")
+         msg = getattr (e, "stderr", "") or str (e)
+         console.err (f"Push failed: {msg.strip ()}")
          raise typer.Exit (1) from None
    else:
       console.muted ("No remote, skipped push")

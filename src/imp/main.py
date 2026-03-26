@@ -13,6 +13,7 @@ from imp.commands.fix import fix
 from imp.commands.help import help
 from imp.commands.log import log
 from imp.commands.pr import pr
+from imp.commands.push import push
 from imp.commands.release import release
 from imp.commands.resolve import resolve
 from imp.commands.revert import revert
@@ -61,6 +62,7 @@ app.command () (fix)
 app.command () (help)
 app.command () (log)
 app.command () (pr)
+app.command () (push)
 app.command () (release)
 app.command () (resolve)
 app.command () (revert)

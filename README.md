@@ -86,6 +86,7 @@ imp release
 | `imp amend` | Rewrite last commit message from the full diff. |
 | `imp undo [N]` | Undo last N commits, keep changes staged. |
 | `imp revert [hash]` | Safely revert a pushed commit. |
+| `imp push` | Push commits to origin. Sets upstream on first push. |
 | `imp sync` | Pull, rebase, push in one step. |
 | `imp resolve` | AI-assisted merge conflict resolution. |
 
@@ -135,7 +136,7 @@ imp review -w "focus on error handling"
 
 | Flow | Steps |
 |---|---|
-| **Solo** | `commit -a` → `commit -a` → `release` |
+| **Solo** | `commit -a` → `push` → `release` |
 | **Feature branch** | `branch` → `commit -a` → `pr` → `done` |
 | **Hotfix** | `fix 42` → `commit -a` → `pr` → `done` |
 | **Merge conflict** | `sync` or `done` → `resolve` → continue |
@@ -179,7 +180,7 @@ Environment variables (`IMP_AI_PROVIDER`, `IMP_AI_MODEL_FAST`, `IMP_AI_MODEL_SMA
 Imp uses [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its default AI provider. You need an active Claude Code subscription.
 
 ```bash
-npm install -g @anthropic-ai/claude-code
+curl -fsSL https://claude.ai/install.sh | bash
 claude          # authenticate
 imp doctor      # verify
 ```

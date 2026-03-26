@@ -63,9 +63,10 @@ def pr (
    d = git.diff_range (f"{base}..{b}", max_lines=ai.MAX_DIFF_LINES)
 
    pr_content = console.spin (
-      "Generating PR...",
+      "Thinking...",
       ai.smart,
       prompts.pr (b, log, d, whisper),
+      False,
    )
 
    title, description = _parse_response (pr_content)
