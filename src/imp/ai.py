@@ -21,7 +21,6 @@ def _claude (prompt: str, model: str) -> str:
       input=prompt,
       capture_output=True,
       text=True,
-      timeout=120,
    )
 
    if result.returncode != 0:
@@ -45,7 +44,7 @@ def _ollama (prompt: str, model: str) -> str:
    )
 
    try:
-      with urllib.request.urlopen (req, timeout=30) as resp:
+      with urllib.request.urlopen (req) as resp:
          body = json.loads (resp.read ())
          return body.get ("response", "")
    except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:

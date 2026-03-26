@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.23] - 2026-03-26
+
+### Added
+- Set commit dates from file modification times
+
 ## [0.0.22] - 2026-03-24
 
 ### Changed

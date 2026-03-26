@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
@@ -134,6 +135,16 @@ def split (
       console.muted ("Cancelled")
       raise typer.Exit (0)
 
+   for g in groups:
+      mtimes = []
+      for f in g ["files"]:
+         full = Path (root) / f
+         if full.exists ():
+            mtimes.append (full.stat ().st_mtime)
+      g ["date"] = max (mtimes) if mtimes else 0
+
+   groups.sort (key=lambda g: g ["date"])
+
    original_head = git.rev_parse ("HEAD")
 
    git.stage (all=True)
@@ -142,7 +153,13 @@ def split (
       for i, g in enumerate (groups):
          git.reset ("HEAD")
          git.add (g ["files"])
-         git.commit (g ["message"])
+
+         date = ""
+         if g ["date"] > 0:
+            dt = datetime.fromtimestamp (g ["date"], tz=timezone.utc)
+            date = dt.strftime ("%Y-%m-%dT%H:%M:%S%z")
+
+         git.commit (g ["message"], date=date)
          console.success (f"Group {i + 1}: {g ['message']}")
    except Exception as e:
       console.err (f"Split failed: {e}")

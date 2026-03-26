@@ -5,7 +5,13 @@ import typer
 from imp import console
 
 
-def _run (*args: str, check: bool = True, timeout: int = 60) -> subprocess.CompletedProcess [str]:
+def _run (*args: str, check: bool = True, timeout: int = 60, env: dict [str, str] | None = None) -> subprocess.CompletedProcess [str]:
+   import os
+
+   run_env = None
+   if env:
+      run_env = { **os.environ, **env }
+
    try:
       return subprocess.run (
          [ "git", *args ],
@@ -13,6 +19,7 @@ def _run (*args: str, check: bool = True, timeout: int = 60) -> subprocess.Compl
          text=True,
          check=check,
          timeout=timeout,
+         env=run_env,
       )
    except subprocess.TimeoutExpired:
       console.err (f"git {args [0]} timed out")
@@ -120,12 +127,14 @@ def branches_merged (base: str) -> list [str]:
    return merged
 
 
-def commit (msg: str, amend: bool = False):
+def commit (msg: str, amend: bool = False, date: str = ""):
    args = [ "commit", "-m", msg ]
    if amend:
       args.insert (1, "--amend")
+   if date:
+      args.extend ([ "--date", date ])
 
-   _run (*args)
+   _run (*args, env={ "GIT_COMMITTER_DATE": date } if date else {})
 
 
 def commit_count () -> int:
