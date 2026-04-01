@@ -4,12 +4,14 @@ from typing import Optional
 import typer
 
 from imp import ai, console, git, prompts
+from imp.commands import push as push_cmd
 
 
 def commit (
    all: bool = typer.Option (False, "--all", "-a", help="Stage all changes first"),
    exclude: Optional [list [str]] = typer.Option (None, "--exclude", "-E", help="Glob patterns to exclude from staging"),
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI message without review"),
+   push: bool = typer.Option (False, "--push", "-p", help="Push to origin after committing"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Generate an AI commit message for staged changes.
@@ -64,4 +66,10 @@ def commit (
          raise typer.Exit (0)
 
    console.success ("Committed")
+
+   if push:
+      console.out.print ()
+      push_cmd.do_push ()
+      return
+
    console.hint ("imp commit again, or imp release when ready")

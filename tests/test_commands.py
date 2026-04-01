@@ -6,6 +6,7 @@ import typer
 from imp import ai, console, git
 from imp.commands import branch as branch_cmd
 from imp.commands import commit as commit_cmd
+from imp.commands import push as push_mod
 from imp.commands import review as review_cmd
 
 
@@ -18,7 +19,7 @@ class TestCommitCommand:
       (repo / "file.txt").write_text ("changed\n")
       subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
 
-      commit_cmd.commit (all=False)
+      commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
 
       result = subprocess.run (
          [ "git", "log", "-1", "--format=%s" ],
@@ -32,7 +33,7 @@ class TestCommitCommand:
 
       (repo / "new.txt").write_text ("new file\n")
 
-      commit_cmd.commit (all=True)
+      commit_cmd.commit (all=True, exclude=None, yes=False, push=False, whisper="")
 
       result = subprocess.run (
          [ "git", "log", "-1", "--format=%s" ],
@@ -48,13 +49,56 @@ class TestCommitCommand:
       subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
 
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False)
+         commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
 
       assert git.commit_count () == 1
 
    def test_commit_nothing_staged (self, repo, monkeypatch):
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False)
+         commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
+
+   def test_commit_push_calls_do_push (self, repo, monkeypatch):
+      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
+      monkeypatch.setattr (console, "review", lambda text: "Yes")
+
+      pushed = []
+      monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
+
+      (repo / "file.txt").write_text ("changed\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+
+      commit_cmd.commit (all=False, exclude=None, yes=False, push=True, whisper="")
+
+      assert len (pushed) == 1
+
+   def test_commit_push_skipped_on_cancel (self, repo, monkeypatch):
+      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
+      monkeypatch.setattr (console, "review", lambda text: "No")
+
+      pushed = []
+      monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
+
+      (repo / "file.txt").write_text ("changed\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+
+      with pytest.raises (typer.Exit):
+         commit_cmd.commit (all=False, exclude=None, yes=False, push=True, whisper="")
+
+      assert len (pushed) == 0
+
+   def test_commit_no_push_by_default (self, repo, monkeypatch):
+      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
+      monkeypatch.setattr (console, "review", lambda text: "Yes")
+
+      pushed = []
+      monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
+
+      (repo / "file.txt").write_text ("changed\n")
+      subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
+
+      commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
+
+      assert len (pushed) == 0
 
    def test_commit_retries_on_invalid_ai (self, repo, monkeypatch):
       calls = []
@@ -71,7 +115,7 @@ class TestCommitCommand:
       (repo / "file.txt").write_text ("changed\n")
       subprocess.run ([ "git", "add", "." ], cwd=repo, check=True)
 
-      commit_cmd.commit (all=False)
+      commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
 
       result = subprocess.run (
          [ "git", "log", "-1", "--format=%s" ],
