@@ -24,7 +24,8 @@ def _claude (prompt: str, model: str) -> str:
    )
 
    if result.returncode != 0:
-      console.err ("claude CLI failed")
+      detail = result.stderr.strip () or result.stdout.strip ()
+      console.err (f"claude CLI failed: {detail}" if detail else "claude CLI failed")
       raise typer.Exit (1)
 
    return result.stdout

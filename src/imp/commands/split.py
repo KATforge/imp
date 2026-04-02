@@ -8,6 +8,23 @@ import typer
 from imp import ai, console, git, prompts, validate
 
 
+def _build_file_stats (files: list [str]) -> str:
+   numstat = git.diff_numstat ()
+
+   stat_map = {}
+   for line in numstat.splitlines ():
+      parts = line.split ("\t", 2)
+      if len (parts) == 3:
+         stat_map [parts [2]] = f"{parts [0]}+\t{parts [1]}-"
+
+   lines = []
+   for f in files:
+      stat = stat_map.get (f, "new")
+      lines.append (f"{stat}\t{f}")
+
+   return "\n".join (lines)
+
+
 def _build_file_diffs (root: str, files: list [str]) -> str:
    parts = []
    for f in files:
@@ -100,10 +117,15 @@ def split (
    console.items (f"Files ({len (files)})", "\n".join (files))
 
    file_diffs = _build_file_diffs (root, files)
-   file_diffs = ai.truncate (file_diffs)
    b = git.branch ()
 
-   response = ai.smart (prompts.split (file_diffs, b, whisper))
+   is_large = len (file_diffs.splitlines ()) > ai.MAX_DIFF_LINES
+
+   if is_large:
+      stats = _build_file_stats (files)
+      response = ai.smart (prompts.split_plan (stats, b, whisper))
+   else:
+      response = ai.smart (prompts.split (file_diffs, b, whisper))
    response = re.sub (r"^```\w*\n?", "", response, flags=re.MULTILINE)
    response = re.sub (r"\n?```$", "", response.strip ())
 
@@ -111,7 +133,12 @@ def split (
 
    if groups is None:
       console.warn ("Retrying...")
-      response = ai.smart (prompts.split (file_diffs, b, whisper))
+
+      if is_large:
+         response = ai.smart (prompts.split_plan (stats, b, whisper))
+      else:
+         response = ai.smart (prompts.split (file_diffs, b, whisper))
+
       response = re.sub (r"^```\w*\n?", "", response, flags=re.MULTILINE)
       response = re.sub (r"\n?```$", "", response.strip ())
       groups = _validate_response (response, files)

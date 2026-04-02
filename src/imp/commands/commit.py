@@ -42,6 +42,8 @@ def commit (
       console.hint ("git add <files>, or imp commit -a")
       raise typer.Exit (1)
 
+   d = ai.truncate (d)
+
    console.header ("Commit")
 
    b = git.branch ()

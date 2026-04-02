@@ -147,6 +147,33 @@ File diffs:
 Output ONLY the JSON array:"""
 
 
+def split_plan (file_stats: str, branch: str = "", whisper: str = "") -> str:
+   num_files = len (file_stats.splitlines ())
+
+   return f"""\
+Group these {num_files} changed files into logical commits. Each group = one commit.
+{_whisper (whisper)}\
+Format: type: message
+Types: feat, fix, refactor, build, chore, docs, test, style, perf, ci
+{_ticket_rule (branch)}
+Rules:
+- Output a JSON array, no markdown fences, no explanation
+- Each element: {{"files": ["path1", "path2"], "message": "type: description"}}
+- ALL LOWERCASE after the colon (except ticket IDs like IMP-123)
+- Imperative mood: "add" not "added", "fix" not "fixes"
+- Max 72 chars per message, no period at end
+- CRITICAL: every single file below MUST appear in exactly one group. There are {num_files} files; your output must reference all {num_files}
+- Minimize number of groups (prefer fewer, larger groups)
+- Group by logical change, not by directory
+
+Branch: {branch}
+
+File stats (lines added / lines removed / path):
+{file_stats}
+
+Output ONLY the JSON array:"""
+
+
 def resolve (content: str, path: str, ours: str, theirs: str, whisper: str = "") -> str:
    return f"""\
 Resolve all merge conflicts in this file.

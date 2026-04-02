@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.29] - 2026-04-01
+
+### Added
+- Handle large diffs with file stats in split
+
 ## [0.0.28] - 2026-04-01
 
 ### Added
