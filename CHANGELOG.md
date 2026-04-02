@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.33] - 2026-04-02
+
+### Changed
+- Ship now uses intelligent commit splitting
+
 ## [0.0.32] - 2026-04-02
 
 ### Added
