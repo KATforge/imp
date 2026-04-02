@@ -123,7 +123,7 @@ imp release
 | Command | Description |
 |---|---|
 | `imp release` | Squash commits, generate changelog, tag, push, create GitHub release. |
-| `imp ship [level] [-w hint]` | Commit all + release in one shot, no prompts. Default: patch. |
+| `imp ship [level] [-w hint]` | Split changes into logical commits, then release. Default: patch. |
 
 ### Setup
 

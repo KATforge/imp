@@ -83,33 +83,13 @@ def _validate_response (response: str, all_files: list [str]) -> list [dict] | N
    return groups
 
 
-def split (
-   yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI grouping without review"),
-   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
-):
-   """Group dirty files into logical commits via AI.
+def do_split (files: list [str], whisper: str = "", yes: bool = False):
+   """Core split logic. Stages, groups, and commits files.
 
-   Analyzes all changed files and uses AI to partition them into logical
-   groups, each with its own Conventional Commits message. Commits each
-   group sequentially. Rolls back if any commit fails. Requires at least
-   two changed files.
+   Returns the list of committed groups. Raises typer.Exit on failure.
    """
 
-   git.require ()
-
    root = git.repo_root ()
-
-   files = git.diff_names ()
-
-   if not files:
-      console.hint ("make some changes first")
-      console.fatal ("No changes to split")
-
-   if len (files) == 1:
-      console.hint ("use imp commit instead")
-      console.fatal ("Only 1 file changed")
-
-   console.header ("Split")
 
    console.items (f"Files ({len (files)})", "\n".join (files))
 
@@ -136,9 +116,7 @@ def split (
          console.fatal ("Split failed after retry")
 
    if len (groups) == 1:
-      console.warn ("AI grouped everything into a single commit")
-      console.hint ("use imp commit instead")
-      raise typer.Exit (0)
+      return None
 
    console.out.print ()
    for i, g in enumerate (groups):
@@ -187,5 +165,41 @@ def split (
          git.reset (original_head, soft=True)
          git.unstage ()
       raise typer.Exit (1) from None
+
+   return groups
+
+
+def split (
+   yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI grouping without review"),
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+):
+   """Group dirty files into logical commits via AI.
+
+   Analyzes all changed files and uses AI to partition them into logical
+   groups, each with its own Conventional Commits message. Commits each
+   group sequentially. Rolls back if any commit fails. Requires at least
+   two changed files.
+   """
+
+   git.require ()
+
+   files = git.diff_names ()
+
+   if not files:
+      console.hint ("make some changes first")
+      console.fatal ("No changes to split")
+
+   if len (files) == 1:
+      console.hint ("use imp commit instead")
+      console.fatal ("Only 1 file changed")
+
+   console.header ("Split")
+
+   result = do_split (files, whisper, yes)
+
+   if result is None:
+      console.warn ("AI grouped everything into a single commit")
+      console.hint ("use imp commit instead")
+      raise typer.Exit (0)
 
    console.hint ("imp log to review")
