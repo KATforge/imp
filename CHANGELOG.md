@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.32] - 2026-04-02
+
+### Added
+- Add git sync status to branch display
+
 ## [0.0.31] - 2026-04-02
 
 ### Changed

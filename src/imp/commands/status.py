@@ -34,7 +34,20 @@ def status ():
    console.header (name)
 
    console.label ("Branch")
-   console.item (b)
+   sync_info = ""
+   if git.has_upstream ():
+      ahead = git.count_ahead ()
+      behind = git.count_behind ()
+      if ahead == 0 and behind == 0:
+         sync_info = " [muted](up to date)[/muted]"
+      else:
+         parts = []
+         if ahead > 0:
+            parts.append (f"[green]{ahead} ahead[/green]")
+         if behind > 0:
+            parts.append (f"[yellow]{behind} behind[/yellow]")
+         sync_info = f" ({', '.join (parts)})"
+   console.out.print (f"  [muted]{b}[/muted]{sync_info}")
    console.out.print ()
 
    changes = git.status_short ()
