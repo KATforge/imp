@@ -142,7 +142,7 @@ def do_split (files: list [str], whisper: str = "", yes: bool = False):
    original_head = git.rev_parse ("HEAD")
    is_fresh = git.commit_count () == 0
 
-   git.stage (all=True)
+   git.stage ()
 
    try:
       for i, g in enumerate (groups):

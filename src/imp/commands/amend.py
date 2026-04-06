@@ -1,6 +1,6 @@
 import typer
 
-from imp import ai, console, git, prompts
+from imp import ai, console, git, prompts, workflow
 
 
 def amend (
@@ -42,9 +42,9 @@ def amend (
    console.item (last_msg)
    console.out.print ()
 
-   git.stage (all=True)
+   git.stage ()
 
-   console.review_commit (msg, yes, amend=True)
+   workflow.review_commit (msg, yes, amend=True)
 
    console.success ("Amended")
    console.hint ("imp commit again, or imp release when ready")

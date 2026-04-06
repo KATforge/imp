@@ -1,5 +1,3 @@
-import subprocess
-
 import typer
 
 from imp import console, git

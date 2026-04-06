@@ -1,9 +1,8 @@
-import shutil
 import subprocess
 
 import typer
 
-from imp import ai, console, git, prompts
+from imp import ai, console, gh, git, prompts
 
 
 def _parse_response (content: str) -> tuple [str, str]:
@@ -33,10 +32,7 @@ def pr (
    """
 
    git.require ()
-
-   if not shutil.which ("gh"):
-      console.hint ("https://cli.github.com")
-      console.fatal ("GitHub CLI (gh) not installed")
+   gh.require ()
 
    console.header ("Pull Request")
 
@@ -58,7 +54,7 @@ def pr (
 
    console.items ("Commits", log)
 
-   d = git.diff_range (f"{base}..{b}", max_lines=ai.MAX_DIFF_LINES)
+   d = ai.truncate (git.diff_range (f"{base}..{b}"))
 
    pr_content = console.spin (
       "Thinking...",
@@ -99,18 +95,7 @@ def pr (
       console.spin ("Pushing to origin...", git.push, False, True, b)
 
    try:
-      result = subprocess.run (
-         [
-            "gh", "pr", "create",
-            "--title", title,
-            "--body", description,
-            "--base", base,
-         ],
-         capture_output=True,
-         text=True,
-         check=True,
-      )
-      pr_url = result.stdout.strip ()
+      pr_url = gh.pr_create (title, description, base, b)
    except subprocess.CalledProcessError:
       console.fatal ("Failed to create PR")
 

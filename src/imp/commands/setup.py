@@ -1,4 +1,3 @@
-import subprocess
 from pathlib import Path
 
 import typer
@@ -6,33 +5,8 @@ import typer
 from imp import ai, console, git, prompts
 
 
-def _is_repo () -> bool:
-   result = subprocess.run (
-      [ "git", "rev-parse", "--git-dir" ],
-      capture_output=True,
-      text=True,
-      check=False,
-   )
-   return result.returncode == 0
-
-
-def _remote_url () -> str:
-   result = subprocess.run (
-      [ "git", "remote", "get-url", "origin" ],
-      capture_output=True,
-      text=True,
-      check=False,
-   )
-   return result.stdout.strip ()
-
-
-def _init ():
-   subprocess.run ([ "git", "init" ], capture_output=True, text=True, check=True)
-   console.success ("Initialized git repository")
-
-
 def _add_remote (url: str):
-   existing = _remote_url ()
+   existing = git.remote_url ()
 
    if existing == url:
       console.muted ("Origin already set")
@@ -47,25 +21,15 @@ def _add_remote (url: str):
       if choice == "No":
          return
 
-      subprocess.run (
-         [ "git", "remote", "set-url", "origin", url ],
-         capture_output=True,
-         text=True,
-         check=True,
-      )
+      git.remote_set_url (url)
       console.success (f"Updated origin → {url}")
    else:
-      subprocess.run (
-         [ "git", "remote", "add", "origin", url ],
-         capture_output=True,
-         text=True,
-         check=True,
-      )
+      git.remote_add (url)
       console.success (f"Added origin → {url}")
 
 
 def _scan_files () -> str:
-   entries = sorted (p.name for p in Path (".").iterdir () if not p.name.startswith ("."))
+   entries = sorted (p.name for p in Path.cwd ().iterdir () if not p.name.startswith ("."))
    return "\n".join (entries)
 
 
@@ -73,7 +37,6 @@ def _setup_gitignore (files: str):
    path = Path (".gitignore")
    existing = path.read_text ().strip () if path.exists () else ""
 
-   console.out.print ()
    result = ai.fast (prompts.gitignore (files, existing))
    result = result.strip ()
 
@@ -97,10 +60,11 @@ def setup (
 
    console.header ("Setup")
 
-   if _is_repo ():
+   if git.is_repo ():
       console.muted ("Already a git repository")
    else:
-      _init ()
+      git.init ()
+      console.success ("Initialized git repository")
 
    _add_remote (url)
 

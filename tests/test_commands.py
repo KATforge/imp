@@ -1,5 +1,4 @@
 import os
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -11,7 +10,6 @@ from imp.commands import commit as commit_cmd
 from imp.commands import push as push_mod
 from imp.commands import review as review_cmd
 from imp.commands import setup as setup_cmd
-
 from tests.conftest import commit_file, git_run, last_commit_subject
 
 

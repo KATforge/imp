@@ -1,14 +1,17 @@
-import shutil
 import subprocess
 from datetime import date
 from pathlib import Path
 
 import typer
 
-from imp import console, git, version
+from imp import console, gh, git, version
 
 
-def _rollback_release (
+def _error_detail (e: Exception) -> str:
+   return (getattr (e, "stderr", "") or str (e)).strip ()
+
+
+def rollback (
    ver: str,
    original_head: str,
    changelog_path: Path,
@@ -26,31 +29,33 @@ def _rollback_release (
    console.err ("Release failed")
 
 
-def _write_changelog (path: Path, new_entry: str):
-   if path.is_file ():
-      content = path.read_text ()
+def require_tag_available (ver: str):
+   if git.tag_exists (f"v{ver}"):
+      console.hint (f"pick a different version, or: git tag -d v{ver}")
+      console.fatal (f"Tag v{ver} already exists")
 
-      lines = content.splitlines (keepends=True)
-      insert_at = None
-      for i, line in enumerate (lines):
-         if line.lstrip ().startswith ("## "):
-            insert_at = i
-            break
 
-      if insert_at is not None:
-         before = "".join (lines [:insert_at])
-         after = "".join (lines [insert_at:])
-         content = before + new_entry + "\n\n" + after
-      else:
-         content = content + "\n" + new_entry + "\n"
+def subjects_since (tag: str, count: int = 20) -> str:
+   if tag:
+      return git.log_subjects (rev_range=f"{tag}..HEAD")
+   return git.log_subjects (count=count)
 
-      path.write_text (content)
+
+def push_release (ver: str, notes: str, force_lease: bool = False):
+   if git.has_upstream ():
+      git.push (force_lease=force_lease)
    else:
-      path.write_text (
-         f"# Changelog\n\n"
-         f"All notable changes to this project will be documented in this file.\n\n"
-         f"{new_entry}\n"
-      )
+      b = git.branch ()
+      git.push (set_upstream=True, target=b)
+
+   git.push (ref=f"v{ver}")
+   console.success ("Pushed to origin")
+
+   if gh.available ():
+      if gh.release_create (ver, notes):
+         console.success ("Created GitHub release")
+      else:
+         console.muted ("GitHub release skipped (gh auth or repo issue)")
 
 
 def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) -> bool:
@@ -65,7 +70,7 @@ def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) ->
 
    if can_squash:
       git.reset (tag, soft=True)
-      git.stage (all=True)
+      git.stage ()
       git.commit (summary)
       console.success (f"Squashed {count} commits")
    else:
@@ -75,37 +80,6 @@ def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) ->
          console.muted ("Commits already pushed, skipped squash")
 
    return can_squash
-
-
-def _push_release (ver: str, entry: str, can_squash: bool):
-   if git.has_upstream ():
-      if can_squash:
-         git.push (force_lease=True)
-      else:
-         git.push ()
-   else:
-      b = git.branch ()
-      git.push (set_upstream=True, target=b)
-
-   git.push (ref=f"v{ver}")
-   console.success ("Pushed to origin")
-
-   if shutil.which ("gh"):
-      try:
-         subprocess.run (
-            [
-               "gh", "release", "create",
-               f"v{ver}",
-               "--title", f"v{ver}",
-               "--notes", entry,
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-         )
-         console.success ("Created GitHub release")
-      except subprocess.CalledProcessError:
-         console.muted ("GitHub release skipped (gh auth or repo issue)")
 
 
 def release_scope () -> tuple [str, str, int]:
@@ -127,7 +101,7 @@ def release_scope () -> tuple [str, str, int]:
 
 
 def current_version () -> str:
-   highest = git.highest_tag ()
+   highest = git.highest_tag (stable=True)
    current = highest.lstrip ("v") if highest else "0.0.0"
 
    return current or "0.0.0"
@@ -139,10 +113,7 @@ def do_release (
    count: int,
    will_push: bool = True,
 ):
-   if tag:
-      subjects = git.log_subjects (rev_range=f"{tag}..HEAD")
-   else:
-      subjects = git.log_subjects (count=count)
+   subjects = subjects_since (tag, count)
 
    entry = version.changelog_from_commits (subjects)
    summary = f"chore: release v{new_version}"
@@ -160,7 +131,7 @@ def do_release (
    committed = False
 
    try:
-      _write_changelog (changelog_path, new_entry)
+      version.write_changelog (changelog_path, new_entry)
       console.success ("Updated CHANGELOG.md")
 
       can_squash = _squash_commits (tag, summary, changelog_path, count)
@@ -170,9 +141,8 @@ def do_release (
       console.success (f"Tagged v{new_version}")
 
    except (subprocess.CalledProcessError, OSError) as e:
-      msg = getattr (e, "stderr", "") or str (e)
-      console.err (f"Release failed: {msg.strip ()}")
-      _rollback_release (
+      console.err (f"Release failed: {_error_detail (e)}")
+      rollback (
          new_version, original_head, changelog_path,
          original_changelog, committed,
       )
@@ -180,11 +150,84 @@ def do_release (
 
    if will_push:
       try:
-         _push_release (new_version, entry, can_squash)
+         push_release (new_version, entry, force_lease=can_squash)
       except (subprocess.CalledProcessError, OSError) as e:
-         msg = getattr (e, "stderr", "") or str (e)
-         console.err (f"Push failed: {msg.strip ()}")
+         console.err (f"Push failed: {_error_detail (e)}")
          raise typer.Exit (1) from None
+
+
+def do_release_rc (level: str):
+   current = current_version ()
+   base_ver = version.bump (current, level)
+   new_ver = version.next_rc (base_ver, git.rc_tags (base_ver))
+
+   require_tag_available (new_ver)
+
+   git.tag (f"v{new_ver}")
+   console.success (f"Tagged v{new_ver}")
+
+   if git.remote_exists ():
+      git.push (ref=f"v{new_ver}")
+      console.success ("Pushed tag to origin")
+   else:
+      console.muted ("No remote, skipped push")
+
+
+def release_rc ():
+   git.require_clean ("imp commit first")
+
+   tag, log, count = release_scope ()
+
+   console.header ("Pre-release")
+   console.items (f"Commits since {tag or 'beginning'}", log)
+
+   current = current_version ()
+
+   patch_ver = version.bump (current, "patch")
+   minor_ver = version.bump (current, "minor")
+   major_ver = version.bump (current, "major")
+
+   patch_rc = version.next_rc (patch_ver, git.rc_tags (patch_ver))
+   minor_rc = version.next_rc (minor_ver, git.rc_tags (minor_ver))
+   major_rc = version.next_rc (major_ver, git.rc_tags (major_ver))
+
+   console.muted (f"Current stable: {current}")
+   console.out.print ()
+
+   choice = console.choose (
+      "Version target",
+      [
+         f"patch  {patch_rc}",
+         f"minor  {minor_rc}",
+         f"major  {major_rc}",
+         "quit",
+      ],
+   )
+
+   if choice.startswith ("patch"):
+      new_ver = patch_rc
+   elif choice.startswith ("minor"):
+      new_ver = minor_rc
+   elif choice.startswith ("major"):
+      new_ver = major_rc
+   else:
+      console.muted ("Cancelled")
+      raise typer.Exit (0)
+
+   require_tag_available (new_ver)
+
+   console.label (f"v{new_ver}")
+
+   if not console.confirm (f"Tag v{new_ver}?"):
+      console.muted ("Cancelled")
+      raise typer.Exit (0)
+
+   git.tag (f"v{new_ver}")
+   console.success (f"Tagged v{new_ver}")
+
+   if git.remote_exists () and console.confirm ("Push tag?"):
+      git.push (ref=f"v{new_ver}")
+      console.success ("Pushed to origin")
 
 
 def release ():
@@ -200,11 +243,9 @@ def release ():
 
    base = git.base_branch ()
    current = git.branch ()
+
    if current != base:
-      console.warn (f"Releasing from {current}, not {base}")
-      if not console.confirm ("Continue?"):
-         console.muted ("Cancelled")
-         raise typer.Exit (0)
+      return release_rc ()
 
    git.require_clean ("imp commit first")
 
@@ -246,15 +287,9 @@ def release ():
       console.muted ("Cancelled")
       raise typer.Exit (0)
 
-   if git.tag_exists (f"v{new_version}"):
-      console.hint (f"pick a different version, or: git tag -d v{new_version}")
-      console.fatal (f"Tag v{new_version} already exists")
+   require_tag_available (new_version)
 
-   if tag:
-      subjects = git.log_subjects (rev_range=f"{tag}..HEAD")
-   else:
-      subjects = git.log_subjects (count=count)
-
+   subjects = subjects_since (tag, count)
    entry = version.changelog_from_commits (subjects)
 
    console.label (f"v{new_version}")

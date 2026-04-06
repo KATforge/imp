@@ -7,9 +7,9 @@ COMMIT_TYPES = (
 
 TYPES_PATTERN = "|".join (COMMIT_TYPES)
 
-_COMMIT_RE = re.compile (
+COMMIT_RE = re.compile (
    rf"^({TYPES_PATTERN})"
-   r"(\(.+\))?!?: .+"
+   r"(\(.+\))?!?: (.+)$"
 )
 
 _TICKET_RE = re.compile (r"^[A-Z]+-[0-9]")
@@ -20,7 +20,7 @@ _BRANCH_RE = re.compile (r"^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$")
 def commit (msg: str) -> bool:
    subject = msg.split ("\n", 1) [0]
 
-   if not _COMMIT_RE.match (subject):
+   if not COMMIT_RE.match (subject):
       return False
 
    parts = subject.split (": ", 1)

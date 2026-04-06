@@ -53,26 +53,15 @@ def main (
    """[green]imp[/green] — AI-powered git workflow"""
 
 
-app.command () (amend)
-app.command () (branch)
-app.command () (changelog)
-app.command () (clean)
-app.command () (commit)
+_commands = [
+   amend, branch, changelog, clean, commit,
+   doctor, done, fix, help, log,
+   pr, push, release, resolve, revert,
+   review, setup, ship, split, status,
+   sync, undo,
+]
+
+for _cmd in _commands:
+   app.command () (_cmd)
+
 app.command ("config") (configure)
-app.command () (doctor)
-app.command () (done)
-app.command () (fix)
-app.command () (help)
-app.command () (log)
-app.command () (pr)
-app.command () (push)
-app.command () (release)
-app.command () (resolve)
-app.command () (revert)
-app.command () (review)
-app.command () (setup)
-app.command () (ship)
-app.command () (split)
-app.command () (status)
-app.command () (sync)
-app.command () (undo)

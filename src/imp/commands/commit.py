@@ -3,7 +3,7 @@ from typing import Optional
 
 import typer
 
-from imp import ai, console, git, prompts
+from imp import ai, console, git, prompts, workflow
 from imp.commands import push as push_cmd
 
 
@@ -24,7 +24,7 @@ def commit (
    git.require ()
 
    if all:
-      git.stage (all=True)
+      git.stage ()
 
    if exclude:
       staged = git.staged_files ()
@@ -48,7 +48,7 @@ def commit (
    b = git.branch ()
    msg = ai.commit_message (prompts.commit (d, b, whisper))
 
-   console.review_commit (msg, yes)
+   workflow.review_commit (msg, yes)
 
    console.success ("Committed")
 

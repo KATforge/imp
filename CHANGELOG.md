@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.35] - 2026-04-06
+
+### Added
+- Improve resolve with structured response parsing
+- Add diff collection with line limit to changelog
+
+### Changed
+- Clean up imports and simplify command registration
+- Extract gh module and use it in commands
+- Deduplicate branch types constant in prompts
+- Export COMMIT_RE and simplify version bump logic
+- Consolidate git tests and update error assertions
+- Extract review_commit to workflow module
+
+### Fixed
+- Add timeouts to ai calls and cache config load
+
 ## [0.0.34] - 2026-04-02
 
 ### Fixed

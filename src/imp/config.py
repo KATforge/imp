@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,7 @@ def path () -> Path:
    return Path (xdg) / "imp" / "config.json"
 
 
+@functools.cache
 def load () -> dict:
    cfg = dict (_DEFAULTS)
 
@@ -29,7 +31,10 @@ def load () -> dict:
       try:
          stored = json.loads (p.read_text ())
          cfg.update (stored)
-      except (json.JSONDecodeError, OSError):
+      except json.JSONDecodeError:
+         from imp import console
+         console.warn ("Invalid config file, using defaults")
+      except OSError:
          pass
 
    for key, env in _ENV_OVERRIDES.items ():
@@ -44,6 +49,7 @@ def save (cfg: dict):
    p = path ()
    p.parent.mkdir (parents=True, exist_ok=True)
    p.write_text (json.dumps (cfg, indent=3) + "\n")
+   load.cache_clear ()
 
 
 def get (key: str) -> str:

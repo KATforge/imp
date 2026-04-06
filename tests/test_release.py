@@ -1,5 +1,4 @@
 from imp import git
-
 from tests.conftest import commit_file, git_run
 
 
@@ -21,7 +20,7 @@ class TestReleaseIntegration:
       assert git.commit_count () == 4
 
       git.reset ("v0.1.0", soft=True)
-      git.stage (all=True)
+      git.stage ()
       git.commit ("chore: release v0.2.0")
 
       assert git.commit_count () == 2

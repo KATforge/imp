@@ -1,9 +1,9 @@
 import json
-from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from imp.commands.changelog import _build_version_map, _infer_versions, _generate_changelog, _tag_plan
+from imp import ai
+from imp.commands.changelog import _build_version_map, _generate_changelog, _infer_versions, _tag_plan
 from imp.main import app
 
 
@@ -55,12 +55,12 @@ class TestBuildVersionMap:
 
 class TestInferVersions:
 
-   @patch ("imp.commands.changelog.ai")
-   def test_parses_ai_response (self, mock_ai):
-      mock_ai.fast.return_value = json.dumps ([
+   def test_parses_ai_response (self, monkeypatch):
+      response = json.dumps ([
          { "version": "0.0.1", "commits": [ "feat: init", "fix: bug" ] },
          { "version": "0.0.2", "commits": [ "feat: new feature" ] },
       ])
+      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: response)
       commits = [
          { "hash": "aaa", "subject": "feat: init", "date": "2025-01-01" },
          { "hash": "bbb", "subject": "fix: bug", "date": "2025-01-01" },
@@ -71,9 +71,8 @@ class TestInferVersions:
       assert result [0] ["version"] == "0.0.1"
       assert len (result [0] ["commits"]) == 2
 
-   @patch ("imp.commands.changelog.ai")
-   def test_fallback_on_bad_json (self, mock_ai):
-      mock_ai.fast.return_value = "not valid json"
+   def test_fallback_on_bad_json (self, monkeypatch):
+      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "not valid json")
       commits = [
          { "hash": "aaa", "subject": "feat: init", "date": "2025-01-01" },
       ]

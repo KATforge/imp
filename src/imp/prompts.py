@@ -87,6 +87,9 @@ Diff:
 Output ONLY the review:"""
 
 
+_BRANCH_TYPES = "feat, fix, refactor, docs, test, chore"
+
+
 def branch_name (description: str, whisper: str = "") -> str:
    return f"""\
 Suggest a git branch name for: {description}
@@ -95,7 +98,7 @@ Rules:
 - Lowercase, hyphens only, no spaces
 - Max 30 chars
 - Format: type/short-name
-- Types: feat, fix, refactor, docs, test, chore
+- Types: {_BRANCH_TYPES}
 
 Output ONLY the branch name:"""
 
@@ -207,10 +210,29 @@ def split_plan (file_stats: str, branch: str = "", whisper: str = "") -> str:
    )
 
 
-def resolve (content: str, path: str, ours: str, theirs: str, whisper: str = "") -> str:
+def _bias (favor: str, ours: str, theirs: str) -> str:
+   if not favor:
+      return ""
+
+   if favor == "ours":
+      return f"""
+Bias: STRONGLY favor ours ({ours}). This branch is more up to date.
+When in doubt, prefer ours. Only take from theirs ({theirs}) when it
+introduces something clearly new that does not conflict with our intent.
+"""
+
+   return f"""
+Bias: STRONGLY favor theirs ({theirs}). That branch is more up to date.
+When in doubt, prefer theirs. Only keep from ours ({ours}) when it
+introduces something clearly new that does not conflict with their intent.
+"""
+
+
+def resolve (content: str, path: str, ours: str, theirs: str, whisper: str = "", favor: str = "") -> str:
    return f"""\
 Resolve all merge conflicts in this file.
 {_whisper (whisper)}\
+{_bias (favor, ours, theirs)}\
 Branches:
 - Ours (current): {ours}
 - Theirs (incoming): {theirs}
@@ -220,12 +242,107 @@ File: {path}
 Rules:
 - Resolve every conflict marked by <<<<<<<, =======, >>>>>>>
 - Preserve all non-conflicted code exactly as-is
-- Output the complete resolved file, nothing else
-- No explanation, no markdown fences, no commentary
+- No markdown fences
+
+Output in two sections separated by exactly "---RESOLVED---" on its own line:
+
+SECTION 1 (reasoning): For each conflict, explain briefly:
+- What ours ({ours}) has vs what theirs ({theirs}) has (one line each)
+- Which you picked or how you merged, and why
+
+SECTION 2 (resolved file): The complete resolved file, nothing else
+
+Example format:
+Conflict 1 (lines 10-20):
+  Ours ({ours}): adds validation for email field
+  Theirs ({theirs}): renames validate() to check()
+  Resolution: kept both; applied rename and preserved validation
+
+---RESOLVED---
+<complete file contents>
 
 {content}
 
-Output ONLY the resolved file:"""
+Output:"""
+
+
+def resolve_revise (
+   content: str,
+   path: str,
+   ours: str,
+   theirs: str,
+   previous_result: str,
+   previous_reasoning: str,
+   feedback: str,
+   favor: str = "",
+) -> str:
+   return f"""\
+Revise your merge conflict resolution based on user feedback.
+{_bias (favor, ours, theirs)}\
+Branches:
+- Ours (current): {ours}
+- Theirs (incoming): {theirs}
+
+File: {path}
+
+Original file with conflicts:
+{content}
+
+Your previous reasoning:
+{previous_reasoning}
+
+Your previous resolution:
+{previous_result}
+
+User feedback: {feedback}
+
+Rules:
+- Address the user's feedback in your revised resolution
+- Resolve every conflict marked by <<<<<<<, =======, >>>>>>>
+- Preserve all non-conflicted code exactly as-is
+- No markdown fences
+
+Output in two sections separated by exactly "---RESOLVED---" on its own line:
+
+SECTION 1 (reasoning): For each conflict, explain briefly:
+- What ours ({ours}) has vs what theirs ({theirs}) has (one line each)
+- Which you picked or how you merged, and why
+- What changed from your previous suggestion based on the feedback
+
+SECTION 2 (resolved file): The complete resolved file, nothing else
+
+Output:"""
+
+
+def changelog_entry (diffs: str) -> str:
+   return f"""\
+Analyze these git commit diffs and produce a changelog entry.
+
+Rules:
+- Categorize every meaningful change as Added, Changed, Removed, or Fixed
+- Describe what changed from a user's perspective, not implementation details
+- One line per change, prefix with "- "
+- Merge related small changes into a single line
+- Skip trivial changes (whitespace, formatting, import reordering)
+- Skip release/changelog commits themselves
+- Output sections in this exact format (omit empty sections):
+
+### Added
+- description
+
+### Changed
+- description
+
+### Removed
+- description
+
+### Fixed
+- description
+
+Diffs:
+{diffs}
+
+Output ONLY the changelog sections, nothing else:"""
 
 
 def changelog_infer (subjects: str) -> str:

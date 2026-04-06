@@ -1,9 +1,7 @@
-import subprocess
-
 import pytest
+import typer
 
 from imp import git
-
 from tests.conftest import commit_file
 
 
@@ -29,5 +27,5 @@ class TestUndoIntegration:
 
    def test_cannot_undo_past_initial (self, repo):
       assert git.commit_count () == 1
-      with pytest.raises (subprocess.CalledProcessError):
-         git._run ("reset", "--soft", "HEAD~2")
+      with pytest.raises (typer.Exit):
+         git.reset ("HEAD~2", soft=True)

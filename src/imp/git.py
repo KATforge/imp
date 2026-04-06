@@ -1,11 +1,11 @@
+import os
 import subprocess
+from pathlib import Path
 
 from imp import console
 
 
 def _run (*args: str, check: bool = True, timeout: int = 60, env: dict [str, str] | None = None) -> subprocess.CompletedProcess [str]:
-   import os
-
    run_env = None
    if env:
       run_env = { **os.environ, **env }
@@ -20,7 +20,10 @@ def _run (*args: str, check: bool = True, timeout: int = 60, env: dict [str, str
          env=run_env,
       )
    except subprocess.TimeoutExpired:
-      console.fatal (f"git {args [0]} timed out")
+      label = args [0] if args else "command"
+      console.fatal (f"git {label} timed out")
+   except subprocess.CalledProcessError:
+      raise
 
 
 def require ():
@@ -36,9 +39,30 @@ def require_clean (hint: str = "imp commit first"):
       console.fatal ("Uncommitted changes")
 
 
-def stage (all: bool = False):
-   if all:
-      _run ("add", "-A")
+def is_repo () -> bool:
+   result = _run ("rev-parse", "--git-dir", check=False)
+   return result.returncode == 0
+
+
+def init ():
+   _run ("init")
+
+
+def remote_url (name: str = "origin") -> str:
+   result = _run ("remote", "get-url", name, check=False)
+   return result.stdout.strip ()
+
+
+def remote_add (url: str, name: str = "origin"):
+   _run ("remote", "add", name, url)
+
+
+def remote_set_url (url: str, name: str = "origin"):
+   _run ("remote", "set-url", name, url)
+
+
+def stage ():
+   _run ("add", "-A")
 
 
 def add (files: list [str]):
@@ -59,14 +83,9 @@ def diff (staged: bool = False) -> str:
    return result.stdout
 
 
-def diff_range (rev_range: str, max_lines: int = 0) -> str:
-   args = [ "diff", rev_range ]
-   result = _run (*args, check=False)
-   text = result.stdout
-   if max_lines > 0:
-      lines = text.splitlines ()
-      text = "\n".join (lines [:max_lines])
-   return text
+def diff_range (rev_range: str) -> str:
+   result = _run ("diff", rev_range, check=False)
+   return result.stdout
 
 
 def diff_names () -> list [str]:
@@ -158,10 +177,23 @@ def last_tag () -> str:
    return result.stdout.strip ()
 
 
-def highest_tag () -> str:
+def highest_tag (stable: bool = False) -> str:
    result = _run ("tag", "-l", "v*", "--sort=-v:refname", check=False)
-   lines = result.stdout.strip ().splitlines ()
-   return lines [0].strip () if lines and lines [0].strip () else ""
+
+   for line in result.stdout.strip ().splitlines ():
+      t = line.strip ()
+      if not t:
+         continue
+      if stable and "-" in t [1:]:
+         continue
+      return t
+
+   return ""
+
+
+def rc_tags (ver: str) -> list [str]:
+   result = _run ("tag", "-l", f"v{ver}-rc.*", "--sort=-v:refname", check=False)
+   return [ l.strip () for l in result.stdout.splitlines () if l.strip () ]
 
 
 def tag (name: str, ref: str = ""):
@@ -311,6 +343,11 @@ def rm (path: str):
    _run ("rm", "--", path)
 
 
+def show_patch (ref: str) -> str:
+   result = _run ("show", "--format=", "--patch", ref, check=False)
+   return result.stdout.strip ()
+
+
 def show (ref: str = "HEAD", fmt: str = "", stat: bool = False) -> str:
    args = [ "show" ]
    if fmt:
@@ -348,10 +385,10 @@ def delete_branch (name: str, force: bool = False, remote: bool = False) -> bool
    if remote:
       result = _run ("push", "origin", "--delete", name, check=False)
       return result.returncode == 0
-   else:
-      flag = "-D" if force else "-d"
-      result = _run ("branch", flag, name, check=False)
-      return result.returncode == 0
+
+   flag = "-D" if force else "-d"
+   result = _run ("branch", flag, name, check=False)
+   return result.returncode == 0
 
 
 def unstage (files: list [str] | None = None):
@@ -372,7 +409,6 @@ def repo_root () -> str:
 
 
 def repo_name () -> str:
-   from pathlib import Path
    return Path (repo_root ()).name
 
 
@@ -397,21 +433,11 @@ def conflicts () -> list [str]:
    return [ line.strip () for line in lines if line.strip () ]
 
 
-def conflict_content (path: str) -> str:
-   from pathlib import Path
-
-   return Path (path).read_text ()
-
-
 def merge_in_progress () -> bool:
-   from pathlib import Path
-
    return Path (git_dir (), "MERGE_HEAD").exists ()
 
 
 def rebase_in_progress () -> bool:
-   from pathlib import Path
-
    gd = git_dir ()
    return (
       Path (gd, "rebase-merge").exists ()

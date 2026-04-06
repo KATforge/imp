@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from imp import console, git
 
 
@@ -90,7 +92,6 @@ def status ():
    wt_lines = wt.splitlines () if wt else []
    if len (wt_lines) > 1:
       console.label ("Worktrees")
-      from pathlib import Path
       cwd = str (Path.cwd ())
       for line in wt_lines:
          if line.startswith (cwd + " "):

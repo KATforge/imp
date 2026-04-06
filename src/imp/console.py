@@ -163,42 +163,6 @@ def edit (text: str) -> str:
       path.unlink (missing_ok=True)
 
 
-def review_commit (
-   msg: str,
-   yes: bool,
-   on_cancel: Callable [[], None] | None = None,
-   **commit_kwargs,
-) -> str:
-   from imp import git
-
-   if yes:
-      item (msg)
-      git.commit (msg, **commit_kwargs)
-      return msg
-
-   choice = review (msg)
-
-   if choice == "Edit":
-      msg = edit (msg)
-
-      if not msg.strip ():
-         if on_cancel:
-            on_cancel ()
-         muted ("Empty message, cancelled")
-         raise typer.Exit (0)
-
-      git.commit (msg, **commit_kwargs)
-   elif choice == "Yes":
-      git.commit (msg, **commit_kwargs)
-   else:
-      if on_cancel:
-         on_cancel ()
-      muted ("Cancelled")
-      raise typer.Exit (0)
-
-   return msg
-
-
-def spin (title: str, fn: Callable [..., T], *args: Any) -> T:
+def spin (title: str, fn: Callable [..., T], *args: Any, **kwargs: Any) -> T:
    with out.status (f"[accent]{title}[/accent]", spinner="dots"):
-      return fn (*args)
+      return fn (*args, **kwargs)

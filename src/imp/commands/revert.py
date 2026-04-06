@@ -1,6 +1,6 @@
 import typer
 
-from imp import ai, console, git, prompts
+from imp import ai, console, git, prompts, workflow
 
 
 def revert (
@@ -56,14 +56,14 @@ def revert (
       console.muted ("Cancelled")
       raise typer.Exit (0)
 
-   d = git.diff_range (f"{ref}~1..{ref}", max_lines=500)
+   d = ai.truncate (git.diff_range (f"{ref}~1..{ref}"), 500)
 
    msg = ai.fast (prompts.revert (commit_msg, d, whisper))
    msg = ai.oneline (msg)
 
    git.revert_commit (ref, no_commit=True)
 
-   console.review_commit (msg, yes, on_cancel=git.revert_abort)
+   workflow.review_commit (msg, yes, on_cancel=git.revert_abort)
 
    console.success (f"Reverted {commit_hash}")
    console.hint ("imp sync to push, or imp undo to cancel")

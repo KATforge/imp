@@ -1,10 +1,6 @@
-import json
-import shutil
-import subprocess
-
 import typer
 
-from imp import ai, console, git, prompts, validate
+from imp import ai, console, gh, git, prompts, validate
 
 
 def fix (
@@ -20,33 +16,17 @@ def fix (
    """
 
    git.require ()
-
-   if not shutil.which ("gh"):
-      console.hint ("https://cli.github.com")
-      console.fatal ("GitHub CLI (gh) not installed")
+   gh.require ()
 
    console.header (f"Fix Issue #{issue}")
 
-   try:
-      result = console.spin (
-         "Fetching issue...",
-         subprocess.run,
-         [ "gh", "issue", "view", str (issue), "--json", "title,body,labels" ],
-         capture_output=True,
-         text=True,
-         check=True,
-      )
-      data = json.loads (result.stdout)
-   except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as e:
-      console.fatal (f"Could not fetch issue #{issue}: {e}")
+   data = console.spin ("Fetching issue...", gh.issue, issue)
 
    title = data.get ("title", "")
    body = (data.get ("body", "") or "") [:500]
 
    console.label ("Issue")
    console.item (f"#{issue}: {title}")
-   console.out.print ()
-
    name = ai.fast (prompts.fix (title, body, whisper))
    name = ai.oneline (name)
 

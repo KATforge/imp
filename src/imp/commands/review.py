@@ -49,14 +49,11 @@ def review (
 
    if last > 0:
       d = git.diff_range (f"HEAD~{last}..HEAD")
-      context = f"last {last} commit{'s' if last != 1 else ''}"
    else:
       d = git.diff (staged=True)
-      context = "staged changes"
 
       if not d:
          d = git.diff ()
-         context = "unstaged changes"
 
    if not d:
       console.muted ("No changes to review")

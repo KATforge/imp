@@ -6,6 +6,8 @@ import typer
 
 from imp import ai, console, git, prompts, version
 
+MAX_DIFF_LINES = 3000
+
 
 def _build_version_map (
    tags: dict [str, str],
@@ -97,6 +99,40 @@ def _infer_versions (
    return versions
 
 
+def _collect_diffs (commits: list [dict [str, str]]) -> str:
+   parts = []
+   total = 0
+
+   for c in commits:
+      patch = git.show_patch (c ["hash"])
+      if not patch:
+         continue
+
+      lines = patch.splitlines ()
+      if total + len (lines) > MAX_DIFF_LINES:
+         remaining = MAX_DIFF_LINES - total
+         if remaining > 0:
+            parts.append ("\n".join (lines [:remaining]))
+         break
+
+      parts.append (patch)
+      total += len (lines)
+
+   return "\n".join (parts)
+
+
+def _entry_from_diffs (commits: list [dict [str, str]]) -> str:
+   diffs = _collect_diffs (commits)
+
+   if not diffs:
+      subjects = "\n".join (c ["subject"] for c in commits)
+      return version.changelog_from_commits (subjects)
+
+   prompt = prompts.changelog_entry (diffs)
+   result = ai.smart (prompt)
+   return ai.strip_fences (result).strip ()
+
+
 def _generate_changelog (versions: list [dict]) -> str:
    lines = [
       "# Changelog",
@@ -117,8 +153,8 @@ def _generate_changelog (versions: list [dict]) -> str:
 
       lines.append ("")
 
-      subjects = "\n".join (c ["subject"] for c in ver ["commits"])
-      entry = version.changelog_from_commits (subjects)
+      console.muted (f"Analyzing {v} ({len (ver ['commits'])} commits)...")
+      entry = _entry_from_diffs (ver ["commits"])
       if entry:
          lines.append (entry)
       lines.append ("")
@@ -187,6 +223,9 @@ def changelog (
    since_commit = ""
 
    if since_ref:
+      if re.match (r"^\d{4}$", since_ref):
+         since_ref = f"{since_ref}-01-01"
+
       if re.match (r"^\d{4}-\d{2}-\d{2}$", since_ref):
          since_commit = git.log_after_date (since_ref)
          if not since_commit:

@@ -20,6 +20,7 @@ def _claude (prompt: str, model: str) -> str:
       input=prompt,
       capture_output=True,
       text=True,
+      timeout=300,
    )
 
    if result.returncode != 0:
@@ -43,7 +44,7 @@ def _ollama (prompt: str, model: str) -> str:
    )
 
    try:
-      with urllib.request.urlopen (req) as resp:
+      with urllib.request.urlopen (req, timeout=60) as resp:
          body = json.loads (resp.read ())
          return body.get ("response", "")
    except (urllib.error.URLError, json.JSONDecodeError, OSError) as e:
@@ -62,7 +63,11 @@ def _call (prompt: str, model: str) -> str:
 
 def _invoke (tier: str, prompt: str, spin: bool = True) -> str:
    model = config.get (f"model:{tier}")
-   result = console.spin ("Thinking...", _call, prompt, model) if spin else _call (prompt, model)
+   if spin:
+      console.out.print ()
+      result = console.spin ("Thinking...", _call, prompt, model)
+   else:
+      result = _call (prompt, model)
 
    if not result or not result.strip ():
       console.fatal ("Empty response from AI")
