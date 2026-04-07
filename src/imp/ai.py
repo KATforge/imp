@@ -64,7 +64,6 @@ def _call (prompt: str, model: str) -> str:
 def _invoke (tier: str, prompt: str, spin: bool = True) -> str:
    model = config.get (f"model:{tier}")
    if spin:
-      console.out.print ()
       result = console.spin ("Thinking...", _call, prompt, model)
    else:
       result = _call (prompt, model)

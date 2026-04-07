@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.36] - 2026-04-06
+
+### Fixed
+- Remove extraneous print call in invoke
+
 ## [0.0.35] - 2026-04-06
 
 ### Added
