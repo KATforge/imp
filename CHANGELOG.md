@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.37] - 2026-04-07
+
+### Added
+- Stage and commit changes on push
+
 ## [0.0.36] - 2026-04-06
 
 ### Fixed

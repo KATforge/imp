@@ -1,6 +1,7 @@
 import typer
 
-from imp import console, git
+from imp import ai, console, git, prompts
+from imp.commands.split import do_split
 
 
 def do_push ():
@@ -34,16 +35,36 @@ def do_push ():
    console.success ("Pushed to origin")
 
 
-def push ():
-   """Push commits to origin.
+def push (
+   whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+):
+   """Commit any changes, then push to origin.
 
-   Pushes the current branch. Sets upstream tracking on first push.
-   Does not create tags, changelogs, or releases.
+   Stages everything, splits into logical commits if needed (or a single
+   commit), then pushes. Does not create tags, changelogs, or releases.
    """
 
    git.require ()
-   git.require_clean ()
 
    console.header ("Push")
+
+   git.stage ()
+   files = git.diff_names ()
+
+   if files:
+      did_split = False
+
+      if len (files) >= 2:
+         did_split = do_split (files, whisper, yes=True) is not None
+
+      if not did_split:
+         d = git.diff (staged=True)
+         b = git.branch ()
+         msg = ai.commit_message (prompts.commit (d, b, whisper))
+         console.item (msg)
+         git.commit (msg)
+         console.success ("Committed")
+
+      console.out.print ()
 
    do_push ()
