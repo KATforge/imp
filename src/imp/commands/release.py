@@ -167,8 +167,14 @@ def do_release_rc (level: str):
    console.success (f"Tagged v{new_ver}")
 
    if git.remote_exists ():
+      if git.has_upstream ():
+         git.push ()
+      else:
+         b = git.branch ()
+         git.push (set_upstream=True, target=b)
+
       git.push (ref=f"v{new_ver}")
-      console.success ("Pushed tag to origin")
+      console.success ("Pushed to origin")
    else:
       console.muted ("No remote, skipped push")
 
