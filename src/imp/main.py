@@ -24,6 +24,7 @@ from imp.commands.ship import ship
 from imp.commands.split import split
 from imp.commands.status import status
 from imp.commands.sync import sync
+from imp.commands.tidy import tidy
 from imp.commands.undo import undo
 
 app = typer.Typer (
@@ -58,7 +59,7 @@ _commands = [
    doctor, done, fix, help, log,
    pr, push, release, resolve, revert,
    review, setup, ship, split, status,
-   sync, undo,
+   sync, tidy, undo,
 ]
 
 for _cmd in _commands:

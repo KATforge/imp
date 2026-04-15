@@ -87,6 +87,7 @@ def status ():
    if unpushed:
       count = len (unpushed.splitlines ())
       console.items (f"Commits since {tag or 'start'} ({count})", unpushed)
+      console.out.print ()
 
    wt = git.worktree_list ()
    wt_lines = wt.splitlines () if wt else []

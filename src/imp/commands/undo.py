@@ -27,6 +27,7 @@ def undo (
 
    log = git.log_oneline (count=count)
    console.items ("Commits to undo", log)
+   console.out.print ()
 
    if git.has_upstream ():
       ahead = git.count_ahead ()

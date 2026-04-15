@@ -45,7 +45,7 @@ def doctor ():
 
    ok = True
    ok = _check ("git", "git", "https://git-scm.com") and ok
-   _check ("claude", "claude", "https://docs.anthropic.com/en/docs/claude-code", required=False)
+   _check ("claude", "claude", "https://claude.ai/install.sh", required=False)
    _check ("ollama", "ollama", "https://ollama.com", required=False)
    _check ("gh", "gh", "https://cli.github.com", required=False)
 

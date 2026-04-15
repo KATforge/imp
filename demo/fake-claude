@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Fake claude CLI for demo GIFs. Reads prompt from stdin, matches keywords,
+# prints a canned response that imp will accept.
+set -e
+
+prompt=$(cat)
+
+case "$prompt" in
+   *"Reply with OK"*)
+      echo "OK"
+      ;;
+   *"cleanup plan for this commit history"*)
+      mapfile -t hashes < <(printf "%s\n" "$prompt" | grep -oE '^[a-f0-9]{12}' | head -20)
+      if [ "${#hashes[@]}" -ge 3 ]; then
+         cat <<EOF
+[
+  {"action": "squash", "hashes": ["${hashes[0]}", "${hashes[1]}"], "message": "feat: add login endpoint with validation"},
+  {"action": "keep",   "hashes": ["${hashes[2]}"], "message": ""}
+]
+EOF
+      elif [ "${#hashes[@]}" -ge 2 ]; then
+         cat <<EOF
+[
+  {"action": "reword", "hashes": ["${hashes[0]}"], "message": "feat: add login endpoint"},
+  {"action": "keep",   "hashes": ["${hashes[1]}"], "message": ""}
+]
+EOF
+      else
+         echo "[]"
+      fi
+      ;;
+   *"Conventional Commits message for this diff"*)
+      echo "feat: add rate limiting to auth endpoints"
+      ;;
+   *"pull request title and description"*)
+      cat <<EOF
+TITLE: feat: rate limit auth endpoints
+
+DESCRIPTION:
+## Summary
+- Add per-IP rate limiting to /login and /register
+- Return 429 with a retry-after header
+- Configurable window and max attempts
+
+## Changes
+- Add rate_limit middleware
+- Wire it into the auth routes
+- Cover with integration tests
+EOF
+      ;;
+   *"natural-language time reference"*)
+      echo "2024-01-01"
+      ;;
+   *"git branch name"*)
+      echo "feat/rate-limit"
+      ;;
+   *)
+      echo "chore: update"
+      ;;
+esac

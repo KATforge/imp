@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.41] - 2026-04-14
+
+### Added
+- Add tidy command to rewrite commit history with ai
+
+### Changed
+- Rewrite readme with new tagline and demo gifs
+- Add reproducible vhs demo gif infrastructure
+
+### Fixed
+- Update claude cli references and install url
+- Normalize blank line spacing around console sections
+
 ## [0.0.40] - 2026-04-12
 
 ### Added

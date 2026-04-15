@@ -10,7 +10,7 @@ from imp import ai, console, git, prompts
 def _handoff (findings: str, dangerous: bool = False):
    if not shutil.which ("claude"):
       console.hint ("curl -fsSL https://claude.ai/install.sh | bash")
-      console.fatal ("Claude Code not found")
+      console.fatal ("claude CLI not found")
 
    prompt = f"Fix the following code review findings. Apply each fix directly to the files.\n\n{findings}"
 
@@ -24,15 +24,15 @@ def _handoff (findings: str, dangerous: bool = False):
       cmd.append (f"Read {f.name} and follow the instructions inside.")
 
       console.out.print ()
-      console.muted ("Handing off to Claude Code...")
+      console.muted ("Handing off to claude CLI...")
       console.out.print ()
       subprocess.run (cmd, check=False)
 
 
 def review (
    last: int = typer.Option (0, "--last", "-l", help="Review the last N commits"),
-   fix: bool = typer.Option (False, "--fix", "-f", help="Send review findings to Claude Code for fixing"),
-   dangerous: bool = typer.Option (False, "--dangerous", "-d", help="Skip Claude Code permission prompts"),
+   fix: bool = typer.Option (False, "--fix", "-f", help="Send review findings to the claude CLI for fixing"),
+   dangerous: bool = typer.Option (False, "--dangerous", "-d", help="Skip claude CLI permission prompts"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """AI code review of current changes.
@@ -40,7 +40,7 @@ def review (
    Sends staged changes (or unstaged if nothing is staged) to the smart
    AI model for review. Outputs feedback in markdown covering bugs, style
    issues, and suggestions. Use --last to review recent commits instead.
-   Use --fix to send findings to Claude Code.
+   Use --fix to hand findings off to the claude CLI.
    """
 
    git.require ()
@@ -75,8 +75,8 @@ def review (
 
    should_fix = fix
    if not fix:
-      choice = console.choose ("Next?", [ "Fix with Claude Code", "Done" ])
-      should_fix = choice == "Fix with Claude Code"
+      choice = console.choose ("Next?", [ "Fix with claude CLI", "Done" ])
+      should_fix = choice == "Fix with claude CLI"
 
    if should_fix:
       _handoff (result, dangerous)

@@ -56,7 +56,6 @@ def items (title: str, data: str):
    for line in data.splitlines ():
       if line.strip ():
          item (line)
-   out.print ()
 
 
 def divider ():
@@ -164,5 +163,6 @@ def edit (text: str) -> str:
 
 
 def spin (title: str, fn: Callable [..., T], *args: Any, **kwargs: Any) -> T:
+   out.print ()
    with out.status (f"[accent]{title}[/accent]", spinner="dots"):
       return fn (*args, **kwargs)

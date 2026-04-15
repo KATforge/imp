@@ -317,6 +317,40 @@ def revert_abort ():
    _run ("revert", "--abort", check=False)
 
 
+def cherry_pick (ref: str, no_commit: bool = False):
+   args = [ "cherry-pick" ]
+   if no_commit:
+      args.append ("--no-commit")
+   args.append (ref)
+   _run (*args)
+
+
+def cherry_pick_abort ():
+   _run ("cherry-pick", "--abort", check=False)
+
+
+def update_ref (name: str, ref: str):
+   _run ("update-ref", name, ref)
+
+
+def delete_ref (name: str):
+   _run ("update-ref", "-d", name, check=False)
+
+
+def log_since (expr: str) -> list [dict [str, str]]:
+   result = _run (
+      "log", "--since", expr,
+      "--format=%H%x09%s", "--reverse",
+      check=False,
+   )
+   entries = []
+   for line in result.stdout.strip ().splitlines ():
+      parts = line.split ("\t", 1)
+      if len (parts) == 2:
+         entries.append ({ "hash": parts [0], "subject": parts [1] })
+   return entries
+
+
 def reset (ref: str, soft: bool = False, hard: bool = False):
    args = [ "reset" ]
    if soft:

@@ -186,6 +186,7 @@ def release_rc ():
 
    console.header ("Pre-release")
    console.items (f"Commits since {tag or 'beginning'}", log)
+   console.out.print ()
 
    current = current_version ()
 
@@ -277,6 +278,7 @@ def release (
    console.header ("Release")
 
    console.items (f"Commits since {tag or 'beginning'}", log)
+   console.out.print ()
 
    current = current_version ()
 

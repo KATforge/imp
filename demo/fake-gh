@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Fake gh CLI for demo GIFs. Handles the subset of commands imp invokes.
+set -e
+
+cmd="${1:-}"
+sub="${2:-}"
+
+case "$cmd $sub" in
+   "pr create")
+      echo "https://github.com/example/auth-service/pull/42"
+      ;;
+   "pr view"|"pr status"|"pr list")
+      echo "(no PRs)"
+      ;;
+   "issue view")
+      cat <<EOF
+{"title":"Rate limit auth endpoints","body":"Users can brute force the login endpoint. Add per-IP rate limiting."}
+EOF
+      ;;
+   "auth status")
+      echo "Logged in as demo"
+      ;;
+   "--version"|" --version")
+      echo "gh version 2.50.0 (demo)"
+      ;;
+   "release create")
+      echo "https://github.com/example/auth-service/releases/tag/${3:-v0.1.0}"
+      ;;
+   *)
+      echo "(gh stub: $*)" >&2
+      ;;
+esac

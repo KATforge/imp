@@ -314,6 +314,50 @@ SECTION 2 (resolved file): The complete resolved file, nothing else
 Output:"""
 
 
+def tidy (commits: str, branch: str = "", whisper: str = "") -> str:
+   return f"""\
+Propose a cleanup plan for this commit history.
+{_whisper (whisper)}\
+Format: type: message
+Types: {_TYPES_STR}
+{_ticket_rule (branch)}
+Rules:
+- Output a JSON array, no markdown fences, no explanation
+- Each element: {{"action": "keep|reword|squash|drop", "hashes": ["<hash>", ...], "message": "<new message or empty>"}}
+- "keep": one hash, message empty, preserves original message
+- "reword": one hash, new Conventional Commits message
+- "squash": 2+ consecutive hashes, one new message covering all changes
+- "drop": one hash, message empty, removes the commit entirely
+- Every commit below MUST appear in exactly one group
+- Preserve the original chronological order, no reordering across groups
+- Squash obvious fixup/wip/typo commits into their logical parent
+- Reword vague messages (wip, fix stuff, update, asdf) into proper Conventional Commits
+- Drop a commit only if it is pure noise (e.g. accidental, immediately reverted)
+- ALL LOWERCASE after the colon (except ticket IDs like IMP-123)
+- Imperative mood, max 72 chars, no period
+- Prefer keep over reword when the original is already good
+
+Commits (oldest first, "<hash> <subject>"):
+{commits}
+
+Output ONLY the JSON array:"""
+
+
+def tidy_date (expr: str) -> str:
+   return f"""\
+Convert this natural-language time reference to an absolute date.
+
+Expression: {expr}
+
+Rules:
+- Output ONLY an ISO 8601 date (YYYY-MM-DD), nothing else
+- Interpret relative to today
+- If ambiguous, pick the most common interpretation
+- No explanation, no quotes, no prose
+
+Output:"""
+
+
 def changelog_entry (diffs: str) -> str:
    return f"""\
 Analyze these git commit diffs and produce a changelog entry.
