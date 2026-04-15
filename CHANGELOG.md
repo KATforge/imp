@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.42] - 2026-04-15
+
+### Changed
+- Update demo recordings
+
+### Fixed
+- Disable rich markup and highlighting in log output
+
 ## [0.0.41] - 2026-04-14
 
 ### Added

@@ -20,6 +20,6 @@ def log (
 
    output = git.log_graph (count, ref or "")
    if output:
-      console.out.print (output)
+      console.out.print (output, markup=False, highlight=False)
    else:
       console.muted ("No commits")
