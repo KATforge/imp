@@ -120,6 +120,7 @@ def do_release (
    tag: str,
    count: int,
    will_push: bool = True,
+   squash: bool = True,
 ):
    subjects = subjects_since (tag, count)
 
@@ -137,12 +138,18 @@ def do_release (
       original_changelog = changelog_path.read_text ()
 
    committed = False
+   can_squash = False
 
    try:
       version.write_changelog (changelog_path, new_entry)
       console.success ("Updated CHANGELOG.md")
 
-      can_squash = _squash_commits (tag, summary, changelog_path, count)
+      if squash:
+         can_squash = _squash_commits (tag, summary, changelog_path, count)
+      else:
+         git.add ([ str (changelog_path) ])
+         git.commit (summary)
+
       committed = True
 
       git.tag (f"v{new_version}")

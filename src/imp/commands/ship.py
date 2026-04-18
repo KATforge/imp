@@ -28,6 +28,7 @@ def ship (
    major: bool = typer.Option (False, "--major", help="Bump major version"),
    rc: bool = typer.Option (False, "--rc", help="Tag as pre-release candidate"),
    stable: bool = typer.Option (False, "--stable", help="Tag as stable release"),
+   squash: bool = typer.Option (False, "--squash", help="Squash split commits into a single release commit"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Split changes into logical commits, then release.
@@ -86,4 +87,4 @@ def ship (
       tag, _log, count = release_scope ()
       new_version = version.bump (current_version (), level)
       require_tag_available (new_version)
-      do_release (new_version, tag, count)
+      do_release (new_version, tag, count, squash=squash)

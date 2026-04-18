@@ -69,6 +69,7 @@ def fleet (
    major: bool = typer.Option (False, "--major", help="Bump major on every repo"),
    rc: bool = typer.Option (False, "--rc", help="Tag every repo as pre-release"),
    stable: bool = typer.Option (False, "--stable", help="Tag every repo as stable"),
+   squash: bool = typer.Option (False, "--squash", help="Squash split commits into a single release commit"),
    depth: int = typer.Option (5, "--depth", "-d", help="Max directory depth to scan"),
    dry_run: bool = typer.Option (False, "--dry-run", help="List repos without shipping"),
 ):
@@ -153,6 +154,7 @@ def fleet (
             major=(repo_level == "major"),
             rc=rc,
             stable=stable,
+            squash=squash,
             whisper="",
          )
          results.append ((rel, f"shipped ({repo_level})"))
