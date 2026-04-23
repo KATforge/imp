@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.48] - 2026-04-23
+
+### Changed
+- Remove blank lines between functions
+
 ## [0.0.47] - 2026-04-19
 
 ### Changed
