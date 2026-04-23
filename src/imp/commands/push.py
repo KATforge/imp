@@ -3,7 +3,6 @@ import typer
 from imp import ai, console, git, prompts
 from imp.commands.split import do_split
 
-
 def do_push ():
    """Push the current branch to origin.
 
@@ -33,7 +32,6 @@ def do_push ():
       git.push (set_upstream=True, target=b)
 
    console.success ("Pushed to origin")
-
 
 def push (
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),

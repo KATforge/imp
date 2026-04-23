@@ -35,12 +35,10 @@ app = typer.Typer (
    add_completion=False,
 )
 
-
 def _version (value: bool):
    if value:
       console.out.print (f"imp {__version__}")
       raise typer.Exit ()
-
 
 @app.callback ()
 def main (
@@ -53,7 +51,6 @@ def main (
    ),
 ):
    """[green]imp[/green] — AI-powered git workflow"""
-
 
 _commands = [
    amend, branch, changelog, clean, commit,

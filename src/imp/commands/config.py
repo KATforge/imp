@@ -1,13 +1,10 @@
 from imp import config, console
 
-
 def _provider_choices () -> list [str]:
    return [ "claude", "ollama" ]
 
-
 def _claude_models () -> list [str]:
    return [ "haiku", "sonnet", "opus" ]
-
 
 def _ollama_models () -> list [str]:
    return [
@@ -17,7 +14,6 @@ def _ollama_models () -> list [str]:
       "codellama",
       "custom",
    ]
-
 
 def configure ():
    """Interactively configure AI provider and models.

@@ -5,7 +5,6 @@ import typer
 
 from imp import ai, config, console
 
-
 def _check (name: str, cmd: str, url: str, required: bool = True) -> bool:
    path = shutil.which (cmd)
    if path:
@@ -30,7 +29,6 @@ def _check (name: str, cmd: str, url: str, required: bool = True) -> bool:
    console.muted (f"  {name} not found (optional)")
    console.item (url)
    return True
-
 
 def doctor ():
    """Check tools and configuration.

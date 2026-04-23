@@ -16,7 +16,6 @@ _TICKET_RE = re.compile (r"^[A-Z]+-[0-9]")
 
 _BRANCH_RE = re.compile (r"^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$")
 
-
 def commit (msg: str) -> bool:
    subject = msg.split ("\n", 1) [0]
 
@@ -29,7 +28,6 @@ def commit (msg: str) -> bool:
 
    desc = parts [1]
    return not (desc [0].isupper () and not _TICKET_RE.match (desc))
-
 
 def branch (name: str) -> bool:
    return bool (_BRANCH_RE.match (name))

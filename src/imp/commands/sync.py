@@ -2,7 +2,6 @@ import typer
 
 from imp import console, git
 
-
 def sync (
    yes: bool = typer.Option (False, "--yes", "-y", help="Push without confirmation"),
 ):
@@ -40,12 +39,12 @@ def sync (
    if behind > 0:
       console.label ("Behind")
       console.item (f"{behind} commits")
+      console.out.print ()
 
    if ahead > 0:
       console.label ("Ahead")
       console.item (f"{ahead} commits")
-
-   console.out.print ()
+      console.out.print ()
 
    if behind > 0:
       console.muted ("Rebasing...")

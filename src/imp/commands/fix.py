@@ -2,7 +2,6 @@ import typer
 
 from imp import ai, console, gh, git, prompts, validate
 
-
 def fix (
    issue: int = typer.Argument (..., help="GitHub issue number"),
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept suggested branch name"),
@@ -27,6 +26,8 @@ def fix (
 
    console.label ("Issue")
    console.item (f"#{issue}: {title}")
+   console.out.print ()
+
    name = ai.fast (prompts.fix (title, body, whisper))
    name = ai.oneline (name)
 

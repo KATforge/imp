@@ -6,7 +6,6 @@ import typer
 
 from imp import ai, console, git, prompts
 
-
 def _handoff (findings: str, dangerous: bool = False):
    if not shutil.which ("claude"):
       console.hint ("curl -fsSL https://claude.ai/install.sh | bash")
@@ -27,7 +26,6 @@ def _handoff (findings: str, dangerous: bool = False):
       console.muted ("Handing off to claude CLI...")
       console.out.print ()
       subprocess.run (cmd, check=False)
-
 
 def review (
    last: int = typer.Option (0, "--last", "-l", help="Review the last N commits"),
@@ -72,6 +70,7 @@ def review (
    console.divider ()
    console.md (result)
    console.divider ()
+   console.out.print ()
 
    should_fix = fix
    if not fix:

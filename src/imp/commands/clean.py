@@ -2,7 +2,6 @@ import typer
 
 from imp import console, git
 
-
 def clean ():
    """Delete branches already merged into base.
 

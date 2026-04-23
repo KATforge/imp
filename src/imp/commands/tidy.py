@@ -8,7 +8,6 @@ from imp import ai, console, git, prompts, validate
 
 MAX_PLAN_RETRIES = 1
 
-
 def tidy (
    range: str = typer.Argument ("", help="Range: count (5), ref (main), 'a..b', or '1 year ago'"),
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI plan without review"),
@@ -63,7 +62,6 @@ def tidy (
    console.success (f"Tidied {len (commits)} commits")
    console.hint ("imp log to inspect, or reflog to recover")
 
-
 def _resolve_base (expr: str) -> str:
    if not expr:
       if git.has_upstream ():
@@ -107,10 +105,8 @@ def _resolve_base (expr: str) -> str:
 
    console.fatal (f"Cannot resolve range: {expr}")
 
-
 def _looks_like_date (text: str) -> bool:
    return len (text) >= 8 and text [:4].isdigit () and "-" in text
-
 
 def _pushed_count (base: str) -> int:
    if not git.has_upstream ():
@@ -121,7 +117,6 @@ def _pushed_count (base: str) -> int:
       return 0
 
    return git.count_between (base, upstream)
-
 
 def _get_plan (commits: list [dict [str, str]], whisper: str) -> list [dict]:
    lines = "\n".join (f"{c ['hash'] [:12]} {c ['subject']}" for c in commits)
@@ -137,6 +132,7 @@ def _get_plan (commits: list [dict [str, str]], whisper: str) -> list [dict]:
       except json.JSONDecodeError:
          if attempt < MAX_PLAN_RETRIES:
             console.warn ("Retrying (invalid JSON)...")
+            console.out.print ()
             continue
          console.muted (raw)
          console.fatal ("AI did not return valid JSON")
@@ -144,6 +140,7 @@ def _get_plan (commits: list [dict [str, str]], whisper: str) -> list [dict]:
       if not isinstance (plan, list) or not plan:
          if attempt < MAX_PLAN_RETRIES:
             console.warn ("Retrying (empty plan)...")
+            console.out.print ()
             continue
          console.fatal ("AI returned an empty plan")
 
@@ -152,7 +149,6 @@ def _get_plan (commits: list [dict [str, str]], whisper: str) -> list [dict]:
 
    console.muted (last_raw)
    console.fatal ("AI did not return a usable plan")
-
 
 def _validate_plan (plan: list [dict], commits: list [dict [str, str]]):
    valid_actions = { "keep", "reword", "squash", "drop" }
@@ -206,13 +202,11 @@ def _validate_plan (plan: list [dict], commits: list [dict [str, str]]):
             console.fatal ("Plan reorders commits, not supported")
          last = order [h]
 
-
 def _match_hash (prefix: str, full: set [str]) -> str:
    for h in full:
       if h.startswith (prefix):
          return h
    return ""
-
 
 def _show_plan (plan: list [dict], commits: list [dict [str, str]]):
    subjects = { c ["hash"]: c ["subject"] for c in commits }
@@ -235,7 +229,6 @@ def _show_plan (plan: list [dict], commits: list [dict [str, str]]):
 
    console.items ("Proposed", "\n".join (lines))
    console.out.print ()
-
 
 def _apply (plan: list [dict], base: str):
    original = git.rev_parse ("HEAD")

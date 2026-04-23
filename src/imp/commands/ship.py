@@ -10,7 +10,6 @@ from imp.commands.release import (
 )
 from imp.commands.split import do_split
 
-
 def _resolve_level (patch: bool, minor: bool, major: bool) -> str:
    if sum ([ patch, minor, major ]) > 1:
       console.fatal ("--patch, --minor, --major are mutually exclusive")
@@ -20,7 +19,6 @@ def _resolve_level (patch: bool, minor: bool, major: bool) -> str:
    if minor:
       return "minor"
    return "patch"
-
 
 def ship (
    patch: bool = typer.Option (False, "--patch", help="Bump patch version (default)"),

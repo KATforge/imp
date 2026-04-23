@@ -2,7 +2,6 @@ import typer
 
 from imp import console, git
 
-
 def log (
    count: int = typer.Option (20, "-n", help="Number of commits"),
    ref: str | None = typer.Argument (None, help="Branch or commit ref"),

@@ -2,7 +2,6 @@ from pathlib import Path
 
 from imp import console, git
 
-
 def _file_style (code: str) -> str:
    if code in ("M ", "AM"):
       return "green"
@@ -17,7 +16,6 @@ def _file_style (code: str) -> str:
    if code == "??":
       return "dim"
    return "default"
-
 
 def status ():
    """Show repository overview.

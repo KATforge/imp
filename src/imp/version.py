@@ -3,10 +3,8 @@ from pathlib import Path
 
 from imp.validate import COMMIT_RE
 
-
 def _capitalize (text: str) -> str:
    return text [0].upper () + text [1:] if len (text) > 1 else text
-
 
 def bump (current: str, level: str) -> str:
    match = re.match (r"^(\d+)\.(\d+)\.(\d+)$", current)
@@ -24,7 +22,6 @@ def bump (current: str, level: str) -> str:
 
    return ".".join (map (str, parts))
 
-
 def next_rc (ver: str, existing: list [str]) -> str:
    if not existing:
       return f"{ver}-rc.1"
@@ -36,7 +33,6 @@ def next_rc (ver: str, existing: list [str]) -> str:
          highest = max (highest, int (match.group (1)))
 
    return f"{ver}-rc.{highest + 1}"
-
 
 def changelog_from_commits (subjects: str) -> str:
    added = []
@@ -78,7 +74,6 @@ def changelog_from_commits (subjects: str) -> str:
       sections.append ("### Fixed\n" + "\n".join (fixed))
 
    return "\n\n".join (sections)
-
 
 def write_changelog (path: Path, entry: str):
    if path.is_file ():

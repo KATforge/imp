@@ -2,7 +2,6 @@ import typer
 
 from imp import ai, console, git, prompts, validate
 
-
 def branch (
    description: list [str] | None = typer.Argument (None, help="Branch description"),
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept suggested branch name"),
@@ -21,7 +20,6 @@ def branch (
       _switch ()
    else:
       _create (" ".join (description), whisper, yes)
-
 
 def _switch ():
    console.header ("Branches")
@@ -44,7 +42,6 @@ def _switch ():
    git.require_clean ()
    git.checkout (target)
    console.success (f"Switched to {target}")
-
 
 def _create (desc: str, whisper: str = "", yes: bool = False):
    console.header ("Branch")

@@ -36,20 +36,16 @@ _pt_style = PTStyle ([
    ("answer", f"bold {theme.accent}"),
 ])
 
-
 def header (title: str):
    out.print ()
    out.print (f"[accent]{title}[/accent]")
    out.print ()
 
-
 def label (text: str):
    out.print (f"[{theme.accent}]{text}[/{theme.accent}]")
 
-
 def item (text: str):
    out.print (f"  [muted]{text}[/muted]")
-
 
 def items (title: str, data: str):
    label (title)
@@ -57,16 +53,13 @@ def items (title: str, data: str):
       if line.strip ():
          item (line)
 
-
 def divider ():
    out.print (
       "[muted]────────────────────────────────────────[/muted]"
    )
 
-
 def success (msg: str):
    out.print (f"[success]✓[/success] {msg}")
-
 
 def err (msg: str):
    out.print (Panel (
@@ -76,28 +69,22 @@ def err (msg: str):
       title_align="left",
    ))
 
-
 def fatal (msg: str) -> NoReturn:
    err (msg)
    raise typer.Exit (1)
 
-
 def warn (msg: str):
    out.print (f"[warning]{msg}[/warning]")
-
 
 def hint (msg: str):
    out.print ()
    out.print (f"[muted]→ {msg}[/muted]")
 
-
 def muted (msg: str):
    out.print (f"[muted]{msg}[/muted]")
 
-
 def md (text: str):
    out.print (Markdown (text.strip ()))
-
 
 def review (text: str) -> str:
    panel = Panel (
@@ -110,10 +97,8 @@ def review (text: str) -> str:
 
    return choose ("Use this message?", [ "Yes", "Edit", "No" ])
 
-
 def confirm (msg: str) -> bool:
    return choose (msg, [ "Yes", "No" ]) == "Yes"
-
 
 def choose (title: str, options: list [str]) -> str:
    result = questionary.select (
@@ -131,7 +116,6 @@ def choose (title: str, options: list [str]) -> str:
 
    return result
 
-
 def prompt (label: str, placeholder: str = "") -> str:
    result = questionary.text (
       label,
@@ -141,7 +125,6 @@ def prompt (label: str, placeholder: str = "") -> str:
    ).ask ()
 
    return result or ""
-
 
 def edit (text: str) -> str:
    import os
@@ -161,8 +144,6 @@ def edit (text: str) -> str:
    finally:
       path.unlink (missing_ok=True)
 
-
 def spin (title: str, fn: Callable [..., T], *args: Any, **kwargs: Any) -> T:
-   out.print ()
    with out.status (f"[accent]{title}[/accent]", spinner="dots"):
       return fn (*args, **kwargs)

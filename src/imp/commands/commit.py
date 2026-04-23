@@ -6,7 +6,6 @@ import typer
 from imp import ai, console, git, prompts, workflow
 from imp.commands import push as push_cmd
 
-
 def commit (
    all: bool = typer.Option (False, "--all", "-a", help="Stage all changes first"),
    exclude: Optional [list [str]] = typer.Option (None, "--exclude", "-E", help="Glob patterns to exclude from staging"),

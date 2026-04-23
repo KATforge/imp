@@ -2,7 +2,6 @@ import typer
 
 from imp import ai, console, git, prompts, workflow
 
-
 def amend (
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI message without review"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
@@ -16,12 +15,12 @@ def amend (
 
    git.require ()
 
-   console.header ("Amend")
-
    total = git.commit_count ()
    if total == 0:
       console.hint ("imp commit first")
       console.fatal ("No commits to amend")
+
+   console.header ("Amend")
 
    last_msg = git.show ("HEAD", fmt="%s")
 

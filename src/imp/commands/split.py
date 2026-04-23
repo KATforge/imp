@@ -6,7 +6,6 @@ import typer
 
 from imp import ai, console, git, prompts, validate
 
-
 def _build_file_stats (files: list [str]) -> str:
    numstat = git.diff_numstat ()
 
@@ -22,7 +21,6 @@ def _build_file_stats (files: list [str]) -> str:
       lines.append (f"{stat}\t{f}")
 
    return "\n".join (lines)
-
 
 def _build_file_diffs (root: str, files: list [str]) -> str:
    parts = []
@@ -44,7 +42,6 @@ def _build_file_diffs (root: str, files: list [str]) -> str:
          parts.append (f"--- {f} --- (no diff available)")
 
    return "\n".join (parts)
-
 
 def _validate_response (response: str, all_files: list [str]) -> list [dict] | None:
    try:
@@ -82,7 +79,6 @@ def _validate_response (response: str, all_files: list [str]) -> list [dict] | N
 
    return groups
 
-
 def do_split (files: list [str], whisper: str = "", yes: bool = False):
    """Core split logic. Stages, groups, and commits files.
 
@@ -104,11 +100,15 @@ def do_split (files: list [str], whisper: str = "", yes: bool = False):
    else:
       prompt = prompts.split (file_diffs, b, whisper)
 
+   console.out.print ()
+
    response = ai.strip_fences (ai.smart (prompt))
    groups = _validate_response (response, files)
 
    if groups is None:
       console.warn ("Retrying...")
+      console.out.print ()
+
       response = ai.strip_fences (ai.smart (prompt))
       groups = _validate_response (response, files)
 
@@ -118,7 +118,6 @@ def do_split (files: list [str], whisper: str = "", yes: bool = False):
    if len (groups) == 1:
       return None
 
-   console.out.print ()
    for i, g in enumerate (groups):
       console.label (f"Group {i + 1}: {g ['message']}")
       for f in g ["files"]:
@@ -167,7 +166,6 @@ def do_split (files: list [str], whisper: str = "", yes: bool = False):
       raise typer.Exit (1) from None
 
    return groups
-
 
 def split (
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI grouping without review"),

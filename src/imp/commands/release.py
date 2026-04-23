@@ -6,10 +6,8 @@ import typer
 
 from imp import console, gh, git, version
 
-
 def _error_detail (e: Exception) -> str:
    return (getattr (e, "stderr", "") or str (e)).strip ()
-
 
 def rollback (
    ver: str,
@@ -28,18 +26,15 @@ def rollback (
       changelog_path.unlink ()
    console.err ("Release failed")
 
-
 def require_tag_available (ver: str):
    if git.tag_exists (f"v{ver}"):
       console.hint (f"pick a different version, or: git tag -d v{ver}")
       console.fatal (f"Tag v{ver} already exists")
 
-
 def subjects_since (tag: str, count: int = 20) -> str:
    if tag:
       return git.log_subjects (rev_range=f"{tag}..HEAD")
    return git.log_subjects (count=count)
-
 
 def push_release (ver: str, notes: str, force_lease: bool = False):
    if git.has_upstream ():
@@ -56,7 +51,6 @@ def push_release (ver: str, notes: str, force_lease: bool = False):
          console.success ("Created GitHub release")
       else:
          console.muted ("GitHub release skipped (gh auth or repo issue)")
-
 
 def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) -> bool:
    can_squash = False
@@ -81,7 +75,6 @@ def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) ->
 
    return can_squash
 
-
 def release_scope () -> tuple [str, str, int]:
    tag = git.last_tag ()
 
@@ -99,13 +92,11 @@ def release_scope () -> tuple [str, str, int]:
 
    return tag, log, len (log.splitlines ())
 
-
 def current_version () -> str:
    highest = git.highest_tag (stable=True)
    current = highest.lstrip ("v") if highest else "0.0.0"
 
    return current or "0.0.0"
-
 
 def _semver_bumps (current: str) -> tuple [str, str, str]:
    return (
@@ -113,7 +104,6 @@ def _semver_bumps (current: str) -> tuple [str, str, str]:
       version.bump (current, "minor"),
       version.bump (current, "major"),
    )
-
 
 def do_release (
    new_version: str,
@@ -170,7 +160,6 @@ def do_release (
          console.err (f"Push failed: {_error_detail (e)}")
          raise typer.Exit (1) from None
 
-
 def do_release_rc (level: str):
    current = current_version ()
    base_ver = version.bump (current, level)
@@ -193,10 +182,7 @@ def do_release_rc (level: str):
    else:
       console.muted ("No remote, skipped push")
 
-
 def release_rc (level: str = ""):
-   git.require_clean ("imp commit first")
-
    tag, log, count = release_scope ()
 
    console.header ("Pre-release")
@@ -256,7 +242,6 @@ def release_rc (level: str = ""):
       git.push (ref=f"v{new_ver}")
       console.success ("Pushed to origin")
 
-
 def _level_from_flags (patch: bool, minor: bool, major: bool) -> str:
    if sum ([ patch, minor, major ]) > 1:
       console.fatal ("--patch, --minor, --major are mutually exclusive")
@@ -268,7 +253,6 @@ def _level_from_flags (patch: bool, minor: bool, major: bool) -> str:
    if patch:
       return "patch"
    return ""
-
 
 def release (
    patch: bool = typer.Option (False, "--patch", help="Bump patch version"),
@@ -308,8 +292,6 @@ def release (
       elif choice == "quit":
          console.muted ("Cancelled")
          raise typer.Exit (0)
-
-   git.require_clean ("imp commit first")
 
    tag, log, count = release_scope ()
 

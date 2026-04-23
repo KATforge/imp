@@ -4,7 +4,6 @@ from imp.validate import COMMIT_TYPES
 
 _TYPES_STR = ", ".join (COMMIT_TYPES)
 
-
 def _ticket_rule (branch: str) -> str:
    match = re.search (r"([A-Z]+-[0-9]+)", branch)
    if not match:
@@ -13,12 +12,10 @@ def _ticket_rule (branch: str) -> str:
    ticket = match.group (1)
    return f'- Include ticket {ticket} after the type, e.g. "fix: {ticket} message"\n'
 
-
 def _whisper (text: str) -> str:
    if not text:
       return ""
    return f"\nUser hint: {text}\n"
-
 
 def commit (diff: str, branch: str = "", whisper: str = "") -> str:
    return f"""\
@@ -40,7 +37,6 @@ Diff:
 {diff}
 
 Output ONLY the commit message, nothing else:"""
-
 
 def gitignore (files: str, existing: str = "") -> str:
    existing_section = ""
@@ -67,7 +63,6 @@ Rules:
 
 Output ONLY the .gitignore entries, nothing else:"""
 
-
 def review (diff: str, whisper: str = "") -> str:
    return f"""\
 Review this code diff. Be concise and actionable.
@@ -86,9 +81,7 @@ Diff:
 
 Output ONLY the review:"""
 
-
 _BRANCH_TYPES = "feat, fix, refactor, docs, test, chore"
-
 
 def branch_name (description: str, whisper: str = "") -> str:
    return f"""\
@@ -102,7 +95,6 @@ Rules:
 
 Output ONLY the branch name:"""
 
-
 def revert (commit_msg: str, diff: str, whisper: str = "") -> str:
    return f"""\
 Generate a commit message for reverting this change. Start with 'Revert:'. Max 50 chars:
@@ -113,7 +105,6 @@ Changes reverted:
 {diff}
 
 Output ONLY the commit message:"""
-
 
 def fix (title: str, body: str, whisper: str = "") -> str:
    return f"""\
@@ -129,7 +120,6 @@ Rules:
 - Include issue number if fits
 
 Output ONLY the branch name:"""
-
 
 def pr (branch: str, log: str, diff: str, whisper: str = "") -> str:
    return f"""\
@@ -153,7 +143,6 @@ DESCRIPTION:
 <list main changes>
 
 Output ONLY in this format:"""
-
 
 def _split_prompt (
    header: str,
@@ -186,7 +175,6 @@ Branch: {branch}
 
 Output ONLY the JSON array:"""
 
-
 def split (file_diffs: str, branch: str = "", whisper: str = "") -> str:
    return _split_prompt (
       "Group these changed files into logical commits. Each group = one commit.",
@@ -195,7 +183,6 @@ def split (file_diffs: str, branch: str = "", whisper: str = "") -> str:
       branch,
       whisper,
    )
-
 
 def split_plan (file_stats: str, branch: str = "", whisper: str = "") -> str:
    num_files = len (file_stats.splitlines ())
@@ -208,7 +195,6 @@ def split_plan (file_stats: str, branch: str = "", whisper: str = "") -> str:
       whisper,
       f"- CRITICAL: every single file below MUST appear in exactly one group. There are {num_files} files; your output must reference all {num_files}\n",
    )
-
 
 def _bias (favor: str, ours: str, theirs: str) -> str:
    if not favor:
@@ -226,7 +212,6 @@ Bias: STRONGLY favor theirs ({theirs}). That branch is more up to date.
 When in doubt, prefer theirs. Only keep from ours ({ours}) when it
 introduces something clearly new that does not conflict with their intent.
 """
-
 
 def resolve (content: str, path: str, ours: str, theirs: str, whisper: str = "", favor: str = "") -> str:
    return f"""\
@@ -264,7 +249,6 @@ Conflict 1 (lines 10-20):
 {content}
 
 Output:"""
-
 
 def resolve_revise (
    content: str,
@@ -313,7 +297,6 @@ SECTION 2 (resolved file): The complete resolved file, nothing else
 
 Output:"""
 
-
 def tidy (commits: str, branch: str = "", whisper: str = "") -> str:
    return f"""\
 Propose a cleanup plan for this commit history.
@@ -342,7 +325,6 @@ Commits (oldest first, "<hash> <subject>"):
 
 Output ONLY the JSON array:"""
 
-
 def tidy_date (expr: str) -> str:
    return f"""\
 Convert this natural-language time reference to an absolute date.
@@ -356,7 +338,6 @@ Rules:
 - No explanation, no quotes, no prose
 
 Output:"""
-
 
 def changelog_entry (diffs: str) -> str:
    return f"""\
@@ -387,7 +368,6 @@ Diffs:
 {diffs}
 
 Output ONLY the changelog sections, nothing else:"""
-
 
 def changelog_infer (subjects: str) -> str:
    return f"""\

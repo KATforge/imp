@@ -7,7 +7,6 @@ from imp import console, git, version
 from imp.commands.release import current_version
 from imp.commands.ship import ship
 
-
 def _find_repos (root: Path, max_depth: int) -> list [Path]:
    """Walk directory tree, short-circuiting at each .git."""
 
@@ -33,13 +32,11 @@ def _find_repos (root: Path, max_depth: int) -> list [Path]:
    walk (root, 0)
    return found
 
-
 def _rel (repo: Path, root: Path) -> str:
    rel = str (repo.relative_to (root))
    if rel in ("", "."):
       return repo.name
    return rel
-
 
 def _label (repo: Path, root: Path) -> str:
    rel = str (repo.relative_to (root))
@@ -47,7 +44,6 @@ def _label (repo: Path, root: Path) -> str:
    if rel in ("", ".") or rel == name:
       return f"{name}  ({rel or '.'})"
    return f"{name}  ({rel})"
-
 
 def _needs_ship (repo: Path) -> bool:
    """True if the repo has uncommitted changes or untagged commits."""
@@ -66,7 +62,6 @@ def _needs_ship (repo: Path) -> bool:
    finally:
       os.chdir (original)
 
-
 def _prompt_level (repo_name: str) -> str:
    choice = console.choose (
       f"Version bump for {repo_name}",
@@ -77,7 +72,6 @@ def _prompt_level (repo_name: str) -> str:
       return ""
    return choice
 
-
 def _prompt_kind (repo_name: str) -> bool:
    choice = console.choose (
       f"Release type for {repo_name}",
@@ -85,7 +79,6 @@ def _prompt_kind (repo_name: str) -> bool:
    )
 
    return choice.startswith ("rc")
-
 
 def _plan_repo (repo: Path, rel: str, rel_path: str, level: str, rc: bool, stable: bool) -> dict:
    """Gather plan for one repo. Cwd must already be in repo."""
@@ -147,7 +140,6 @@ def _plan_repo (repo: Path, rel: str, rel_path: str, level: str, rc: bool, stabl
       "tag": tag,
    }
 
-
 def _print_plan (plan: dict):
    console.label (f"▸ {plan ['rel']}")
    console.item (f"path:    {plan ['rel_path']}")
@@ -161,7 +153,6 @@ def _print_plan (plan: dict):
    console.item (f"current: v{plan ['current']}")
    console.item (f"changes: {plan ['files']} file(s), {plan ['commits']} commit(s) since {since}")
    console.item (f"bump:    {plan ['level']} → v{plan ['new']} ({kind})")
-
 
 def fleet (
    path: Path = typer.Argument (Path ("."), help="Directory to scan for git repos"),
@@ -275,7 +266,6 @@ def fleet (
 
       console.divider ()
       console.label (f"▸ {rel}")
-      console.out.print ()
 
       os.chdir (plan ["path"])
 
@@ -299,7 +289,6 @@ def fleet (
 
    os.chdir (original)
 
-   console.out.print ()
    console.divider ()
    console.header ("Summary")
 

@@ -15,12 +15,10 @@ _ENV_OVERRIDES = {
    "model:smart": "IMP_AI_MODEL_SMART",
 }
 
-
 def path () -> Path:
    xdg = os.environ.get ("XDG_CONFIG_HOME", "") or str (Path.home () / ".config")
 
    return Path (xdg) / "imp" / "config.json"
-
 
 @functools.cache
 def load () -> dict:
@@ -44,13 +42,11 @@ def load () -> dict:
 
    return cfg
 
-
 def save (cfg: dict):
    p = path ()
    p.parent.mkdir (parents=True, exist_ok=True)
    p.write_text (json.dumps (cfg, indent=3) + "\n")
    load.cache_clear ()
-
 
 def get (key: str) -> str:
    return load ().get (key, _DEFAULTS.get (key, ""))

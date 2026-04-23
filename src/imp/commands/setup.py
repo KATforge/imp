@@ -4,7 +4,6 @@ import typer
 
 from imp import ai, console, git, prompts
 
-
 def _add_remote (url: str):
    existing = git.remote_url ()
 
@@ -27,15 +26,15 @@ def _add_remote (url: str):
       git.remote_add (url)
       console.success (f"Added origin → {url}")
 
-
 def _scan_files () -> str:
    entries = sorted (p.name for p in Path.cwd ().iterdir () if not p.name.startswith ("."))
    return "\n".join (entries)
 
-
 def _setup_gitignore (files: str):
    path = Path (".gitignore")
    existing = path.read_text ().strip () if path.exists () else ""
+
+   console.out.print ()
 
    result = ai.fast (prompts.gitignore (files, existing))
    result = result.strip ()
@@ -51,7 +50,6 @@ def _setup_gitignore (files: str):
 
    path.write_text (combined)
    console.success ("Updated .gitignore")
-
 
 def setup (
    url: str = typer.Argument (help="GitHub repository URL"),

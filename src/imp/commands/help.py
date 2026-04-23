@@ -1,6 +1,5 @@
 from imp import console
 
-
 def help ():
    """Show workflow guide and common commands.
 

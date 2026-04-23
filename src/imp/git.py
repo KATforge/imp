@@ -4,7 +4,6 @@ from pathlib import Path
 
 from imp import console
 
-
 def _run (*args: str, check: bool = True, timeout: int = 60, env: dict [str, str] | None = None) -> subprocess.CompletedProcess [str]:
    run_env = None
    if env:
@@ -25,54 +24,43 @@ def _run (*args: str, check: bool = True, timeout: int = 60, env: dict [str, str
    except subprocess.CalledProcessError:
       raise
 
-
 def require ():
    result = _run ("rev-parse", "--git-dir", check=False)
 
    if result.returncode != 0:
       console.fatal ("Not a git repository")
 
-
 def require_clean (hint: str = "imp commit first"):
    if not is_clean ():
       console.hint (hint)
       console.fatal ("Uncommitted changes")
 
-
 def is_repo () -> bool:
    result = _run ("rev-parse", "--git-dir", check=False)
    return result.returncode == 0
 
-
 def init ():
    _run ("init")
-
 
 def remote_url (name: str = "origin") -> str:
    result = _run ("remote", "get-url", name, check=False)
    return result.stdout.strip ()
 
-
 def remote_add (url: str, name: str = "origin"):
    _run ("remote", "add", name, url)
-
 
 def remote_set_url (url: str, name: str = "origin"):
    _run ("remote", "set-url", name, url)
 
-
 def stage ():
    _run ("add", "-A")
-
 
 def add (files: list [str]):
    _run ("add", "--", *files)
 
-
 def staged_files () -> list [str]:
    result = _run ("diff", "--cached", "--name-only", check=False)
    return [ f.strip () for f in result.stdout.splitlines () if f.strip () ]
-
 
 def diff (staged: bool = False) -> str:
    args = [ "diff" ]
@@ -82,11 +70,9 @@ def diff (staged: bool = False) -> str:
    result = _run (*args)
    return result.stdout
 
-
 def diff_range (rev_range: str) -> str:
    result = _run ("diff", rev_range, check=False)
    return result.stdout
-
 
 def diff_names () -> list [str]:
    blocks = [
@@ -97,7 +83,6 @@ def diff_names () -> list [str]:
 
    return sorted ({l.strip () for b in blocks for l in b.splitlines () if l.strip ()})
 
-
 def diff_file (path: str) -> str:
    result = _run ("diff", "HEAD", "--", path, check=False)
    text = result.stdout
@@ -106,23 +91,19 @@ def diff_file (path: str) -> str:
       text = result.stdout
    return text
 
-
 def diff_numstat () -> str:
    staged = _run ("diff", "--cached", "--numstat", check=False).stdout.strip ()
    unstaged = _run ("diff", "--numstat", check=False).stdout.strip ()
 
    return "\n".join (filter (None, [ staged, unstaged ]))
 
-
 def branch () -> str:
    result = _run ("branch", "--show-current", check=False)
    return result.stdout.strip ()
 
-
 def branches_local () -> list [str]:
    result = _run ("branch", "--format=%(refname:short)", check=False)
    return [ b.strip () for b in result.stdout.splitlines () if b.strip () ]
-
 
 def branches_merged (base: str) -> list [str]:
    result = _run ("branch", "--merged", base, check=False)
@@ -134,7 +115,6 @@ def branches_merged (base: str) -> list [str]:
          merged.append (name)
    return merged
 
-
 def commit (msg: str, amend: bool = False, date: str = ""):
    args = [ "commit", "-m", msg ]
    if amend:
@@ -144,7 +124,6 @@ def commit (msg: str, amend: bool = False, date: str = ""):
 
    _run (*args, env={ "GIT_COMMITTER_DATE": date } if date else {})
 
-
 def _count_revs (spec: str) -> int:
    result = _run ("rev-list", "--count", spec, check=False)
 
@@ -153,15 +132,12 @@ def _count_revs (spec: str) -> int:
    except ValueError:
       return 0
 
-
 def commit_count () -> int:
    return _count_revs ("HEAD")
-
 
 def is_clean () -> bool:
    result = _run ("status", "--porcelain")
    return result.stdout.strip () == ""
-
 
 def base_branch () -> str:
    for name in [ "main", "master" ]:
@@ -171,11 +147,9 @@ def base_branch () -> str:
 
    return "main"
 
-
 def last_tag () -> str:
    result = _run ("describe", "--tags", "--abbrev=0", check=False)
    return result.stdout.strip ()
-
 
 def highest_tag (stable: bool = False) -> str:
    result = _run ("tag", "-l", "v*", "--sort=-v:refname", check=False)
@@ -190,11 +164,9 @@ def highest_tag (stable: bool = False) -> str:
 
    return ""
 
-
 def rc_tags (ver: str) -> list [str]:
    result = _run ("tag", "-l", f"v{ver}-rc.*", "--sort=-v:refname", check=False)
    return [ l.strip () for l in result.stdout.splitlines () if l.strip () ]
-
 
 def tag (name: str, ref: str = ""):
    args = [ "tag", name ]
@@ -202,32 +174,25 @@ def tag (name: str, ref: str = ""):
       args.append (ref)
    _run (*args)
 
-
 def tag_exists (name: str) -> bool:
    result = _run ("rev-parse", name, check=False)
    return result.returncode == 0
 
-
 def tag_delete (name: str):
    _run ("tag", "-d", name, check=False)
-
 
 def has_upstream () -> bool:
    result = _run ("rev-parse", "--verify", "@{u}", check=False)
    return result.returncode == 0
 
-
 def count_ahead () -> int:
    return _count_revs ("@{u}..HEAD")
-
 
 def count_behind () -> int:
    return _count_revs ("HEAD..@{u}")
 
-
 def count_between (a: str, b: str) -> int:
    return _count_revs (f"{a}..{b}")
-
 
 def log_oneline (count: int = 10, rev_range: str = "") -> str:
    args = [ "log", "--oneline" ]
@@ -237,7 +202,6 @@ def log_oneline (count: int = 10, rev_range: str = "") -> str:
       args.extend ([ "-n", str (count) ])
    result = _run (*args, check=False)
    return result.stdout.strip ()
-
 
 def log_graph (count: int = 20, ref: str = "") -> str:
    args = [
@@ -250,7 +214,6 @@ def log_graph (count: int = 20, ref: str = "") -> str:
    result = _run (*args, check=False)
    return result.stdout.strip ()
 
-
 def log_subjects (rev_range: str = "", count: int = 0) -> str:
    args = [ "log", "--format=%s" ]
    if rev_range:
@@ -260,18 +223,15 @@ def log_subjects (rev_range: str = "", count: int = 0) -> str:
    result = _run (*args, check=False)
    return result.stdout.strip ()
 
-
 def fetch (prune: bool = False):
    args = [ "fetch" ]
    if prune:
       args.append ("--prune")
    _run (*args, check=False)
 
-
 def rebase () -> bool:
    result = _run ("rebase", check=False)
    return result.returncode == 0
-
 
 def push (
    force_lease: bool = False,
@@ -290,7 +250,6 @@ def push (
       args.extend ([ "origin", ref ])
    _run (*args)
 
-
 def merge (ref: str, no_ff: bool = False) -> bool:
    args = [ "merge" ]
    if no_ff:
@@ -299,15 +258,12 @@ def merge (ref: str, no_ff: bool = False) -> bool:
    result = _run (*args, check=False)
    return result.returncode == 0
 
-
 def is_merged (branch_name: str, into: str) -> bool:
    result = _run ("merge-base", "--is-ancestor", branch_name, into, check=False)
    return result.returncode == 0
 
-
 def pull ():
    _run ("pull", check=False)
-
 
 def revert_commit (ref: str, no_commit: bool = False):
    args = [ "revert" ]
@@ -316,10 +272,8 @@ def revert_commit (ref: str, no_commit: bool = False):
    args.append (ref)
    _run (*args)
 
-
 def revert_abort ():
    _run ("revert", "--abort", check=False)
-
 
 def cherry_pick (ref: str, no_commit: bool = False):
    args = [ "cherry-pick" ]
@@ -328,18 +282,14 @@ def cherry_pick (ref: str, no_commit: bool = False):
    args.append (ref)
    _run (*args)
 
-
 def cherry_pick_abort ():
    _run ("cherry-pick", "--abort", check=False)
-
 
 def update_ref (name: str, ref: str):
    _run ("update-ref", name, ref)
 
-
 def delete_ref (name: str):
    _run ("update-ref", "-d", name, check=False)
-
 
 def log_since (expr: str) -> list [dict [str, str]]:
    result = _run (
@@ -354,7 +304,6 @@ def log_since (expr: str) -> list [dict [str, str]]:
          entries.append ({ "hash": parts [0], "subject": parts [1] })
    return entries
 
-
 def reset (ref: str, soft: bool = False, hard: bool = False):
    args = [ "reset" ]
    if soft:
@@ -364,7 +313,6 @@ def reset (ref: str, soft: bool = False, hard: bool = False):
    args.append (ref)
    _run (*args)
 
-
 def checkout (ref: str, create: bool = False):
    args = [ "checkout" ]
    if create:
@@ -372,19 +320,15 @@ def checkout (ref: str, create: bool = False):
    args.append (ref)
    _run (*args)
 
-
 def checkout_side (path: str, side: str):
    _run ("checkout", f"--{side}", "--", path)
-
 
 def rm (path: str):
    _run ("rm", "--", path)
 
-
 def show_patch (ref: str) -> str:
    result = _run ("show", "--format=", "--patch", ref, check=False)
    return result.stdout.strip ()
-
 
 def show (ref: str = "HEAD", fmt: str = "", stat: bool = False) -> str:
    args = [ "show" ]
@@ -398,26 +342,21 @@ def show (ref: str = "HEAD", fmt: str = "", stat: bool = False) -> str:
    result = _run (*args, check=False)
    return result.stdout.strip ()
 
-
 def status_short () -> str:
    result = _run ("status", "--short")
    return result.stdout.strip ()
-
 
 def worktree_list () -> str:
    result = _run ("worktree", "list", check=False)
    return result.stdout.strip ()
 
-
 def remote_has_branch (name: str) -> bool:
    result = _run ("ls-remote", "--heads", "origin", name, check=False)
    return name in result.stdout
 
-
 def remote_exists () -> bool:
    result = _run ("remote", check=False)
    return result.stdout.strip () != ""
-
 
 def delete_branch (name: str, force: bool = False, remote: bool = False) -> bool:
    if remote:
@@ -427,7 +366,6 @@ def delete_branch (name: str, force: bool = False, remote: bool = False) -> bool
    flag = "-D" if force else "-d"
    result = _run ("branch", flag, name, check=False)
    return result.returncode == 0
-
 
 def unstage (files: list [str] | None = None):
    if files:
@@ -440,40 +378,32 @@ def unstage (files: list [str] | None = None):
    else:
       _run ("rm", "-r", "--cached", ".", check=False)
 
-
 def repo_root () -> str:
    result = _run ("rev-parse", "--show-toplevel", check=False)
    return result.stdout.strip ()
 
-
 def repo_name () -> str:
    return Path (repo_root ()).name
-
 
 def git_dir () -> str:
    result = _run ("rev-parse", "--git-dir", check=False)
    return result.stdout.strip ()
 
-
 def rev_parse (ref: str) -> str:
    result = _run ("rev-parse", ref, check=False)
    return result.stdout.strip ()
 
-
 def rev_parse_short (ref: str) -> str:
    result = _run ("rev-parse", "--short", ref, check=False)
    return result.stdout.strip ()
-
 
 def conflicts () -> list [str]:
    result = _run ("diff", "--name-only", "--diff-filter=U", check=False)
    lines = result.stdout.strip ().splitlines ()
    return [ line.strip () for line in lines if line.strip () ]
 
-
 def merge_in_progress () -> bool:
    return Path (git_dir (), "MERGE_HEAD").exists ()
-
 
 def rebase_in_progress () -> bool:
    gd = git_dir ()
@@ -482,17 +412,14 @@ def rebase_in_progress () -> bool:
       or Path (gd, "rebase-apply").exists ()
    )
 
-
 def branch_age (name: str) -> str:
    result = _run ("log", "-1", "--format=%cr", name, check=False)
    return result.stdout.strip () or "unknown"
-
 
 def log_after_date (date: str) -> str:
    result = _run ("log", "--format=%H", "--after", date, "--reverse", check=False)
    lines = result.stdout.strip ().splitlines ()
    return lines [0].strip () if lines else ""
-
 
 def tag_commit_map () -> dict [str, str]:
    # %(*objectname) dereferences annotated tags to the commit hash;
@@ -513,7 +440,6 @@ def tag_commit_map () -> dict [str, str]:
       elif len (parts) == 2:
          mapping [parts [0]] = parts [1]
    return mapping
-
 
 def log_full (since: str = "", until: str = "") -> list [dict [str, str]]:
    args = [ "log", "--format=%H\t%ai\t%s", "--reverse" ]

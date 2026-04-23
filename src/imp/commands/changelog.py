@@ -8,7 +8,6 @@ from imp import ai, console, git, prompts, version
 
 MAX_DIFF_LINES = 3000
 
-
 def _build_version_map (
    tags: dict [str, str],
    commits: list [dict [str, str]],
@@ -42,7 +41,6 @@ def _build_version_map (
       })
 
    return versions
-
 
 def _infer_versions (
    commits: list [dict [str, str]],
@@ -98,7 +96,6 @@ def _infer_versions (
 
    return versions
 
-
 def _collect_diffs (commits: list [dict [str, str]]) -> str:
    parts = []
    total = 0
@@ -120,7 +117,6 @@ def _collect_diffs (commits: list [dict [str, str]]) -> str:
 
    return "\n".join (parts)
 
-
 def _entry_from_diffs (commits: list [dict [str, str]]) -> str:
    diffs = _collect_diffs (commits)
 
@@ -131,7 +127,6 @@ def _entry_from_diffs (commits: list [dict [str, str]]) -> str:
    prompt = prompts.changelog_entry (diffs)
    result = ai.smart (prompt)
    return ai.strip_fences (result).strip ()
-
 
 def _generate_changelog (versions: list [dict]) -> str:
    lines = [
@@ -154,13 +149,14 @@ def _generate_changelog (versions: list [dict]) -> str:
       lines.append ("")
 
       console.muted (f"Analyzing {v} ({len (ver ['commits'])} commits)...")
+      console.out.print ()
+
       entry = _entry_from_diffs (ver ["commits"])
       if entry:
          lines.append (entry)
       lines.append ("")
 
    return "\n".join (lines).rstrip () + "\n"
-
 
 def _tag_plan (
    versions: list [dict],
@@ -193,14 +189,12 @@ def _tag_plan (
 
    return plan
 
-
 def _apply_tags (plan: list [dict]):
    for item in plan:
       if item ["action"] == "move":
          git.tag_delete (item ["tag"])
       git.tag (item ["tag"], ref=item ["hash"])
       console.success (f"Tagged {item ['tag']} at {item ['hash'] [:7]}")
-
 
 def changelog (
    since: str = typer.Option ("", "--since", "-s", help="Date, tag, or commit hash to start from"),
@@ -256,6 +250,8 @@ def changelog (
 
    if all_unreleased and len (commits) > 1:
       console.muted ("No tags found, inferring versions with AI...")
+      console.out.print ()
+
       version_map = _infer_versions (commits)
 
    # Generate changelog

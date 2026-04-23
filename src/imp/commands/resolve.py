@@ -11,7 +11,6 @@ from imp.theme import theme
 MARKER = "<<<<<<<"
 SEPARATOR = "---RESOLVED---"
 
-
 def _theirs_branch () -> str:
    gd = git.git_dir ()
 
@@ -24,14 +23,12 @@ def _theirs_branch () -> str:
 
    return "incoming"
 
-
 def _parse_response (raw: str) -> tuple [str, str]:
    if SEPARATOR in raw:
       parts = raw.split (SEPARATOR, 1)
       return parts [0].strip (), parts [1].strip ()
 
    return "", raw.strip ()
-
 
 def _make_diff (original: str, resolved: str, path: str) -> str:
    orig_lines = original.splitlines (keepends=True)
@@ -45,7 +42,6 @@ def _make_diff (original: str, resolved: str, path: str) -> str:
    )
 
    return "".join (diff)
-
 
 def _show_suggestion (content: str, result: str, reasoning: str, path: str):
    if reasoning:
@@ -77,7 +73,6 @@ def _show_suggestion (content: str, result: str, reasoning: str, path: str):
       ))
 
    console.out.print ()
-
 
 def resolve (
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
@@ -122,8 +117,11 @@ def resolve (
    num_resolved = 0
    num_skipped = 0
 
-   for path in files:
+   for i, path in enumerate (files):
+      if i > 0:
+         console.out.print ()
       console.label (path)
+      console.out.print ()
 
       try:
          content = Path (path).read_text ()
@@ -163,6 +161,8 @@ def resolve (
 
       if MARKER in result:
          console.warn ("AI left conflict markers, retrying...")
+         console.out.print ()
+
          raw = ai.smart (prompts.resolve (content, path, ours, theirs, whisper, favor))
          reasoning, result = _parse_response (raw)
 
@@ -186,6 +186,8 @@ def resolve (
 
                if not feedback.strip ():
                   continue
+
+               console.out.print ()
 
                raw = ai.smart (prompts.resolve_revise (
                   content, path, ours, theirs,

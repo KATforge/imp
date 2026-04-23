@@ -4,7 +4,6 @@ import typer
 
 from imp import console, git
 
-
 def review_commit (
    msg: str,
    yes: bool,

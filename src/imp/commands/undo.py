@@ -2,7 +2,6 @@ import typer
 
 from imp import console, git
 
-
 def undo (
    count: int | None = typer.Argument (1, help="Number of commits to undo"),
 ):

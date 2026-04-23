@@ -2,7 +2,6 @@ import typer
 
 from imp import ai, console, git, prompts, workflow
 
-
 def revert (
    ref: str | None = typer.Argument (None, help="Commit hash to revert"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
@@ -55,6 +54,8 @@ def revert (
    if not console.confirm ("Create revert commit?"):
       console.muted ("Cancelled")
       raise typer.Exit (0)
+
+   console.out.print ()
 
    d = ai.truncate (git.diff_range (f"{ref}~1..{ref}"), 500)
 

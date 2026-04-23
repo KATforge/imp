@@ -4,7 +4,6 @@ import typer
 
 from imp import ai, console, gh, git, prompts
 
-
 def _parse_response (content: str) -> tuple [str, str]:
    title = ""
    for line in content.splitlines ():
@@ -18,7 +17,6 @@ def _parse_response (content: str) -> tuple [str, str]:
       description = parts [1].strip ()
 
    return title, description
-
 
 def pr (
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI description without review"),
@@ -34,8 +32,6 @@ def pr (
    git.require ()
    gh.require ()
 
-   console.header ("Pull Request")
-
    b = git.branch ()
    base = git.base_branch ()
 
@@ -48,11 +44,14 @@ def pr (
    if not log:
       console.fatal (f"No commits on {b}")
 
+   console.header ("Pull Request")
+
    console.label ("Branch")
    console.item (f"{b} → {base}")
    console.out.print ()
 
    console.items ("Commits", log)
+   console.out.print ()
 
    d = ai.truncate (git.diff_range (f"{base}..{b}"))
 

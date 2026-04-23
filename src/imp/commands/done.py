@@ -2,7 +2,6 @@ import typer
 
 from imp import console, git
 
-
 def done (
    target: str | None = typer.Argument (None, help="Branch to merge into"),
    yes: bool = typer.Option (False, "--yes", "-y", help="Skip confirmation"),
@@ -43,7 +42,6 @@ def done (
    has_remote_feature = git.remote_has_branch (feature)
 
    console.label (f"{feature} → {base}")
-   console.out.print ()
    console.item (f"Switch to {base}")
 
    if already_merged:
