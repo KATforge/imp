@@ -101,16 +101,48 @@ class TestPr:
 class TestSplit:
 
    def test_contains_diffs (self):
-      result = prompts.split ("--- file.py ---\n+code", "main")
+      result = prompts.split ("--- file.py ---\n+code", 1, "main")
       assert "file.py" in result
 
    def test_json_format (self):
-      result = prompts.split ("diffs", "main")
+      result = prompts.split ("diffs", 3, "main")
       assert "JSON array" in result
 
    def test_ticket_extraction (self):
-      result = prompts.split ("diffs", "feat/IMP-123-work")
+      result = prompts.split ("diffs", 1, "feat/IMP-123-work")
       assert "IMP-123" in result
+
+   def test_file_count_in_critical_rule (self):
+      result = prompts.split ("diffs", 41, "main")
+      assert "41 files" in result
+      assert "CRITICAL" in result
+
+   def test_retry_includes_missing (self):
+      result = prompts.split_retry (
+         "File diffs",
+         "--- a.py ---",
+         '[{"files": ["a.py"], "message": "feat: a"}]',
+         [ "b.py", "c.py" ],
+         [],
+         3,
+         "main",
+      )
+      assert "DROPPED" in result
+      assert "b.py" in result
+      assert "c.py" in result
+
+   def test_retry_includes_extra (self):
+      result = prompts.split_retry (
+         "File diffs",
+         "--- a.py ---",
+         '[{"files": ["a.py", "ghost.py"], "message": "feat: a"}]',
+         [],
+         [ "ghost.py" ],
+         1,
+         "main",
+      )
+      assert "INVENTED" in result
+      assert "ghost.py" in result
 
 
 class TestChangelogInfer:

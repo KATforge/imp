@@ -148,13 +148,14 @@ def _split_prompt (
    header: str,
    content_label: str,
    content: str,
+   num_files: int,
    branch: str,
    whisper: str,
-   extra_rules: str = "",
+   preamble: str = "",
 ) -> str:
    return f"""\
 {header}
-{_whisper (whisper)}\
+{preamble}{_whisper (whisper)}\
 Format: type: message
 Types: {_TYPES_STR}
 {_ticket_rule (branch)}
@@ -164,10 +165,10 @@ Rules:
 - ALL LOWERCASE after the colon (except ticket IDs like IMP-123)
 - Imperative mood: "add" not "added", "fix" not "fixes"
 - Max 72 chars per message, no period at end
-- Every file must appear in exactly one group
+- CRITICAL: every single file MUST appear in exactly one group. There are {num_files} files; your output must reference all {num_files}
 - Minimize number of groups (prefer fewer, larger groups)
 - Group by logical change, not by directory
-{extra_rules}
+
 Branch: {branch}
 
 {content_label}:
@@ -175,11 +176,12 @@ Branch: {branch}
 
 Output ONLY the JSON array:"""
 
-def split (file_diffs: str, branch: str = "", whisper: str = "") -> str:
+def split (file_diffs: str, num_files: int, branch: str = "", whisper: str = "") -> str:
    return _split_prompt (
       "Group these changed files into logical commits. Each group = one commit.",
       "File diffs",
       file_diffs,
+      num_files,
       branch,
       whisper,
    )
@@ -191,9 +193,40 @@ def split_plan (file_stats: str, branch: str = "", whisper: str = "") -> str:
       f"Group these {num_files} changed files into logical commits. Each group = one commit.",
       "File stats (lines added / lines removed / path)",
       file_stats,
+      num_files,
       branch,
       whisper,
-      f"- CRITICAL: every single file below MUST appear in exactly one group. There are {num_files} files; your output must reference all {num_files}\n",
+   )
+
+def split_retry (
+   content_label: str,
+   content: str,
+   prev_response: str,
+   missing: list [str],
+   extra: list [str],
+   num_files: int,
+   branch: str = "",
+   whisper: str = "",
+) -> str:
+   diag = "\nYour previous output was rejected. Fix it.\n\nPrevious output:\n"
+   diag += prev_response.strip () + "\n"
+
+   if missing:
+      diag += "\nFiles you DROPPED (must appear in exactly one group):\n"
+      diag += "\n".join (f"- {f}" for f in missing) + "\n"
+
+   if extra:
+      diag += "\nFiles you INVENTED (remove these):\n"
+      diag += "\n".join (f"- {f}" for f in extra) + "\n"
+
+   return _split_prompt (
+      "Re-group these changed files into logical commits. Each group = one commit.",
+      content_label,
+      content,
+      num_files,
+      branch,
+      whisper,
+      preamble=diag,
    )
 
 def _bias (favor: str, ours: str, theirs: str) -> str:

@@ -43,16 +43,19 @@ def _build_file_diffs (root: str, files: list [str]) -> str:
 
    return "\n".join (parts)
 
-def _validate_response (response: str, all_files: list [str]) -> list [dict] | None:
+def _validate_response (
+   response: str,
+   all_files: list [str],
+) -> tuple [list [dict] | None, set [str], set [str]]:
    try:
       groups = json.loads (response)
    except json.JSONDecodeError:
       console.err ("AI returned invalid JSON")
-      return None
+      return None, set (), set ()
 
    if not isinstance (groups, list) or len (groups) == 0:
       console.err ("AI returned empty or non-array response")
-      return None
+      return None, set (), set ()
 
    grouped = set ()
    for g in groups:
@@ -60,24 +63,25 @@ def _validate_response (response: str, all_files: list [str]) -> list [dict] | N
          grouped.add (f)
 
    expected = set (all_files)
+   missing = expected - grouped
+   extra = grouped - expected
+
    if grouped != expected:
       console.err ("File mismatch: AI groups don't cover all files")
-      missing = expected - grouped
-      extra = grouped - expected
       if missing:
          console.items ("Missing", "\n".join (sorted (missing)))
       if extra:
          console.items ("Extra", "\n".join (sorted (extra)))
-      return None
+      return None, missing, extra
 
    for g in groups:
       msg = g.get ("message", "")
       if not validate.commit (msg):
          console.err ("AI output not in Conventional Commits format")
          console.muted (msg)
-         return None
+         return None, set (), set ()
 
-   return groups
+   return groups, set (), set ()
 
 def do_split (files: list [str], whisper: str = "", yes: bool = False):
    """Core split logic. Stages, groups, and commits files.
@@ -95,22 +99,36 @@ def do_split (files: list [str], whisper: str = "", yes: bool = False):
    is_large = len (file_diffs.splitlines ()) > ai.MAX_DIFF_LINES
 
    if is_large:
-      stats = _build_file_stats (files)
-      prompt = prompts.split_plan (stats, b, whisper)
+      content = _build_file_stats (files)
+      content_label = "File stats (lines added / lines removed / path)"
+      prompt = prompts.split_plan (content, b, whisper)
    else:
-      prompt = prompts.split (file_diffs, b, whisper)
+      content = file_diffs
+      content_label = "File diffs"
+      prompt = prompts.split (content, len (files), b, whisper)
 
    console.out.print ()
 
    response = ai.strip_fences (ai.smart (prompt))
-   groups = _validate_response (response, files)
+   groups, missing, extra = _validate_response (response, files)
 
    if groups is None:
       console.warn ("Retrying...")
       console.out.print ()
 
-      response = ai.strip_fences (ai.smart (prompt))
-      groups = _validate_response (response, files)
+      retry_prompt = prompts.split_retry (
+         content_label,
+         content,
+         response,
+         sorted (missing),
+         sorted (extra),
+         len (files),
+         b,
+         whisper,
+      )
+
+      response = ai.strip_fences (ai.smart (retry_prompt))
+      groups, _, _ = _validate_response (response, files)
 
       if groups is None:
          console.fatal ("Split failed after retry")
