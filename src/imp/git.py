@@ -21,7 +21,10 @@ def _run (*args: str, check: bool = True, timeout: int = 60, env: dict [str, str
    except subprocess.TimeoutExpired:
       label = args [0] if args else "command"
       console.fatal (f"git {label} timed out")
-   except subprocess.CalledProcessError:
+   except subprocess.CalledProcessError as e:
+      detail = (e.stderr or e.stdout or "").strip ()
+      if detail:
+         console.err (detail)
       raise
 
 def require ():
