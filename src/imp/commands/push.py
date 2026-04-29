@@ -3,11 +3,12 @@ import typer
 from imp import ai, console, git, prompts
 from imp.commands.split import do_split
 
-def do_push ():
+def do_push (force_lease: bool = False):
    """Push the current branch to origin.
 
    Checks for a remote, fetches, counts ahead, sets upstream if needed.
-   Returns silently if nothing to push.
+   Returns silently if nothing to push. Pass force_lease=True to rewrite
+   history safely (used after amend or rebase).
    """
 
    b = git.branch ()
@@ -19,14 +20,19 @@ def do_push ():
 
    if git.has_upstream ():
       git.fetch ()
-      ahead = git.count_ahead ()
 
-      if ahead == 0:
-         console.success ("Nothing to push")
-         return
+      if force_lease:
+         console.item (f"Force-pushing {b}")
+         git.push (force_lease=True)
+      else:
+         ahead = git.count_ahead ()
 
-      console.item (f"{ahead} commits on {b}")
-      git.push ()
+         if ahead == 0:
+            console.success ("Nothing to push")
+            return
+
+         console.item (f"{ahead} commits on {b}")
+         git.push ()
    else:
       console.item (f"Setting upstream for {b}")
       git.push (set_upstream=True, target=b)

@@ -177,7 +177,7 @@ Flags apply to every repo; omit them to be prompted per-repo.
 | Command | Purpose |
 |---|---|
 | `imp commit [-a] [-p] [-y] [-E glob] [-w hint]` | Generate commit message from diff |
-| `imp amend [-y] [-w hint]` | Rewrite last commit message |
+| `imp amend [-y] [-p] [-w hint]` | Fold uncommitted changes into last commit, regenerate message, optionally force-push |
 | `imp split [-y] [-w hint]` | Group dirty files into logical commits |
 | `imp tidy [range] [-y] [-w hint]` | Rewrite past history: reword, squash, drop. Range = count, ref, `a..b`, or `"1 year ago"` |
 | `imp undo [N]` | Undo last N commits, keep changes |
