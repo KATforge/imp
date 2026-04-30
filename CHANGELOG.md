@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.49] - 2026-04-29
+
+### Added
+- Add --push flag to amend for force-push after amending
+
+### Fixed
+- Surface git stderr/stdout on CalledProcessError
+- Enforce all files covered in split prompt with explicit count
+
 ## [0.0.48] - 2026-04-23
 
 ### Changed
