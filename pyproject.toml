@@ -9,7 +9,7 @@ description = "AI git CLI: write commit messages, split dirty trees, tidy histor
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-authors = [{ name = "Anders" }]
+authors = [{ name = "KATforge Studios LLC" }]
 keywords = [
    "ai",
    "ai-commits",

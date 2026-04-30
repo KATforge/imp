@@ -7,7 +7,7 @@
 <title>imp — AI git CLI for commit messages, history, changelogs, and PRs</title>
 <meta name="description" content="imp is a git CLI that uses AI for the parts git leaves to you: commit messages, splitting dirty working trees, rewriting history, changelogs, pull requests, and merge conflicts. Runs against the Claude CLI or local Ollama.">
 <meta name="keywords" content="ai git, ai commit, ai commit message, conventional commits, ai changelog, ai pull request, ai merge conflict, claude cli, ollama, git workflow, aicommits alternative, opencommit alternative, git history, rewrite git history, semver, developer tools">
-<meta name="author" content="Anders">
+<meta name="author" content="KATforge Studios LLC">
 <link rel="canonical" href="https://katforge.github.io/imp/">
 
 <meta property="og:type" content="website">
@@ -33,7 +33,7 @@
    "url": "https://katforge.github.io/imp/",
    "downloadUrl": "https://pypi.org/project/imp-git/",
    "description": "A git CLI that uses AI for commit messages, history rewrites, changelogs, pull requests, and merge conflict resolution. Runs against the Claude CLI or local Ollama.",
-   "author": { "@type": "Person", "name": "Anders" },
+   "author": { "@type": "Organization", "name": "KATforge Studios LLC", "url": "https://github.com/katforge" },
    "license": "https://opensource.org/licenses/MIT",
    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
    "keywords": "ai git, ai commit message, conventional commits, claude, ollama, changelog, pull request"
@@ -288,6 +288,21 @@ tailwind.config = {
       color: #4ADE00;
       border-left-color: #4ADE00;
       font-weight: 600;
+   }
+
+   /* katforge footer logo (mirrors @katforge/spark SparkLogo behavior) */
+   .katforge-logo {
+      display: inline-flex;
+      align-items: center;
+      transition: filter 0.3s ease;
+   }
+   .katforge-logo img { transition: transform 0.3s ease; }
+   .katforge-logo:hover { filter: brightness(1.25); }
+   .katforge-logo:hover img { animation: katforge-wobble 0.6s ease-in-out infinite; }
+   @keyframes katforge-wobble {
+      0%, 100% { transform: rotate(0deg); }
+      25%      { transform: rotate(-2deg); }
+      75%      { transform: rotate(2deg); }
    }
 </style>
 </head>
@@ -577,9 +592,15 @@ imp review -w "focus on error handling"</code></pre>
 
 <!-- footer -->
 <footer class="text-center text-gray-500 py-10 border-t border-imp-border text-sm">
-   <a href="https://github.com/katforge/imp" class="text-gray-500 hover:text-imp-green">GitHub</a> ·
-   <a href="https://pypi.org/project/imp-git/" class="text-gray-500 hover:text-imp-green">PyPI</a> ·
-   <a href="https://github.com/katforge/imp/blob/master/LICENSE" class="text-gray-500 hover:text-imp-green">MIT</a>
+   <a href="https://github.com/katforge" class="katforge-logo mb-5">
+      <img src="assets/katforge-logo.png" alt="KATforge" class="h-8 opacity-80">
+   </a>
+   <div>
+      <a href="https://github.com/katforge/imp" class="text-gray-500 hover:text-imp-green">GitHub</a> ·
+      <a href="https://pypi.org/project/imp-git/" class="text-gray-500 hover:text-imp-green">PyPI</a> ·
+      <a href="https://github.com/katforge/imp/blob/master/LICENSE" class="text-gray-500 hover:text-imp-green">MIT</a>
+   </div>
+   <p class="mt-4 text-xs text-gray-600">© 2026 KATforge Studios LLC</p>
 </footer>
 
 <script>
