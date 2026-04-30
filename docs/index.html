@@ -8,19 +8,19 @@
 <meta name="description" content="imp is a git CLI that uses AI for the parts git leaves to you: commit messages, splitting dirty working trees, rewriting history, changelogs, pull requests, and merge conflicts. Runs against the Claude CLI or local Ollama.">
 <meta name="keywords" content="ai git, ai commit, ai commit message, conventional commits, ai changelog, ai pull request, ai merge conflict, claude cli, ollama, git workflow, aicommits alternative, opencommit alternative, git history, rewrite git history, semver, developer tools">
 <meta name="author" content="Anders">
-<link rel="canonical" href="https://anders458.github.io/imp/">
+<link rel="canonical" href="https://katforge.github.io/imp/">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="imp — AI git CLI for the whole workflow">
 <meta property="og:description" content="Commit messages, splits, history rewrites, changelogs, PRs, and merge resolution. Runs against the Claude CLI or local Ollama.">
-<meta property="og:image" content="https://raw.githubusercontent.com/anders458/imp/master/logo.png">
-<meta property="og:url" content="https://anders458.github.io/imp/">
+<meta property="og:image" content="https://raw.githubusercontent.com/katforge/imp/master/logo.png">
+<meta property="og:url" content="https://katforge.github.io/imp/">
 <meta property="og:site_name" content="imp">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="imp — AI git CLI for the whole workflow">
 <meta name="twitter:description" content="Commit messages, splits, history rewrites, changelogs, PRs, merge resolution. Claude or Ollama. MIT.">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/anders458/imp/master/logo.png">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/katforge/imp/master/logo.png">
 
 <script type="application/ld+json">
 {
@@ -30,7 +30,7 @@
    "alternateName": "imp-git",
    "applicationCategory": "DeveloperApplication",
    "operatingSystem": "Linux, macOS, Windows",
-   "url": "https://anders458.github.io/imp/",
+   "url": "https://katforge.github.io/imp/",
    "downloadUrl": "https://pypi.org/project/imp-git/",
    "description": "A git CLI that uses AI for commit messages, history rewrites, changelogs, pull requests, and merge conflict resolution. Runs against the Claude CLI or local Ollama.",
    "author": { "@type": "Person", "name": "Anders" },
@@ -311,7 +311,7 @@ tailwind.config = {
 
 <!-- hero -->
 <div class="text-center px-6 pt-20 pb-12">
-   <img src="https://raw.githubusercontent.com/anders458/imp/master/logo.png" alt="imp" class="w-36 mx-auto logo-glow">
+   <img src="https://raw.githubusercontent.com/katforge/imp/master/logo.png" alt="imp" class="w-36 mx-auto logo-glow">
 
    <h1 class="text-4xl sm:text-5xl font-bold tracking-tight mt-6 mb-3 leading-tight">
       AI for the parts of <span class="text-imp-green">git</span> you skip.
@@ -326,7 +326,7 @@ tailwind.config = {
    </div>
 
    <div class="flex gap-3 justify-center flex-wrap">
-      <a href="https://github.com/anders458/imp"
+      <a href="https://github.com/katforge/imp"
          class="inline-block px-6 py-2.5 rounded-lg font-semibold bg-imp-green text-imp-bg hover:bg-imp-glow hover:shadow-[0_0_20px_rgba(74,222,0,0.3)] transition-all">
          GitHub
       </a>
@@ -339,7 +339,7 @@ tailwind.config = {
    <div class="flex gap-2 justify-center flex-wrap mt-5">
       <a href="https://pypi.org/project/imp-git/"><img src="https://img.shields.io/pypi/v/imp-git.svg" alt="PyPI" class="h-5"></a>
       <a href="https://pypi.org/project/imp-git/"><img src="https://img.shields.io/pypi/pyversions/imp-git.svg" alt="Python" class="h-5"></a>
-      <a href="https://github.com/anders458/imp/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT" class="h-5"></a>
+      <a href="https://github.com/katforge/imp/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT" class="h-5"></a>
    </div>
 </div>
 
@@ -348,7 +348,7 @@ tailwind.config = {
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">See it work</h2>
 
-   <img src="https://raw.githubusercontent.com/anders458/imp/master/demo/tidy.gif" alt="imp tidy"
+   <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/tidy.gif" alt="imp tidy"
         class="w-full rounded-xl border border-imp-border mb-6">
 
    <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
@@ -417,14 +417,14 @@ i7j8k9l docs: document auth flags</code></pre>
    <h2 class="text-2xl font-bold mb-5">More examples</h2>
 
    <h3 class="text-lg font-semibold mt-6 mb-3">Commit</h3>
-   <img src="https://raw.githubusercontent.com/anders458/imp/master/demo/commit.gif" alt="imp commit"
+   <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/commit.gif" alt="imp commit"
         class="w-full rounded-xl border border-imp-border mb-3">
    <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ imp commit -a
 → feat: add rate limiting to API endpoints
   Use this message? [Yes / Edit / No]</code></pre>
 
    <h3 class="text-lg font-semibold mt-8 mb-3">Pull request</h3>
-   <img src="https://raw.githubusercontent.com/anders458/imp/master/demo/pr.gif" alt="imp pr"
+   <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/pr.gif" alt="imp pr"
         class="w-full rounded-xl border border-imp-border mb-3">
    <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ imp pr
 → Title: feat: rate limit auth endpoints
@@ -433,7 +433,7 @@ i7j8k9l docs: document auth flags</code></pre>
   Create PR? [Yes / Edit / No]</code></pre>
 
    <h3 class="text-lg font-semibold mt-8 mb-3">Release</h3>
-   <img src="https://raw.githubusercontent.com/anders458/imp/master/demo/release.gif" alt="imp release"
+   <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/release.gif" alt="imp release"
         class="w-full rounded-xl border border-imp-border mb-3">
    <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ imp release
 → Bump: patch / minor / major
@@ -577,9 +577,9 @@ imp review -w "focus on error handling"</code></pre>
 
 <!-- footer -->
 <footer class="text-center text-gray-500 py-10 border-t border-imp-border text-sm">
-   <a href="https://github.com/anders458/imp" class="text-gray-500 hover:text-imp-green">GitHub</a> ·
+   <a href="https://github.com/katforge/imp" class="text-gray-500 hover:text-imp-green">GitHub</a> ·
    <a href="https://pypi.org/project/imp-git/" class="text-gray-500 hover:text-imp-green">PyPI</a> ·
-   <a href="https://github.com/anders458/imp/blob/master/LICENSE" class="text-gray-500 hover:text-imp-green">MIT</a>
+   <a href="https://github.com/katforge/imp/blob/master/LICENSE" class="text-gray-500 hover:text-imp-green">MIT</a>
 </footer>
 
 <script>

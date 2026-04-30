@@ -60,10 +60,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/anders458/imp"
-Repository = "https://github.com/anders458/imp"
-Issues = "https://github.com/anders458/imp/issues"
-Changelog = "https://github.com/anders458/imp/blob/master/CHANGELOG.md"
+Homepage = "https://github.com/katforge/imp"
+Repository = "https://github.com/katforge/imp"
+Issues = "https://github.com/katforge/imp/issues"
+Changelog = "https://github.com/katforge/imp/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://anders458.github.io/imp/sitemap.xml
+Sitemap: https://katforge.github.io/imp/sitemap.xml

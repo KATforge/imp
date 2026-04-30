@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-   <a href="https://anders458.github.io/imp/"><strong>Full documentation →</strong></a>
+   <a href="https://katforge.github.io/imp/"><strong>Full documentation →</strong></a>
 </p>
 
 ---
@@ -49,9 +49,9 @@ One dirty tree, three coherent Conventional Commits.
 
 ## More
 
-- [Full command reference](https://anders458.github.io/imp/#commands)
-- [How `imp` compares to aicommits, OpenCommit, commitizen](https://anders458.github.io/imp/#compare)
-- [Configuration](https://anders458.github.io/imp/#config)
+- [Full command reference](https://katforge.github.io/imp/#commands)
+- [How `imp` compares to aicommits, OpenCommit, commitizen](https://katforge.github.io/imp/#compare)
+- [Configuration](https://katforge.github.io/imp/#config)
 - [Contributing](CONTRIBUTING.md)
 
 ## License
