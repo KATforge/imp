@@ -54,6 +54,7 @@ tailwind.config = {
                dim: '#2d8a00',
                glow: '#7FFF20',
                border: '#1E2D1E',
+               amber: '#fcd34d',
             }
          },
          fontFamily: {
@@ -65,6 +66,8 @@ tailwind.config = {
 </script>
 
 <style type="text/tailwindcss">
+   html { scroll-behavior: smooth; scroll-padding-top: 2rem; }
+
    body {
       background-image:
          radial-gradient(ellipse 80% 60% at 50% 0%, #0d1f0d 0%, transparent 60%),
@@ -73,14 +76,238 @@ tailwind.config = {
    }
 
    @layer utilities {
-      .logo-glow {
-         filter: drop-shadow(0 0 40px rgba(74, 222, 0, 0.25));
-      }
+      .logo-glow { filter: drop-shadow(0 0 40px rgba(74, 222, 0, 0.25)); }
+   }
+
+   /* command tokens */
+   .tok {
+      position: relative;
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: transform 120ms ease, background 120ms ease, color 120ms ease;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 0.875rem;
+      line-height: 1.4;
+   }
+   .tok-prog  { color: #6b7280; }
+   .tok-cmd   { color: #4ADE00; font-weight: 600; }
+   .tok-req   { color: #fcd34d; background: rgba(252, 211, 77, 0.06); border: 1px solid rgba(252, 211, 77, 0.18); }
+   .tok-opt   { color: #9ca3af; background: rgba(156, 163, 175, 0.05); border: 1px solid rgba(156, 163, 175, 0.15); }
+
+   button.tok { cursor: help; }
+   button.tok:hover,
+   button.tok:focus-visible {
+      transform: translateY(-1px);
+      outline: none;
+   }
+   button.tok-req:hover,
+   button.tok-req:focus-visible {
+      background: rgba(252, 211, 77, 0.12);
+      border-color: rgba(252, 211, 77, 0.4);
+   }
+   button.tok-opt:hover,
+   button.tok-opt:focus-visible {
+      background: rgba(74, 222, 0, 0.06);
+      border-color: rgba(74, 222, 0, 0.35);
+      color: #d1d5db;
+   }
+
+   /* tooltip */
+   button.tok[data-tip]:hover::after,
+   button.tok[data-tip]:focus-visible::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: 260px;
+      white-space: normal;
+      text-align: left;
+      background: #0d120d;
+      border: 1px solid #2d8a00;
+      color: #e5e7eb;
+      padding: 8px 11px;
+      border-radius: 6px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      z-index: 50;
+      pointer-events: none;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+   }
+   button.tok[data-tip]:hover::before,
+   button.tok[data-tip]:focus-visible::before {
+      content: '';
+      position: absolute;
+      bottom: calc(100% + 3px);
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #2d8a00;
+      z-index: 50;
+      pointer-events: none;
+   }
+
+   /* command card */
+   .cmd-card {
+      background: #111611;
+      border: 1px solid #1E2D1E;
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      transition: border-color 200ms ease, transform 200ms ease;
+   }
+   .cmd-card:hover { border-color: #2d8a00; }
+   .cmd-line { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+   .cmd-purpose { color: #9ca3af; font-size: 0.85rem; line-height: 1.45; margin-top: 12px; }
+
+   /* category heading */
+   .cmd-group { margin-top: 28px; }
+   .cmd-group:first-child { margin-top: 0; }
+   .cmd-group-title {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #4ADE00;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+   }
+   .cmd-group-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, rgba(74, 222, 0, 0.4), transparent);
+   }
+   .cmd-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+   }
+   @media (min-width: 768px) {
+      .cmd-grid { grid-template-columns: repeat(2, 1fr); }
+   }
+
+   /* filter */
+   .filter-wrap { position: relative; margin-bottom: 18px; }
+   .filter-input {
+      width: 100%;
+      background: #0d120d;
+      border: 1px solid #1E2D1E;
+      border-radius: 8px;
+      padding: 10px 14px 10px 38px;
+      color: #e5e7eb;
+      font-size: 0.9rem;
+      transition: border-color 150ms ease;
+   }
+   .filter-input:focus { outline: none; border-color: #2d8a00; }
+   .filter-input::placeholder { color: #4b5563; }
+   .filter-icon {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #4b5563;
+      pointer-events: none;
+   }
+   .filter-empty {
+      text-align: center;
+      color: #6b7280;
+      font-size: 0.85rem;
+      padding: 32px 0;
+      display: none;
+   }
+   .filter-empty.show { display: block; }
+
+   /* legend */
+   .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      font-size: 0.72rem;
+      color: #6b7280;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      background: rgba(13, 18, 13, 0.5);
+      border: 1px solid #1E2D1E;
+      border-radius: 8px;
+   }
+   .legend span { display: inline-flex; align-items: center; gap: 6px; }
+   .legend .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+   }
+
+   /* copy button */
+   .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(13, 18, 13, 0.85);
+      border: 1px solid #1E2D1E;
+      color: #6b7280;
+      font-size: 0.7rem;
+      padding: 3px 9px;
+      border-radius: 5px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 150ms ease, color 150ms ease, border-color 150ms ease;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+   }
+   pre:hover .copy-btn { opacity: 1; }
+   .copy-btn:hover { color: #4ADE00; border-color: #2d8a00; }
+   .copy-btn.copied { color: #4ADE00; border-color: #4ADE00; opacity: 1; }
+
+   /* TOC */
+   #toc {
+      position: fixed;
+      top: 50%;
+      right: 32px;
+      transform: translateY(-50%);
+      width: 168px;
+      font-size: 0.72rem;
+      z-index: 40;
+   }
+   @media (max-width: 1279px) { #toc { display: none; } }
+   #toc ol { list-style: none; padding: 0; margin: 0; }
+   #toc li { margin: 6px 0; }
+   #toc a {
+      display: block;
+      color: #4b5563;
+      padding: 4px 0 4px 14px;
+      border-left: 1px solid #1E2D1E;
+      transition: color 150ms ease, border-color 150ms ease;
+      letter-spacing: 0.04em;
+   }
+   #toc a:hover { color: #9ca3af; }
+   #toc a.active {
+      color: #4ADE00;
+      border-left-color: #4ADE00;
+      font-weight: 600;
    }
 </style>
 </head>
 
 <body class="bg-imp-bg text-gray-200 antialiased leading-relaxed">
+
+<!-- TOC (desktop only) -->
+<aside id="toc" aria-label="Table of contents">
+   <div class="text-imp-green text-[10px] uppercase tracking-widest font-bold mb-2 pl-3.5">On this page</div>
+   <ol>
+      <li><a href="#demo">Demo</a></li>
+      <li><a href="#features">What it does</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#compare">Compare</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#commands">Commands</a></li>
+      <li><a href="#config">Configuration</a></li>
+      <li><a href="#requirements">Requirements</a></li>
+   </ol>
+</aside>
 
 <!-- hero -->
 <div class="text-center px-6 pt-20 pb-12">
@@ -117,7 +344,7 @@ tailwind.config = {
 </div>
 
 <!-- demo -->
-<section class="border-t border-imp-border py-12">
+<section id="demo" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">See it work</h2>
 
@@ -147,7 +374,7 @@ i7j8k9l docs: document auth flags</code></pre>
 </section>
 
 <!-- features -->
-<section class="border-t border-imp-border py-12">
+<section id="features" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">What it does</h2>
 
@@ -185,7 +412,7 @@ i7j8k9l docs: document auth flags</code></pre>
 </section>
 
 <!-- more demos -->
-<section class="border-t border-imp-border py-12">
+<section id="examples" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">More examples</h2>
 
@@ -215,7 +442,7 @@ i7j8k9l docs: document auth flags</code></pre>
 </section>
 
 <!-- comparison -->
-<section class="border-t border-imp-border py-12">
+<section id="compare" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">How imp compares</h2>
 
@@ -254,7 +481,7 @@ i7j8k9l docs: document auth flags</code></pre>
 </section>
 
 <!-- install -->
-<section class="border-t border-imp-border py-12">
+<section id="install" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">Install</h2>
 
@@ -273,48 +500,27 @@ imp doctor</code></pre>
 </section>
 
 <!-- commands -->
-<section class="border-t border-imp-border py-12">
+<section id="commands" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
-   <h2 class="text-2xl font-bold mb-5">Commands</h2>
+   <h2 class="text-2xl font-bold mb-2">Commands</h2>
+   <p class="text-gray-500 text-sm mb-5">Hover any token to see what it does. Type to filter.</p>
 
-   <div class="overflow-x-auto">
-   <table class="w-full text-sm border-collapse">
-      <thead>
-         <tr>
-            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3 pr-4">Command</th>
-            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3">Purpose</th>
-         </tr>
-      </thead>
-      <tbody class="divide-y divide-imp-border">
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp commit [-a] [-p] [-y] [-E glob] [-w hint]</td><td class="py-2">Generate commit message from diff</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp amend [-y] [-p] [-w hint]</td><td class="py-2">Fold uncommitted changes into last commit, regenerate message, optionally force-push</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp split [-y] [-w hint]</td><td class="py-2">Group dirty files into logical commits</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp tidy [range] [-y] [-w hint]</td><td class="py-2">Rewrite past history: reword, squash, drop</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp undo [N]</td><td class="py-2">Undo last N commits, keep changes</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp revert [hash] [-y] [-w hint]</td><td class="py-2">Safely revert a commit</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp push [-w hint]</td><td class="py-2">Push, sets upstream on first push</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp sync [-y]</td><td class="py-2">Pull, rebase, push</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp resolve [--ours] [--theirs] [-y] [-w hint]</td><td class="py-2">AI-assisted conflict resolution</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp branch &lt;desc&gt; [-y] [-w hint]</td><td class="py-2">Create branch from description</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp fix &lt;issue&gt; [-y] [-w hint]</td><td class="py-2">Create branch from GitHub issue</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp pr [-y] [-w hint]</td><td class="py-2">Open PR with AI title and body</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp done [target] [-y]</td><td class="py-2">Merge branch, clean up local and remote</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp review [-l N] [-f] [-d] [-w hint]</td><td class="py-2">AI code review</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp changelog [--since tag] [--apply] [-y]</td><td class="py-2">Regenerate CHANGELOG.md</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp status</td><td class="py-2">Repo overview</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp log [-n N] [ref]</td><td class="py-2">Pretty commit graph</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp release [--patch|--minor|--major] [--rc|--stable]</td><td class="py-2">Squash, changelog, tag, push</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp ship [--patch|--minor|--major] [--rc|--stable] [--squash] [-w hint]</td><td class="py-2">Split, then release. <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">--squash</code> collapses into one release commit</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp fleet [path] [--patch|--minor|--major] [--rc|--stable] [--squash] [-d N] [--dry-run]</td><td class="py-2">Ship every dirty repo in a directory</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp setup &lt;url&gt;</td><td class="py-2">Init repo, remote, .gitignore</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp config</td><td class="py-2">Configure AI provider</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp doctor</td><td class="py-2">Verify install and config</td></tr>
-         <tr><td class="py-2 pr-4 font-mono text-xs whitespace-nowrap">imp clean</td><td class="py-2">Delete merged branches</td></tr>
-      </tbody>
-   </table>
+   <div class="legend">
+      <span><span class="swatch" style="background:#4ADE00"></span>subcommand</span>
+      <span><span class="swatch" style="background:#fcd34d"></span>required</span>
+      <span><span class="swatch" style="background:#9ca3af"></span>optional</span>
+      <span class="ml-auto">hover or focus a token →</span>
    </div>
 
-   <p class="mt-4 mb-3">Any AI command accepts <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">-w</code> / <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">--whisper</code> to steer the AI without overriding its output:</p>
+   <div class="filter-wrap">
+      <svg class="filter-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <input type="text" id="cmd-filter" class="filter-input" placeholder="Filter commands… (e.g. release, branch, -w)" autocomplete="off" spellcheck="false">
+   </div>
+
+   <div id="cmd-list"></div>
+   <div id="filter-empty" class="filter-empty">No commands match.</div>
+
+   <p class="mt-8 mb-3 text-sm text-gray-400">Any AI command accepts <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">-w</code> / <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">--whisper</code> to steer the AI without overriding its rules:</p>
 
    <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>imp commit -a -w "use IMP-42 as ticket"
 imp review -w "focus on error handling"</code></pre>
@@ -322,7 +528,7 @@ imp review -w "focus on error handling"</code></pre>
 </section>
 
 <!-- config -->
-<section class="border-t border-imp-border py-12">
+<section id="config" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">Configuration</h2>
 
@@ -334,21 +540,22 @@ imp review -w "focus on error handling"</code></pre>
    "model:smart": "sonnet"
 }</code></pre>
 
-   <div class="overflow-x-auto">
-   <table class="w-full text-sm border-collapse">
-      <thead>
-         <tr>
-            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3 pr-4">Key</th>
-            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3 pr-4">Purpose</th>
-            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3">Values</th>
-         </tr>
-      </thead>
-      <tbody class="divide-y divide-imp-border">
-         <tr><td class="py-2.5 pr-4 font-mono text-xs">provider</td><td class="py-2.5 pr-4">AI backend</td><td class="py-2.5 font-mono text-xs">claude, ollama</td></tr>
-         <tr><td class="py-2.5 pr-4 font-mono text-xs">model:fast</td><td class="py-2.5 pr-4">Short prompts (commit messages, dates)</td><td class="py-2.5">Any model name your provider knows</td></tr>
-         <tr><td class="py-2.5 pr-4 font-mono text-xs">model:smart</td><td class="py-2.5 pr-4">Reasoning prompts (split, tidy, resolve, review)</td><td class="py-2.5">Any model name your provider knows</td></tr>
-      </tbody>
-   </table>
+   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-4">
+         <div class="font-mono text-imp-green text-sm mb-1">provider</div>
+         <div class="text-gray-400 text-xs leading-snug mb-2">AI backend to use.</div>
+         <div class="text-gray-500 text-xs font-mono">claude, ollama</div>
+      </div>
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-4">
+         <div class="font-mono text-imp-green text-sm mb-1">model:fast</div>
+         <div class="text-gray-400 text-xs leading-snug mb-2">Short prompts: commit messages, dates.</div>
+         <div class="text-gray-500 text-xs">Any model the provider knows</div>
+      </div>
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-4">
+         <div class="font-mono text-imp-green text-sm mb-1">model:smart</div>
+         <div class="text-gray-400 text-xs leading-snug mb-2">Reasoning: split, tidy, resolve, review.</div>
+         <div class="text-gray-500 text-xs">Any model the provider knows</div>
+      </div>
    </div>
 
    <p class="mt-4 text-sm">Each key has a matching env var (<code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">IMP_AI_PROVIDER</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">IMP_AI_MODEL_FAST</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">IMP_AI_MODEL_SMART</code>) that takes precedence over the file.</p>
@@ -356,7 +563,7 @@ imp review -w "focus on error handling"</code></pre>
 </section>
 
 <!-- requirements -->
-<section class="border-t border-imp-border py-12">
+<section id="requirements" class="border-t border-imp-border py-12 scroll-mt-8">
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">Requirements</h2>
    <ul class="list-disc pl-5 space-y-1.5">
@@ -374,6 +581,391 @@ imp review -w "focus on error handling"</code></pre>
    <a href="https://pypi.org/project/imp-git/" class="text-gray-500 hover:text-imp-green">PyPI</a> ·
    <a href="https://github.com/anders458/imp/blob/master/LICENSE" class="text-gray-500 hover:text-imp-green">MIT</a>
 </footer>
+
+<script>
+/* command data — tokens: t='prog'|'cmd'|'req'|'opt', s=display, tip=optional tooltip */
+const COMMANDS = [
+   { cat: 'compose', name: 'commit',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'commit' },
+        { t: 'opt',  s: '[-a]',       tip: 'Stage all changes before committing.' },
+        { t: 'opt',  s: '[-p]',       tip: 'Push to origin after committing.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the AI message without review.' },
+        { t: 'opt',  s: '[-E glob]',  tip: 'Glob patterns to exclude from staging (repeatable).' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to steer the AI without overriding its rules.' },
+     ],
+     purpose: 'Generate a Conventional Commit message from your staged diff.' },
+
+   { cat: 'compose', name: 'amend',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'amend' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the AI message without review.' },
+        { t: 'opt',  s: '[-p]',       tip: 'Force-push (with lease) after amending.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to steer the AI.' },
+     ],
+     purpose: 'Fold uncommitted changes into the last commit and regenerate its message.' },
+
+   { cat: 'compose', name: 'split',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'split' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the AI grouping without review.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to steer the AI.' },
+     ],
+     purpose: 'Group a dirty working tree into multiple logical Conventional Commits.' },
+
+   { cat: 'inspect', name: 'status',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'status' },
+     ],
+     purpose: 'Repo overview: branch, ahead/behind, dirty files, last commit.' },
+
+   { cat: 'inspect', name: 'log',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'log' },
+        { t: 'opt',  s: '[-n N]',     tip: 'Number of commits to show. Defaults to 20.' },
+        { t: 'opt',  s: '[ref]',      tip: 'Optional starting ref (branch, tag, or hash).' },
+     ],
+     purpose: 'Pretty commit graph for the current branch or any ref.' },
+
+   { cat: 'inspect', name: 'review',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'review' },
+        { t: 'opt',  s: '[-l N]',     tip: 'Review the last N commits. 0 = uncommitted changes.' },
+        { t: 'opt',  s: '[-f]',       tip: 'Send review findings to the Claude CLI for autofix.' },
+        { t: 'opt',  s: '[-d]',       tip: 'Skip Claude CLI permission prompts. Dangerous.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to focus the review.' },
+     ],
+     purpose: 'AI code review of current changes or recent commits.' },
+
+   { cat: 'history', name: 'tidy',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'tidy' },
+        { t: 'opt',  s: '[range]',    tip: 'Count, ref, a..b, or natural date like "1 year ago". Defaults to recent commits.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the AI plan without review.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to steer the rewrite.' },
+     ],
+     purpose: 'Rewrite past history: reword, squash, or drop commits in one AI plan.' },
+
+   { cat: 'history', name: 'undo',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'undo' },
+        { t: 'opt',  s: '[N]',        tip: 'Number of commits to undo. Defaults to 1. Changes are kept staged.' },
+     ],
+     purpose: 'Undo the last N commits, keeping the working tree changes.' },
+
+   { cat: 'history', name: 'revert',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'revert' },
+        { t: 'opt',  s: '[hash]',     tip: 'Commit hash to revert. Picker if omitted.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the AI message without review.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint for the revert message.' },
+     ],
+     purpose: 'Safely create a revert commit with an AI-generated message.' },
+
+   { cat: 'branch', name: 'branch',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'branch' },
+        { t: 'req',  s: '<desc>',     tip: 'Plain-English description. AI generates the branch name.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the suggested branch name without review.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint for naming.' },
+     ],
+     purpose: 'Create or switch a branch from a description.' },
+
+   { cat: 'branch', name: 'fix',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'fix' },
+        { t: 'req',  s: '<issue>',    tip: 'GitHub issue number or URL. Branch is created from issue title.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the suggested branch name without review.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint for naming.' },
+     ],
+     purpose: 'Create a branch from a GitHub issue.' },
+
+   { cat: 'branch', name: 'clean',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'clean' },
+     ],
+     purpose: 'Delete local branches already merged into base.' },
+
+   { cat: 'sync', name: 'push',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'push' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint for any commit message generated en route.' },
+     ],
+     purpose: 'Push the current branch. Sets upstream on first push.' },
+
+   { cat: 'sync', name: 'sync',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'sync' },
+        { t: 'opt',  s: '[-y]',       tip: 'Push without confirmation.' },
+     ],
+     purpose: 'Pull, rebase, then push the current branch.' },
+
+   { cat: 'sync', name: 'resolve',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'resolve' },
+        { t: 'opt',  s: '[--ours]',   tip: 'Bias the AI toward our branch.' },
+        { t: 'opt',  s: '[--theirs]', tip: 'Bias the AI toward their branch.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Auto-accept all AI suggestions.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to guide resolution.' },
+     ],
+     purpose: 'Walk through merge conflicts file-by-file with AI assistance.' },
+
+   { cat: 'sync', name: 'pr',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'pr' },
+        { t: 'opt',  s: '[-y]',       tip: 'Accept the AI title and body without review.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to steer the description.' },
+     ],
+     purpose: 'Open a GitHub pull request with an AI-generated title and body.' },
+
+   { cat: 'sync', name: 'done',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'done' },
+        { t: 'opt',  s: '[target]',   tip: 'Target branch to merge into. Defaults to base.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Skip merge confirmation.' },
+     ],
+     purpose: 'Merge the current branch and clean up local + remote.' },
+
+   { cat: 'release', name: 'changelog',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'changelog' },
+        { t: 'opt',  s: '[--since tag]', tip: 'Date, tag, or commit hash to start from.' },
+        { t: 'opt',  s: '[--apply]',     tip: 'Create missing or corrected git tags.' },
+        { t: 'opt',  s: '[-y]',          tip: 'Skip confirmations.' },
+     ],
+     purpose: 'Regenerate CHANGELOG.md from git history.' },
+
+   { cat: 'release', name: 'release',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'release' },
+        { t: 'opt',  s: '[--patch|--minor|--major]', tip: 'Semver bump. Skip the chooser.' },
+        { t: 'opt',  s: '[--rc|--stable]',           tip: 'Tag as release candidate, or promote one to stable.' },
+     ],
+     purpose: 'Squash, write the changelog entry, tag, and push.' },
+
+   { cat: 'release', name: 'ship',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'ship' },
+        { t: 'opt',  s: '[--patch|--minor|--major]', tip: 'Semver bump. Defaults to patch.' },
+        { t: 'opt',  s: '[--rc|--stable]',           tip: 'Tag as release candidate, or promote one.' },
+        { t: 'opt',  s: '[--squash]',                tip: 'Collapse split commits into one release commit.' },
+        { t: 'opt',  s: '[-w hint]',                 tip: 'Whisper: hint passed to split.' },
+     ],
+     purpose: 'imp split, then imp release, in one step.' },
+
+   { cat: 'release', name: 'fleet',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'fleet' },
+        { t: 'opt',  s: '[path]',                    tip: 'Directory to scan. Defaults to current directory.' },
+        { t: 'opt',  s: '[--patch|--minor|--major]', tip: 'Semver bump applied to every dirty repo.' },
+        { t: 'opt',  s: '[--rc|--stable]',           tip: 'Tag every repo as RC or promote.' },
+        { t: 'opt',  s: '[--squash]',                tip: 'Squash split commits in every repo.' },
+        { t: 'opt',  s: '[-d N]',                    tip: 'Max directory depth to scan. Defaults to 5.' },
+        { t: 'opt',  s: '[--dry-run]',               tip: 'List dirty repos without shipping.' },
+     ],
+     purpose: 'Ship every dirty git repository under a directory.' },
+
+   { cat: 'setup', name: 'setup',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'setup' },
+        { t: 'req',  s: '<url>',      tip: 'Remote URL, e.g. git@github.com:user/repo.git.' },
+     ],
+     purpose: 'Initialize a git repo with remote and .gitignore.' },
+
+   { cat: 'setup', name: 'config',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'config' },
+     ],
+     purpose: 'Interactively configure AI provider and models.' },
+
+   { cat: 'setup', name: 'doctor',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'doctor' },
+     ],
+     purpose: 'Verify install and configuration.' },
+];
+
+const CATEGORIES = [
+   { id: 'compose', label: 'Compose' },
+   { id: 'inspect', label: 'Inspect' },
+   { id: 'history', label: 'History' },
+   { id: 'branch',  label: 'Branch' },
+   { id: 'sync',    label: 'Sync & merge' },
+   { id: 'release', label: 'Release' },
+   { id: 'setup',   label: 'Setup' },
+];
+
+/* render commands */
+(function renderCommands() {
+   const list = document.getElementById('cmd-list');
+   if (!list) return;
+
+   const escape = (s) => s.replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+   );
+
+   for (const cat of CATEGORIES) {
+      const items = COMMANDS.filter((c) => c.cat === cat.id);
+      if (!items.length) continue;
+
+      const group = document.createElement('div');
+      group.className = 'cmd-group';
+      group.dataset.cat = cat.id;
+
+      const title = document.createElement('div');
+      title.className = 'cmd-group-title';
+      title.textContent = cat.label;
+      group.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'cmd-grid';
+
+      for (const cmd of items) {
+         const card = document.createElement('div');
+         card.className = 'cmd-card';
+         card.dataset.search = (
+            cmd.name + ' ' + cat.label + ' ' + cmd.purpose + ' ' +
+            cmd.tokens.map((t) => t.s + ' ' + (t.tip || '')).join(' ')
+         ).toLowerCase();
+
+         const line = document.createElement('div');
+         line.className = 'cmd-line';
+
+         for (const tok of cmd.tokens) {
+            let el;
+            if (tok.tip) {
+               el = document.createElement('button');
+               el.type = 'button';
+               el.setAttribute('data-tip', tok.tip);
+               el.setAttribute('aria-label', tok.s + ': ' + tok.tip);
+            } else {
+               el = document.createElement('span');
+            }
+            el.className = 'tok tok-' + tok.t;
+            el.textContent = tok.s;
+            line.appendChild(el);
+         }
+
+         const purpose = document.createElement('p');
+         purpose.className = 'cmd-purpose';
+         purpose.textContent = cmd.purpose;
+
+         card.appendChild(line);
+         card.appendChild(purpose);
+         grid.appendChild(card);
+      }
+
+      group.appendChild(grid);
+      list.appendChild(group);
+   }
+})();
+
+/* filter */
+(function wireFilter() {
+   const input = document.getElementById('cmd-filter');
+   const empty = document.getElementById('filter-empty');
+   if (!input) return;
+
+   input.addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      let totalVisible = 0;
+
+      document.querySelectorAll('.cmd-group').forEach((group) => {
+         let groupVisible = 0;
+         group.querySelectorAll('.cmd-card').forEach((card) => {
+            const match = !q || card.dataset.search.includes(q);
+            card.style.display = match ? '' : 'none';
+            if (match) groupVisible++;
+         });
+         group.style.display = groupVisible ? '' : 'none';
+         totalVisible += groupVisible;
+      });
+
+      empty.classList.toggle('show', totalVisible === 0);
+   });
+})();
+
+/* copy buttons on every <pre> */
+(function wireCopy() {
+   document.querySelectorAll('pre').forEach((pre) => {
+      pre.style.position = 'relative';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy-btn';
+      btn.textContent = 'copy';
+      btn.setAttribute('aria-label', 'Copy to clipboard');
+      btn.addEventListener('click', async () => {
+         const code = pre.querySelector('code') || pre;
+         try {
+            await navigator.clipboard.writeText(code.textContent);
+            btn.textContent = 'copied';
+            btn.classList.add('copied');
+            setTimeout(() => {
+               btn.textContent = 'copy';
+               btn.classList.remove('copied');
+            }, 1400);
+         } catch (_) {
+            btn.textContent = 'failed';
+            setTimeout(() => { btn.textContent = 'copy'; }, 1400);
+         }
+      });
+      pre.appendChild(btn);
+   });
+})();
+
+/* TOC active section highlight */
+(function wireToc() {
+   const links = document.querySelectorAll('#toc a');
+   if (!links.length) return;
+
+   const map = new Map();
+   links.forEach((a) => {
+      const id = a.getAttribute('href').slice(1);
+      const section = document.getElementById(id);
+      if (section) map.set(section, a);
+   });
+
+   const setActive = (link) => {
+      links.forEach((l) => l.classList.toggle('active', l === link));
+   };
+
+   const observer = new IntersectionObserver(
+      (entries) => {
+         const visible = entries
+            .filter((e) => e.isIntersecting)
+            .sort((a, b) => a.target.offsetTop - b.target.offsetTop)[0];
+         if (visible) setActive(map.get(visible.target));
+      },
+      { rootMargin: '-30% 0px -60% 0px', threshold: 0 }
+   );
+
+   map.forEach((_, section) => observer.observe(section));
+})();
+</script>
 
 </body>
 </html>
