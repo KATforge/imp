@@ -39,7 +39,12 @@ def pr (
       console.hint ("imp branch <description>")
       console.fatal (f"Cannot create PR from {base}")
 
-   log = git.log_oneline (rev_range=f"{base}..{b}")
+   if git.remote_exists ():
+      console.spin ("Fetching...", git.fetch, False)
+
+   base_ref = f"origin/{base}" if git.rev_parse (f"origin/{base}") else base
+
+   log = git.log_oneline (rev_range=f"{base_ref}..{b}")
 
    if not log:
       console.fatal (f"No commits on {b}")
@@ -53,7 +58,7 @@ def pr (
    console.items ("Commits", log)
    console.out.print ()
 
-   d = ai.truncate (git.diff_range (f"{base}..{b}"))
+   d = ai.truncate (git.diff_range (f"{base_ref}..{b}"))
 
    pr_content = console.spin (
       "Thinking...",

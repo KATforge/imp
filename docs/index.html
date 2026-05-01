@@ -150,6 +150,19 @@ tailwind.config = {
       pointer-events: none;
    }
 
+   /* terminal example tokens — mirror the actual imp CLI palette */
+   pre code .t-prompt  { color: #4e7a4e; }
+   pre code .t-cmd     { color: #4ADE00; font-weight: 600; }
+   pre code .t-arrow   { color: #4ADE00; }
+   pre code .t-label   { color: #4ADE00; font-weight: 600; }
+   pre code .t-value   { color: #e5e7eb; }
+   pre code .t-choice  { color: #a335ee; }
+   pre code .t-hash    { color: #6b7280; }
+   pre code .t-mod     { color: #fcd34d; }
+   pre code .t-add     { color: #4ADE00; }
+   pre code .t-warn    { color: #fcd34d; }
+   pre code .t-muted   { color: #6b7280; }
+
    /* command card */
    .cmd-card {
       background: #111611;
@@ -369,20 +382,20 @@ tailwind.config = {
    <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
       <div>
          <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">Before</div>
-         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ git status
- M src/auth.py
- M src/api.py
- M tests/test_auth.py
- M README.md
-?? src/rate_limit.py</code></pre>
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">git status</span>
+ <span class="t-mod">M</span> src/auth.py
+ <span class="t-mod">M</span> src/api.py
+ <span class="t-mod">M</span> tests/test_auth.py
+ <span class="t-mod">M</span> README.md
+<span class="t-warn">??</span> src/rate_limit.py</code></pre>
       </div>
       <div class="text-imp-green text-2xl font-bold pt-8 hidden md:block">→</div>
       <div>
          <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">After <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp split</code></div>
-         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ git log --oneline
-a1b2c3d feat(auth): add rate limiting
-e4f5g6h test(auth): cover edge cases
-i7j8k9l docs: document auth flags</code></pre>
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">git log --oneline</span>
+<span class="t-hash">a1b2c3d</span> feat(auth): add rate limiting
+<span class="t-hash">e4f5g6h</span> test(auth): cover edge cases
+<span class="t-hash">i7j8k9l</span> docs: document auth flags</code></pre>
       </div>
    </div>
 </div>
@@ -434,25 +447,25 @@ i7j8k9l docs: document auth flags</code></pre>
    <h3 class="text-lg font-semibold mt-6 mb-3">Commit</h3>
    <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/commit.gif" alt="imp commit"
         class="w-full rounded-xl border border-imp-border mb-3">
-   <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ imp commit -a
-→ feat: add rate limiting to API endpoints
-  Use this message? [Yes / Edit / No]</code></pre>
+   <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp commit -a</span>
+<span class="t-arrow">→</span> feat: add rate limiting to API endpoints
+  <span class="t-label">Use this message?</span> <span class="t-choice">[Yes / Edit / No]</span></code></pre>
 
    <h3 class="text-lg font-semibold mt-8 mb-3">Pull request</h3>
    <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/pr.gif" alt="imp pr"
         class="w-full rounded-xl border border-imp-border mb-3">
-   <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ imp pr
-→ Title: feat: rate limit auth endpoints
-→ Body:  ## Summary
+   <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp pr</span>
+<span class="t-arrow">→</span> <span class="t-label">Title:</span> feat: rate limit auth endpoints
+<span class="t-arrow">→</span> <span class="t-label">Body:</span>  ## Summary
          Adds per-IP rate limiting to /login and /register...
-  Create PR? [Yes / Edit / No]</code></pre>
+  <span class="t-label">Create PR?</span> <span class="t-choice">[Yes / Edit / No]</span></code></pre>
 
    <h3 class="text-lg font-semibold mt-8 mb-3">Release</h3>
    <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/release.gif" alt="imp release"
         class="w-full rounded-xl border border-imp-border mb-3">
-   <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code>$ imp release
-→ Bump: patch / minor / major
-→ Squashes commits, writes CHANGELOG.md, tags v0.0.1, pushes.</code></pre>
+   <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp release</span>
+<span class="t-arrow">→</span> <span class="t-label">Bump:</span> <span class="t-choice">patch / minor / major</span>
+<span class="t-arrow">→</span> Squashes commits, writes CHANGELOG.md, tags <span class="t-add">v0.0.1</span>, pushes.</code></pre>
 </div>
 </section>
 
