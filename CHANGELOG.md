@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.52] - 2026-04-30
+
+### Changed
+- Update demo theme to imp
+
 ## [0.0.51] - 2026-04-30
 
 ### Added
