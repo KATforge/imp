@@ -26,7 +26,7 @@ RUN chmod +x /usr/local/bin/claude /usr/local/bin/gh \
 ENV IMP_AI_PROVIDER=claude
 ENV IMP_AI_MODEL_FAST=stub
 ENV IMP_AI_MODEL_SMART=stub
-ENV PS1='\[\e[38;5;212m\]➜\[\e[0m\] \w \[\e[38;5;245m\]›\[\e[0m\] '
+ENV PS1='\[\e[38;2;74;222;0m\]➜\[\e[0m\] \w \[\e[38;2;78;122;78m\]›\[\e[0m\] '
 ENV TERM=xterm-256color
 
 WORKDIR /vhs
