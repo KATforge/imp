@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.51] - 2026-04-30
+
+### Added
+- Fetch and use remote tracking branch in pr
+
+### Changed
+- Rebrand under KATforge Studios LLC
+- Move repo to katforge org
+
 ## [0.0.50] - 2026-04-30
 
 ### Added
