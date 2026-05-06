@@ -425,7 +425,7 @@ tailwind.config = {
       </div>
       <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
          <div class="font-bold mb-1"><code class="text-imp-green bg-transparent border-none p-0 text-sm">imp release</code></div>
-         <div class="text-gray-400 text-sm leading-snug">Squash, write a changelog entry, tag a semver release, and push. Rolls back on failure.</div>
+         <div class="text-gray-400 text-sm leading-snug">Squash, write a changelog entry, sync package manifests, tag a semver release, and push. Rolls back on failure.</div>
       </div>
       <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
          <div class="font-bold mb-1"><code class="text-imp-green bg-transparent border-none p-0 text-sm">imp resolve</code></div>
@@ -465,7 +465,38 @@ tailwind.config = {
         class="w-full rounded-xl border border-imp-border mb-3">
    <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp release</span>
 <span class="t-arrow">→</span> <span class="t-label">Bump:</span> <span class="t-choice">patch / minor / major</span>
-<span class="t-arrow">→</span> Squashes commits, writes CHANGELOG.md, tags <span class="t-add">v0.0.1</span>, pushes.</code></pre>
+<span class="t-arrow">→</span> Squashes commits, writes CHANGELOG.md, syncs package manifests, tags <span class="t-add">v0.0.1</span>, pushes.</code></pre>
+
+   <h3 class="text-lg font-semibold mt-8 mb-3">Package manifests</h3>
+   <p class="text-gray-400 text-sm mb-3">
+      At release time imp scans for package files (<code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">package.json</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">Cargo.toml</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">pyproject.toml</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">composer.json</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">pubspec.yaml</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">*.gemspec</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">mix.exs</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">build.gradle</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">pom.xml</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">Chart.yaml</code>, <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">manifest.json</code>) and asks the AI which ones belong to this project. Vendored copies, fixtures, and dynamic-versioned manifests are skipped. Picked manifests are rewritten and staged into the release commit; rollback restores them on failure. Pass <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">--no-manifests</code> to disable.
+   </p>
+
+   <p class="text-gray-400 text-sm mb-3">
+      Pre-release versions are translated to each ecosystem's native format. <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">v0.0.52-rc.1</code> becomes:
+   </p>
+
+   <div class="overflow-x-auto">
+   <table class="w-full text-sm border-collapse mb-3">
+      <thead>
+         <tr>
+            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3 pr-4">Ecosystem</th>
+            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3">Version</th>
+         </tr>
+      </thead>
+      <tbody class="divide-y divide-imp-border">
+         <tr><td class="py-2.5 pr-4">npm, cargo, helm, pub, hex, gradle</td><td class="py-2.5"><code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">0.0.52-rc.1</code></td></tr>
+         <tr><td class="py-2.5 pr-4">python (PEP 440)</td><td class="py-2.5"><code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">0.0.52rc1</code></td></tr>
+         <tr><td class="py-2.5 pr-4">composer, maven</td><td class="py-2.5"><code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">0.0.52-RC1</code></td></tr>
+         <tr><td class="py-2.5 pr-4">rubygems</td><td class="py-2.5"><code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">0.0.52.rc1</code></td></tr>
+         <tr><td class="py-2.5 pr-4">browser-ext <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">manifest.json</code> (no pre-release support)</td><td class="py-2.5"><code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">0.0.52</code></td></tr>
+      </tbody>
+   </table>
+   </div>
+
+   <p class="text-gray-500 text-sm">
+      <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp release --rc</code> commits the manifest bump alongside the tag so the published artifact's version matches. <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp changelog --apply</code> only labels existing commits with retroactive tags, so it leaves manifests alone.
+   </p>
 </div>
 </section>
 
@@ -793,8 +824,9 @@ const COMMANDS = [
         { t: 'cmd',  s: 'release' },
         { t: 'opt',  s: '[--patch|--minor|--major]', tip: 'Semver bump. Skip the chooser.' },
         { t: 'opt',  s: '[--rc|--stable]',           tip: 'Tag as release candidate, or promote one to stable.' },
+        { t: 'opt',  s: '[--no-manifests]',          tip: 'Skip auto-updating package files (package.json, Cargo.toml, etc).' },
      ],
-     purpose: 'Squash, write the changelog entry, tag, and push.' },
+     purpose: 'Squash, write the changelog entry, sync package manifests, tag, and push.' },
 
    { cat: 'release', name: 'ship',
      tokens: [
@@ -803,6 +835,7 @@ const COMMANDS = [
         { t: 'opt',  s: '[--patch|--minor|--major]', tip: 'Semver bump. Defaults to patch.' },
         { t: 'opt',  s: '[--rc|--stable]',           tip: 'Tag as release candidate, or promote one.' },
         { t: 'opt',  s: '[--squash]',                tip: 'Collapse split commits into one release commit.' },
+        { t: 'opt',  s: '[--no-manifests]',          tip: 'Skip auto-updating package files.' },
         { t: 'opt',  s: '[-w hint]',                 tip: 'Whisper: hint passed to split.' },
      ],
      purpose: 'imp split, then imp release, in one step.' },
@@ -815,6 +848,7 @@ const COMMANDS = [
         { t: 'opt',  s: '[--patch|--minor|--major]', tip: 'Semver bump applied to every dirty repo.' },
         { t: 'opt',  s: '[--rc|--stable]',           tip: 'Tag every repo as RC or promote.' },
         { t: 'opt',  s: '[--squash]',                tip: 'Squash split commits in every repo.' },
+        { t: 'opt',  s: '[--no-manifests]',          tip: 'Skip auto-updating package files in every repo.' },
         { t: 'opt',  s: '[-d N]',                    tip: 'Max directory depth to scan. Defaults to 5.' },
         { t: 'opt',  s: '[--dry-run]',               tip: 'List dirty repos without shipping.' },
      ],
