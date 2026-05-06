@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.53] - 2026-05-05
+
+### Changed
+- Document package manifests feature in imp release
+
 ## [0.0.52] - 2026-04-30
 
 ### Changed
