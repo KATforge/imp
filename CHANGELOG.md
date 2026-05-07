@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.54] - 2026-05-06
+
+### Changed
+- Add workflow examples and claude code comparison
+
 ## [0.0.53] - 2026-05-05
 
 ### Changed
