@@ -376,12 +376,13 @@ tailwind.config = {
 <div class="max-w-3xl mx-auto px-6">
    <h2 class="text-2xl font-bold mb-5">See it work</h2>
 
+   <h3 class="text-sm uppercase tracking-wider text-gray-500 font-semibold mb-3">Splitting a dirty tree</h3>
    <img src="https://raw.githubusercontent.com/katforge/imp/master/demo/tidy.gif" alt="imp tidy"
         class="w-full rounded-xl border border-imp-border mb-6">
 
    <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
       <div>
-         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">Before</div>
+         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">git</div>
          <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">git status</span>
  <span class="t-mod">M</span> src/auth.py
  <span class="t-mod">M</span> src/api.py
@@ -391,11 +392,58 @@ tailwind.config = {
       </div>
       <div class="text-imp-green text-2xl font-bold pt-8 hidden md:block">→</div>
       <div>
-         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">After <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp split</code></div>
+         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">imp split</div>
          <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">git log --oneline</span>
 <span class="t-hash">a1b2c3d</span> feat(auth): add rate limiting
 <span class="t-hash">e4f5g6h</span> test(auth): cover edge cases
 <span class="t-hash">i7j8k9l</span> docs: document auth flags</code></pre>
+      </div>
+   </div>
+
+   <h3 class="text-sm uppercase tracking-wider text-gray-500 font-semibold mt-12 mb-3">Cutting a release</h3>
+   <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
+      <div>
+         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">git</div>
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-muted"># bump every manifest by hand</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vim</span> package.json Cargo.toml pyproject.toml
+<span class="t-prompt">$</span> <span class="t-muted"># write a changelog entry</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vim</span> CHANGELOG.md
+<span class="t-prompt">$</span> <span class="t-cmd">git</span> add -A
+<span class="t-prompt">$</span> <span class="t-cmd">git</span> commit -m "release v0.1.0"
+<span class="t-prompt">$</span> <span class="t-cmd">git</span> tag v0.1.0
+<span class="t-prompt">$</span> <span class="t-cmd">git</span> push &amp;&amp; <span class="t-cmd">git</span> push --tags
+<span class="t-prompt">$</span> <span class="t-muted"># if anything failed, clean up by hand</span></code></pre>
+      </div>
+      <div class="text-imp-green text-2xl font-bold pt-8 hidden md:block">→</div>
+      <div>
+         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">imp</div>
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp</span> release --minor
+<span class="t-arrow">→</span> <span class="t-label">Bump:</span> 0.0.53 <span class="t-muted">→</span> <span class="t-add">0.1.0</span>
+<span class="t-arrow">→</span> Synced 3 manifests, wrote changelog
+<span class="t-arrow">→</span> Tagged <span class="t-add">v0.1.0</span>, pushed
+<span class="t-muted"># rollback on any failure is automatic</span></code></pre>
+      </div>
+   </div>
+
+   <h3 class="text-sm uppercase tracking-wider text-gray-500 font-semibold mt-12 mb-3">Resolving a merge conflict</h3>
+   <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
+      <div>
+         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">git</div>
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-warn">&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</span>
+rate_limit = RateLimiter(per_ip=10, window=60)
+<span class="t-warn">=======</span>
+rate_limit = RateLimiter(per_user=20, window=300)
+<span class="t-warn">&gt;&gt;&gt;&gt;&gt;&gt;&gt; feat/per-user-limits</span>
+
+<span class="t-muted"># read both branches, decide, hand-merge, repeat per file</span></code></pre>
+      </div>
+      <div class="text-imp-green text-2xl font-bold pt-8 hidden md:block">→</div>
+      <div>
+         <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">imp</div>
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp</span> resolve
+<span class="t-arrow">→</span> src/auth.py: combine per-IP and per-user limits
+  <span class="t-label">Apply?</span> <span class="t-choice">[Yes / Edit / No]</span>
+<span class="t-arrow">→</span> Done. 1 file resolved.</code></pre>
       </div>
    </div>
 </div>
@@ -535,6 +583,41 @@ tailwind.config = {
       <a href="https://github.com/Nutlope/aicommits" class="text-imp-green hover:text-imp-glow">aicommits</a> and
       <a href="https://github.com/di-sukharev/opencommit" class="text-imp-green hover:text-imp-glow">OpenCommit</a>
       cover the commit-message step. <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> covers the whole loop: dirty tree → clean commits → PR → release → changelog.
+   </p>
+
+   <h3 class="text-lg font-semibold mt-10 mb-3">imp vs Claude Code</h3>
+   <p class="text-gray-400 text-sm mb-4">
+      Claude Code can write commit messages too. They are different shapes for different jobs.
+   </p>
+
+   <div class="overflow-x-auto">
+   <table class="w-full text-sm border-collapse">
+      <thead>
+         <tr>
+            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3 pr-4"></th>
+            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3 pr-4">imp</th>
+            <th class="text-left text-imp-green text-xs uppercase tracking-wider font-semibold pb-3">Claude Code</th>
+         </tr>
+      </thead>
+      <tbody class="divide-y divide-imp-border">
+         <tr><td class="py-2.5 pr-4">Interaction</td><td class="py-2.5 pr-4">one-shot command</td><td class="py-2.5">conversational session</td></tr>
+         <tr><td class="py-2.5 pr-4">Latency</td><td class="py-2.5 pr-4">sub-second to a few seconds</td><td class="py-2.5">multi-turn</td></tr>
+         <tr><td class="py-2.5 pr-4">Scriptable in hooks, aliases, CI</td><td class="py-2.5 pr-4">yes</td><td class="py-2.5 text-gray-600">—</td></tr>
+         <tr><td class="py-2.5 pr-4">Conventional Commits</td><td class="py-2.5 pr-4">enforced</td><td class="py-2.5">whatever you ask for that day</td></tr>
+         <tr><td class="py-2.5 pr-4">Semver from commit history</td><td class="py-2.5 pr-4">computed</td><td class="py-2.5">manual</td></tr>
+         <tr><td class="py-2.5 pr-4">Manifest sync + atomic rollback</td><td class="py-2.5 pr-4">built in</td><td class="py-2.5 text-gray-600">—</td></tr>
+         <tr><td class="py-2.5 pr-4">Multi-repo (<code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp fleet</code>)</td><td class="py-2.5 pr-4">yes</td><td class="py-2.5">single session</td></tr>
+         <tr><td class="py-2.5 pr-4">Local / offline / private</td><td class="py-2.5 pr-4">yes (Ollama)</td><td class="py-2.5 text-gray-600">—</td></tr>
+         <tr><td class="py-2.5 pr-4">Cost</td><td class="py-2.5 pr-4">free with Ollama</td><td class="py-2.5">subscription / API</td></tr>
+      </tbody>
+   </table>
+   </div>
+
+   <p class="text-gray-500 mt-4 text-sm">
+      Use Claude Code for open-ended work where you need a thinking partner. Reach for <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> for the same git ritual you do twenty times a day, where you want a verb, not a chat.
+   </p>
+   <p class="text-gray-500 mt-2 text-sm">
+      They compose: <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> can use the Claude CLI as its provider, so the prompts run inside your existing Claude subscription.
    </p>
 </div>
 </section>
