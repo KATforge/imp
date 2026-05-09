@@ -3,9 +3,10 @@ from pathlib import Path
 
 import typer
 
-from imp import console, git, version
+from imp import console, depgraph, git, version
 from imp.commands.release import current_version
 from imp.commands.ship import ship
+
 
 def _find_repos (root: Path, max_depth: int) -> list [Path]:
    """Walk directory tree, short-circuiting at each .git."""
@@ -155,7 +156,7 @@ def _print_plan (plan: dict):
    console.item (f"bump:    {plan ['level']} → v{plan ['new']} ({kind})")
 
 def fleet (
-   path: Path = typer.Argument (Path ("."), help="Directory to scan for git repos"),
+   path: Path = typer.Argument (Path (), help="Directory to scan for git repos"),
    patch: bool = typer.Option (False, "--patch", help="Bump patch on every repo"),
    minor: bool = typer.Option (False, "--minor", help="Bump minor on every repo"),
    major: bool = typer.Option (False, "--major", help="Bump major on every repo"),
@@ -211,6 +212,11 @@ def fleet (
    if not dirty:
       console.success ("Nothing to ship")
       return
+
+   ordered = depgraph.topo_sort (dirty)
+   if ordered != dirty:
+      console.muted ("  reordered by workflow dep graph")
+   dirty = ordered
 
    console.items (
       f"{len (dirty)} repo(s) to ship",
