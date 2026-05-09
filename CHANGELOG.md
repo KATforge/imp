@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.55] - 2026-05-09
+
+### Added
+- Integrate depgraph into fleet for ordered shipping
+- Add cross-repo dependency graph from github actions workflow refs
+
 ## [0.0.54] - 2026-05-06
 
 ### Changed
