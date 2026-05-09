@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.56] - 2026-05-09
+
+### Added
+- Integrate depgraph into fleet for ordered shipping
+- Add cross-repo dependency graph from github actions workflow refs
+- Fetch and use remote tracking branch in pr
+- Redesign landing page with interactive command reference
+- Add --push flag to amend for force-push after amending
+
+### Changed
+- Release v0.0.55
+- Release v0.0.54
+- Add workflow examples and claude code comparison
+- Release v0.0.53
+- Document package manifests feature in imp release
+- Release v0.0.52
+- Update demo theme to imp
+- Release v0.0.51
+- Rebrand under KATforge Studios LLC
+- Move repo to katforge org
+- Release v0.0.50
+- Release v0.0.49
+- Release v0.0.48
+
+### Fixed
+- Surface git stderr/stdout on CalledProcessError
+- Enforce all files covered in split prompt with explicit count
+
 ## [0.0.55] - 2026-05-09
 
 ### Added
