@@ -1,8 +1,11 @@
 import os
+import re
 import subprocess
 from pathlib import Path
 
 from imp import console
+
+_SEMVER_TAG_RE = re.compile (r"^v\d+\.\d+\.\d+$")
 
 def _run (*args: str, check: bool = True, timeout: int = 60, env: dict [str, str] | None = None) -> subprocess.CompletedProcess [str]:
    run_env = None
@@ -161,7 +164,7 @@ def highest_tag (stable: bool = False) -> str:
       t = line.strip ()
       if not t:
          continue
-      if stable and "-" in t [1:]:
+      if stable and not _SEMVER_TAG_RE.match (t):
          continue
       return t
 

@@ -108,6 +108,20 @@ class TestHighestTag:
       git_run (repo, "tag", "v0.2.0")
       assert git.highest_tag () == "v0.2.0"
 
+   def test_stable_skips_rc (self, repo):
+      git_run (repo, "tag", "v0.1.0")
+      commit_file (repo, "f.txt", "x\n", "c")
+      git_run (repo, "tag", "v0.2.0-rc.1")
+      assert git.highest_tag (stable=True) == "v0.1.0"
+
+   def test_stable_skips_non_semver (self, repo):
+      git_run (repo, "tag", "v0.1.0")
+      commit_file (repo, "f.txt", "x\n", "c")
+      git_run (repo, "tag", "v2024.5.1.3")
+      commit_file (repo, "f2.txt", "y\n", "c2")
+      git_run (repo, "tag", "v1.2")
+      assert git.highest_tag (stable=True) == "v0.1.0"
+
 
 class TestTagOperations:
 
