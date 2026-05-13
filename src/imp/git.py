@@ -226,10 +226,12 @@ def log_subjects (rev_range: str = "", count: int = 0) -> str:
    result = _run (*args, check=False)
    return result.stdout.strip ()
 
-def fetch (prune: bool = False):
+def fetch (prune: bool = False, tags: bool = False):
    args = [ "fetch" ]
    if prune:
       args.append ("--prune")
+   if tags:
+      args.append ("--tags")
    _run (*args, check=False)
 
 def rebase () -> bool:

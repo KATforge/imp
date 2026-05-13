@@ -61,13 +61,24 @@ def divider ():
 def success (msg: str):
    out.print (f"[success]✓[/success] {msg}")
 
+_last_error: str = ""
+
 def err (msg: str):
+   global _last_error
+   _last_error = msg
    out.print (Panel (
       msg,
       border_style=theme.error,
       title="Error",
       title_align="left",
    ))
+
+def last_error () -> str:
+   return _last_error
+
+def clear_error ():
+   global _last_error
+   _last_error = ""
 
 def fatal (msg: str) -> NoReturn:
    err (msg)

@@ -84,6 +84,8 @@ def _prompt_kind (repo_name: str) -> bool:
 def _plan_repo (repo: Path, rel: str, rel_path: str, level: str, rc: bool, stable: bool) -> dict:
    """Gather plan for one repo. Cwd must already be in repo."""
 
+   git.fetch (tags=True)
+
    files = len (git.diff_names ())
 
    tag = git.last_tag ()
@@ -275,6 +277,8 @@ def fleet (
 
       os.chdir (plan ["path"])
 
+      console.clear_error ()
+
       try:
          ship (
             patch=(plan ["level"] == "patch"),
@@ -289,7 +293,11 @@ def fleet (
          results.append ((rel, f"shipped v{plan ['new']} ({plan ['level']} {kind})"))
       except typer.Exit as e:
          code = getattr (e, "exit_code", 0)
-         results.append ((rel, "no-op" if code == 0 else "failed"))
+         if code == 0:
+            results.append ((rel, "no-op"))
+         else:
+            detail = console.last_error () or "unknown error"
+            results.append ((rel, f"failed: {detail.splitlines () [0]}"))
       except Exception as e:
          results.append ((rel, f"error: {e}"))
 

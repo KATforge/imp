@@ -36,13 +36,14 @@ def subjects_since (tag: str, count: int = 20) -> str:
       return git.log_subjects (rev_range=f"{tag}..HEAD")
    return git.log_subjects (count=count)
 
-def push_release (ver: str, notes: str, force_lease: bool = False):
+def _push_commits (force_lease: bool = False):
    if git.has_upstream ():
       git.push (force_lease=force_lease)
    else:
       b = git.branch ()
       git.push (set_upstream=True, target=b)
 
+def _push_tag (ver: str, notes: str):
    git.push (ref=f"v{ver}")
    console.success ("Pushed to origin")
 
@@ -155,9 +156,20 @@ def do_release (
 
    if will_push:
       try:
-         push_release (new_version, entry, force_lease=can_squash)
+         _push_commits (force_lease=can_squash)
       except (subprocess.CalledProcessError, OSError) as e:
          console.err (f"Push failed: {_error_detail (e)}")
+         rollback (
+            new_version, original_head, changelog_path,
+            original_changelog, committed,
+         )
+         raise typer.Exit (1) from None
+
+      try:
+         _push_tag (new_version, entry)
+      except (subprocess.CalledProcessError, OSError) as e:
+         console.err (f"Tag push failed: {_error_detail (e)}")
+         console.hint (f"commits landed; retry tag with: git push --force origin v{new_version}")
          raise typer.Exit (1) from None
 
 def do_release_rc (level: str):
