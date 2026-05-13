@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.58] - 2026-05-13
+
+### Fixed
+- Validate semver format for stable tags
+
 ## [0.0.57] - 2026-05-12
 
 ### Added
