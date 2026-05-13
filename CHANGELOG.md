@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.57] - 2026-05-12
+
+### Added
+- Add error tracking and detailed failure reporting
+
 ## [0.0.56] - 2026-05-09
 
 ### Added
