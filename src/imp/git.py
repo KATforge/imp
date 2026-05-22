@@ -266,6 +266,13 @@ def merge (ref: str, no_ff: bool = False) -> bool:
    result = _run (*args, check=False)
    return result.returncode == 0
 
+def merge_continue () -> bool:
+   result = _run ("commit", "--no-edit", check=False)
+   return result.returncode == 0
+
+def merge_abort ():
+   _run ("merge", "--abort", check=False)
+
 def is_merged (branch_name: str, into: str) -> bool:
    result = _run ("merge-base", "--is-ancestor", branch_name, into, check=False)
    return result.returncode == 0

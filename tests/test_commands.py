@@ -7,7 +7,9 @@ import typer
 from imp import ai, console, git
 from imp.commands import branch as branch_cmd
 from imp.commands import commit as commit_cmd
+from imp.commands import merge as merge_cmd
 from imp.commands import push as push_mod
+from imp.commands import tag as tag_cmd
 from imp.commands import review as review_cmd
 from imp.commands import setup as setup_cmd
 from tests.conftest import commit_file, git_run, last_commit_subject
@@ -264,3 +266,230 @@ class TestSetupCommand:
       setup_cmd.setup (url="https://github.com/test/repo.git")
 
       assert not (bare_dir / ".gitignore").exists ()
+
+
+class TestMergeCommand:
+
+   def _branch_with_commit (self, repo, name, path, content, msg):
+      git_run (repo, "checkout", "-b", name)
+      commit_file (repo, path, content, msg)
+      git_run (repo, "checkout", "main")
+
+   def test_clean_merge_creates_merge_commit (self, repo):
+      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
+
+      merge_cmd.merge (
+         source="feature",
+         yes=True,
+         no_ff=True,
+         whisper="",
+         favor_ours=False,
+         favor_theirs=False,
+         auto=False,
+      )
+
+      assert (repo / "new.txt").exists ()
+      assert last_commit_subject (repo).startswith ("Merge branch 'feature'")
+
+   def test_ff_merge_does_not_create_commit (self, repo):
+      before = git.commit_count ()
+      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
+
+      merge_cmd.merge (
+         source="feature",
+         yes=True,
+         no_ff=False,
+         whisper="",
+         favor_ours=False,
+         favor_theirs=False,
+         auto=False,
+      )
+
+      assert last_commit_subject (repo) == "add new"
+      assert git.commit_count () == before + 1
+
+   def test_rejects_self_merge (self, repo):
+      with pytest.raises (typer.Exit):
+         merge_cmd.merge (
+            source="main",
+            yes=True,
+            no_ff=True,
+            whisper="",
+            favor_ours=False,
+            favor_theirs=False,
+            auto=False,
+         )
+
+   def test_rejects_missing_branch (self, repo):
+      with pytest.raises (typer.Exit):
+         merge_cmd.merge (
+            source="ghost",
+            yes=True,
+            no_ff=True,
+            whisper="",
+            favor_ours=False,
+            favor_theirs=False,
+            auto=False,
+         )
+
+   def test_rejects_dirty_tree (self, repo):
+      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
+      (repo / "file.txt").write_text ("dirty\n")
+
+      with pytest.raises (typer.Exit):
+         merge_cmd.merge (
+            source="feature",
+            yes=True,
+            no_ff=True,
+            whisper="",
+            favor_ours=False,
+            favor_theirs=False,
+            auto=False,
+         )
+
+   def test_cancelled_aborts (self, repo, monkeypatch):
+      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
+      monkeypatch.setattr (console, "confirm", lambda msg: False)
+
+      with pytest.raises (typer.Exit):
+         merge_cmd.merge (
+            source="feature",
+            yes=False,
+            no_ff=True,
+            whisper="",
+            favor_ours=False,
+            favor_theirs=False,
+            auto=False,
+         )
+
+      assert not (repo / "new.txt").exists ()
+
+   def test_resolves_conflict_via_ai (self, repo, monkeypatch):
+      git_run (repo, "checkout", "-b", "feature")
+      commit_file (repo, "file.txt", "feature side\n", "feature change")
+      git_run (repo, "checkout", "main")
+      commit_file (repo, "file.txt", "main side\n", "main change")
+
+      monkeypatch.setattr (ai, "smart", lambda prompt: "resolved content\n")
+
+      merge_cmd.merge (
+         source="feature",
+         yes=True,
+         no_ff=True,
+         whisper="",
+         favor_ours=False,
+         favor_theirs=False,
+         auto=True,
+      )
+
+      assert (repo / "file.txt").read_text () == "resolved content"
+      assert last_commit_subject (repo).startswith ("Merge branch 'feature'")
+      assert not git.merge_in_progress ()
+
+
+class TestTagCommand:
+
+   def _tag_args (self, **overrides):
+      defaults = dict (patch=False, minor=False, major=False, yes=True, no_push=True)
+      defaults.update (overrides)
+      return defaults
+
+   def _seed (self, repo, tag_name=None, message="feat: add thing"):
+      """Commit a change so release_scope has something to work with."""
+      if tag_name:
+         git_run (repo, "tag", tag_name)
+      commit_file (repo, "feature.txt", "x\n", message)
+
+   def test_bumps_patch_and_writes_changelog (self, repo):
+      self._seed (repo, "v0.1.0", "feat: add login")
+
+      tag_cmd.tag (** self._tag_args (patch=True))
+
+      assert git.tag_exists ("v0.1.1")
+      changelog = (repo / "CHANGELOG.md").read_text ()
+      assert "## [0.1.1]" in changelog
+      assert "Add login" in changelog
+      assert last_commit_subject (repo) == "chore: release v0.1.1"
+
+   def test_bumps_minor_resets_patch (self, repo):
+      self._seed (repo, "v0.1.5")
+
+      tag_cmd.tag (** self._tag_args (minor=True))
+
+      assert git.tag_exists ("v0.2.0")
+
+   def test_bumps_major_resets_lower (self, repo):
+      self._seed (repo, "v1.2.3")
+
+      tag_cmd.tag (** self._tag_args (major=True))
+
+      assert git.tag_exists ("v2.0.0")
+
+   def test_first_tag_from_zero (self, repo):
+      tag_cmd.tag (** self._tag_args (patch=True))
+
+      assert git.tag_exists ("v0.0.1")
+
+   def test_uses_highest_stable_tag (self, repo):
+      git_run (repo, "tag", "v0.1.0")
+      commit_file (repo, "a.txt", "a", "a")
+      git_run (repo, "tag", "v0.2.0")
+      commit_file (repo, "b.txt", "b", "b")
+      git_run (repo, "tag", "v0.1.5")  # lexically lower, but irrelevant
+
+      tag_cmd.tag (** self._tag_args (patch=True))
+
+      assert git.tag_exists ("v0.2.1")
+
+   def test_appends_to_existing_changelog (self, repo):
+      (repo / "CHANGELOG.md").write_text (
+         "# Changelog\n\n## [0.1.0] - 2024-01-01\n\n### Added\n- Original\n"
+      )
+      git_run (repo, "add", "CHANGELOG.md")
+      git_run (repo, "commit", "-m", "docs: seed changelog")
+      self._seed (repo, "v0.1.0", "fix: a bug")
+
+      tag_cmd.tag (** self._tag_args (patch=True))
+
+      content = (repo / "CHANGELOG.md").read_text ()
+      assert "## [0.1.1]" in content
+      assert "## [0.1.0]" in content
+      assert content.index ("[0.1.1]") < content.index ("[0.1.0]")
+
+   def test_rejects_multiple_levels (self, repo):
+      with pytest.raises (typer.Exit):
+         tag_cmd.tag (** self._tag_args (patch=True, minor=True))
+
+   def test_rejects_existing_tag (self, repo, monkeypatch):
+      self._seed (repo, "v0.1.1")
+      monkeypatch.setattr (tag_cmd, "current_version", lambda: "0.1.0")
+
+      with pytest.raises (typer.Exit):
+         tag_cmd.tag (** self._tag_args (patch=True))
+
+   def test_rejects_dirty_tree (self, repo):
+      git_run (repo, "tag", "v0.1.0")
+      (repo / "dirty.txt").write_text ("uncommitted\n")
+
+      with pytest.raises (typer.Exit):
+         tag_cmd.tag (** self._tag_args (patch=True))
+
+      assert not git.tag_exists ("v0.1.1")
+
+   def test_interactive_choice (self, repo, monkeypatch):
+      self._seed (repo, "v0.1.0")
+      monkeypatch.setattr (console, "choose", lambda title, opts: "minor")
+
+      tag_cmd.tag (** self._tag_args (yes=True))
+
+      assert git.tag_exists ("v0.2.0")
+
+   def test_cancelled (self, repo, monkeypatch):
+      self._seed (repo, "v0.1.0")
+      monkeypatch.setattr (console, "confirm", lambda msg: False)
+
+      with pytest.raises (typer.Exit):
+         tag_cmd.tag (** self._tag_args (patch=True, yes=False))
+
+      assert not git.tag_exists ("v0.1.1")
+      assert not (repo / "CHANGELOG.md").exists ()

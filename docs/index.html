@@ -425,27 +425,35 @@ tailwind.config = {
       </div>
    </div>
 
-   <h3 class="text-sm uppercase tracking-wider text-gray-500 font-semibold mt-12 mb-3">Resolving a merge conflict</h3>
+   <h3 class="text-sm uppercase tracking-wider text-gray-500 font-semibold mt-12 mb-3">Merging a branch with conflicts</h3>
    <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-start">
       <div>
          <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">git</div>
-         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-warn">&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</span>
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">git merge</span> feat/per-user-limits
+<span class="t-warn">CONFLICT (content): Merge conflict in src/auth.py</span>
+
+<span class="t-warn">&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</span>
 rate_limit = RateLimiter(per_ip=10, window=60)
 <span class="t-warn">=======</span>
 rate_limit = RateLimiter(per_user=20, window=300)
 <span class="t-warn">&gt;&gt;&gt;&gt;&gt;&gt;&gt; feat/per-user-limits</span>
 
-<span class="t-muted"># read both branches, decide, hand-merge, repeat per file</span></code></pre>
+<span class="t-muted"># hand-edit per file, then git add, then git commit</span></code></pre>
       </div>
       <div class="text-imp-green text-2xl font-bold pt-8 hidden md:block">→</div>
       <div>
          <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">imp</div>
-         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp</span> resolve
+         <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto"><code><span class="t-prompt">$</span> <span class="t-cmd">imp merge</span> feat/per-user-limits
+<span class="t-arrow">→</span> 1 conflict; handing off to resolve
 <span class="t-arrow">→</span> src/auth.py: combine per-IP and per-user limits
-  <span class="t-label">Apply?</span> <span class="t-choice">[Yes / Edit / No]</span>
-<span class="t-arrow">→</span> Done. 1 file resolved.</code></pre>
+  <span class="t-label">Apply?</span> <span class="t-choice">[Yes / Edit / Ours / Theirs]</span>
+<span class="t-arrow">→</span> Merged feat/per-user-limits into main</code></pre>
       </div>
    </div>
+
+   <p class="text-gray-500 text-sm mt-3">
+      Already mid-merge? Run <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp resolve</code> on its own to walk an in-progress merge or rebase.
+   </p>
 </div>
 </section>
 
@@ -476,8 +484,12 @@ rate_limit = RateLimiter(per_user=20, window=300)
          <div class="text-gray-400 text-sm leading-snug">Squash, write a changelog entry, sync package manifests, tag a semver release, and push. Rolls back on failure.</div>
       </div>
       <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
+         <div class="font-bold mb-1"><code class="text-imp-green bg-transparent border-none p-0 text-sm">imp merge</code></div>
+         <div class="text-gray-400 text-sm leading-snug">Merge a branch into the current branch. On conflicts, AI resolves each file and the merge commit finalizes automatically.</div>
+      </div>
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
          <div class="font-bold mb-1"><code class="text-imp-green bg-transparent border-none p-0 text-sm">imp resolve</code></div>
-         <div class="text-gray-400 text-sm leading-snug">Walk through merge conflicts file-by-file. AI suggests a resolution; you accept, edit, or override.</div>
+         <div class="text-gray-400 text-sm leading-snug">Walk through an in-progress merge or rebase, file-by-file. AI suggests a resolution; you accept, edit, or override.</div>
       </div>
       <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
          <div class="font-bold mb-1"><code class="text-imp-green bg-transparent border-none p-0 text-sm">imp fleet</code></div>
@@ -862,6 +874,20 @@ const COMMANDS = [
      ],
      purpose: 'Pull, rebase, then push the current branch.' },
 
+   { cat: 'sync', name: 'merge',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'merge' },
+        { t: 'req',  s: '<branch>',   tip: 'Branch to merge into the current branch.' },
+        { t: 'opt',  s: '[--ff]',     tip: 'Allow fast-forward (default is --no-ff, forcing a merge commit).' },
+        { t: 'opt',  s: '[--ours]',   tip: 'Bias the AI toward our branch on conflicts.' },
+        { t: 'opt',  s: '[--theirs]', tip: 'Bias the AI toward their branch on conflicts.' },
+        { t: 'opt',  s: '[--auto]',   tip: 'Auto-accept all AI conflict resolutions.' },
+        { t: 'opt',  s: '[-y]',       tip: 'Skip the merge confirmation.' },
+        { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint for conflict resolution.' },
+     ],
+     purpose: 'Merge a branch into the current branch, with AI conflict resolution.' },
+
    { cat: 'sync', name: 'resolve',
      tokens: [
         { t: 'prog', s: 'imp' },
@@ -889,7 +915,7 @@ const COMMANDS = [
         { t: 'opt',  s: '[target]',   tip: 'Target branch to merge into. Defaults to base.' },
         { t: 'opt',  s: '[-y]',       tip: 'Skip merge confirmation.' },
      ],
-     purpose: 'Merge the current branch and clean up local + remote.' },
+     purpose: 'Finish a feature branch: merge (or pull if already merged via PR), then delete it locally and remotely.' },
 
    { cat: 'release', name: 'changelog',
      tokens: [
@@ -900,6 +926,16 @@ const COMMANDS = [
         { t: 'opt',  s: '[-y]',          tip: 'Skip confirmations.' },
      ],
      purpose: 'Regenerate CHANGELOG.md from git history.' },
+
+   { cat: 'release', name: 'tag',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'tag' },
+        { t: 'opt',  s: '[--patch|--minor|--major]', tip: 'Semver bump. Prompts if omitted.' },
+        { t: 'opt',  s: '[--no-push]', tip: 'Commit and tag locally without pushing.' },
+        { t: 'opt',  s: '[-y]',        tip: 'Skip confirmation.' },
+     ],
+     purpose: 'Bump the highest semver tag, append a CHANGELOG entry, commit, tag, push. No squash.' },
 
    { cat: 'release', name: 'release',
      tokens: [
