@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.59] - 2026-05-22
+
+### Added
+- Add merge command with ai conflict resolution
+- Add tag command to bump semver without squash
+
 ## [0.0.58] - 2026-05-13
 
 ### Fixed
