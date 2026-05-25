@@ -366,6 +366,7 @@ tailwind.config = {
 <aside id="toc" aria-label="Table of contents">
    <div class="text-imp-green text-[10px] uppercase tracking-widest font-bold mb-2 pl-3.5">On this page</div>
    <ol>
+      <li><a href="#why">Why not Claude?</a></li>
       <li><a href="#demo">Demo</a></li>
       <li><a href="#features">What it does</a></li>
       <li><a href="#examples">Examples</a></li>
@@ -410,6 +411,65 @@ tailwind.config = {
       <a href="https://github.com/katforge/imp/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT" class="h-5"></a>
    </div>
 </div>
+
+<!-- why -->
+<section id="why" class="border-t border-imp-border py-12 scroll-mt-8">
+<div class="max-w-3xl mx-auto px-6">
+   <h2 class="text-2xl font-bold mb-3">Why not just ask Claude?</h2>
+   <p class="text-gray-400 text-base mb-6 leading-relaxed">
+      You can. Claude is the right shape for work you do <em>once</em>. <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> is the right shape for the git ritual you do <em>twenty times a day</em> &mdash; commit, split, PR, release &mdash; where you want a verb, not a chat.
+   </p>
+
+   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
+         <div class="font-bold mb-1 text-imp-green">A verb, not a conversation.</div>
+         <div class="text-gray-400 text-sm leading-snug">
+            <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp commit -a</code> takes &lt;1s.
+            Asking Claude to read your staged diff, draft a message, and copy-paste it back takes a minute and breaks your flow.
+         </div>
+      </div>
+
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
+         <div class="font-bold mb-1 text-imp-green">Deterministic shape.</div>
+         <div class="text-gray-400 text-sm leading-snug">
+            Every commit passes commitlint. Every release bumps semver and syncs every package manifest. Claude does what you ask <em>that day</em>; <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> enforces the rule across every repo, every time.
+         </div>
+      </div>
+
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
+         <div class="font-bold mb-1 text-imp-green">Scriptable.</div>
+         <div class="text-gray-400 text-sm leading-snug">
+            Git hooks, CI pipelines, shell aliases, cron. You can't put a Claude Code session in a <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">pre-commit</code> hook. You can put <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp commit -a -y</code>.
+         </div>
+      </div>
+
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
+         <div class="font-bold mb-1 text-imp-green">Atomic + reversible.</div>
+         <div class="text-gray-400 text-sm leading-snug">
+            <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp release</code> rolls back every manifest, tag, and commit on failure. A chat session can leave you half-deployed with no transcript of what got committed where.
+         </div>
+      </div>
+
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
+         <div class="font-bold mb-1 text-imp-green">Local, private, free.</div>
+         <div class="text-gray-400 text-sm leading-snug">
+            Point <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> at Ollama and the diff never leaves your machine. No API key, no subscription, no usage cap on the boring stuff.
+         </div>
+      </div>
+
+      <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
+         <div class="font-bold mb-1 text-imp-green">They compose.</div>
+         <div class="text-gray-400 text-sm leading-snug">
+            Not either-or. <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> can use the Claude CLI as its provider, so prompts run inside your existing subscription. Use Claude Code for thinking; use <code class="bg-imp-code border border-imp-border px-1.5 py-0.5 rounded text-xs">imp</code> for typing.
+         </div>
+      </div>
+   </div>
+
+   <p class="text-gray-500 text-sm mt-6">
+      Full side-by-side breakdown in <a href="#compare" class="text-imp-green hover:text-imp-glow">How imp compares</a> &darr;.
+   </p>
+</div>
+</section>
 
 <!-- demo -->
 <section id="demo" class="border-t border-imp-border py-12 scroll-mt-8">
