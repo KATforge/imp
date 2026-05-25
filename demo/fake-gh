@@ -9,12 +9,29 @@ case "$cmd $sub" in
    "pr create")
       echo "https://github.com/example/auth-service/pull/42"
       ;;
-   "pr view"|"pr status"|"pr list")
+   "pr view"|"pr status")
+      cat <<EOF
+Title:  feat: rate limit auth endpoints
+State:  OPEN
+Url:    https://github.com/example/auth-service/pull/42
+EOF
+      ;;
+   "pr list")
       echo "(no PRs)"
+      ;;
+   "pr checks")
+      echo "✓ ci / build / pass"
+      echo "✓ ci / test / pass"
       ;;
    "issue view")
       cat <<EOF
 {"title":"Rate limit auth endpoints","body":"Users can brute force the login endpoint. Add per-IP rate limiting."}
+EOF
+      ;;
+   "issue list")
+      cat <<EOF
+#42  Rate limit auth endpoints     bug
+#41  Improve login error messages  enhancement
 EOF
       ;;
    "auth status")
@@ -25,6 +42,9 @@ EOF
       ;;
    "release create")
       echo "https://github.com/example/auth-service/releases/tag/${3:-v0.1.0}"
+      ;;
+   "repo view")
+      echo "example/auth-service"
       ;;
    *)
       echo "(gh stub: $*)" >&2

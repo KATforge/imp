@@ -15,13 +15,12 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+demo \
 
 COPY demo/fake-claude /usr/local/bin/claude
 COPY demo/fake-gh     /usr/local/bin/gh
-COPY demo/setup-tidy.sh    /usr/local/bin/setup-tidy
-COPY demo/setup-commit.sh  /usr/local/bin/setup-commit
-COPY demo/setup-pr.sh      /usr/local/bin/setup-pr
-COPY demo/setup-release.sh /usr/local/bin/setup-release
-RUN chmod +x /usr/local/bin/claude /usr/local/bin/gh \
-             /usr/local/bin/setup-tidy /usr/local/bin/setup-commit \
-             /usr/local/bin/setup-pr   /usr/local/bin/setup-release
+COPY demo/setup-*.sh  /usr/local/bin/
+RUN for f in /usr/local/bin/setup-*.sh; do \
+       chmod +x "$f"; \
+       mv "$f" "${f%.sh}"; \
+    done && \
+    chmod +x /usr/local/bin/claude /usr/local/bin/gh
 
 ENV IMP_AI_PROVIDER=claude
 ENV IMP_AI_MODEL_FAST=stub
