@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 - Add rescue command that scans reflog and dangling commits for lost work
 - Add standup command that summarizes recent commits as a daily narrative
 
+### Changed
+- Use anthropic SDK with prompt caching when ANTHROPIC_API_KEY is set, falling back to claude CLI subprocess (now isolated with cwd=/tmp). Fixes context-leak bug where small diffs picked up cwd CLAUDE.md and recently-modified files.
+
 ## [0.0.59] - 2026-05-22
 
 ### Added

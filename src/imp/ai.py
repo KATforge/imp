@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import subprocess
 import urllib.error
@@ -9,6 +10,40 @@ from imp import config, console
 MAX_DIFF_LINES = 2000
 
 def _claude (prompt: str, model: str) -> str:
+   api_key = os.environ.get ("ANTHROPIC_API_KEY")
+   if api_key:
+      return _claude_sdk (prompt, model, api_key)
+   return _claude_cli (prompt, model)
+
+def _claude_sdk (prompt: str, model: str, api_key: str) -> str:
+   import anthropic
+
+   client = anthropic.Anthropic (api_key=api_key)
+
+   try:
+      response = client.messages.create (
+         model=model,
+         max_tokens=8192,
+         temperature=0.3,
+         messages=[
+            {
+               "role": "user",
+               "content": [
+                  {
+                     "type": "text",
+                     "text": prompt,
+                     "cache_control": { "type": "ephemeral" },
+                  },
+               ],
+            },
+         ],
+      )
+   except anthropic.APIError as e:
+      console.fatal (f"anthropic api failed: {e}")
+
+   return "".join (block.text for block in response.content if getattr (block, "text", None))
+
+def _claude_cli (prompt: str, model: str) -> str:
    result = subprocess.run (
       [
          "claude", "-p",
@@ -19,6 +54,7 @@ def _claude (prompt: str, model: str) -> str:
       capture_output=True,
       text=True,
       timeout=300,
+      cwd="/tmp",
    )
 
    if result.returncode != 0:
