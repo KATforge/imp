@@ -365,6 +365,50 @@ def worktree_list () -> str:
    result = _run ("worktree", "list", check=False)
    return result.stdout.strip ()
 
+def worktrees () -> list [dict [str, str]]:
+   result = _run ("worktree", "list", "--porcelain", check=False)
+   entries: list [dict [str, str]] = []
+   current: dict [str, str] = {}
+
+   for line in result.stdout.splitlines ():
+      line = line.rstrip ()
+      if not line:
+         if current:
+            entries.append (current)
+            current = {}
+         continue
+
+      if " " in line:
+         key, _, value = line.partition (" ")
+         current [key] = value
+      else:
+         current [line] = ""
+
+   if current:
+      entries.append (current)
+
+   return entries
+
+def worktree_add (path: str, branch: str, base: str = ""):
+   args = [ "worktree", "add", "-b", branch, path ]
+   if base:
+      args.append (base)
+   _run (*args)
+
+def worktree_remove (path: str, force: bool = False):
+   args = [ "worktree", "remove" ]
+   if force:
+      args.append ("--force")
+   args.append (path)
+   _run (*args)
+
+def worktree_prune ():
+   _run ("worktree", "prune", check=False)
+
+def common_dir () -> str:
+   result = _run ("rev-parse", "--git-common-dir", check=False)
+   return result.stdout.strip ()
+
 def remote_has_branch (name: str) -> bool:
    result = _run ("ls-remote", "--heads", "origin", name, check=False)
    return name in result.stdout
@@ -455,6 +499,122 @@ def tag_commit_map () -> dict [str, str]:
       elif len (parts) == 2:
          mapping [parts [0]] = parts [1]
    return mapping
+
+def recent_commit_diffs (count: int = 20, since: str = "") -> list [dict [str, str]]:
+   if since:
+      args = [ "log", "--since", since, "--format=%H%x09%s" ]
+   else:
+      args = [ "log", "-n", str (count), "--format=%H%x09%s" ]
+
+   result = _run (*args, check=False)
+   entries: list [dict [str, str]] = []
+
+   for line in result.stdout.strip ().splitlines ():
+      parts = line.split ("\t", 1)
+      if len (parts) != 2:
+         continue
+      h, subject = parts
+      patch = show_patch (h)
+      entries.append ({ "hash": h, "subject": subject, "diff": patch })
+
+   return entries
+
+def commit_fixup (ref: str):
+   _run ("commit", f"--fixup={ref}")
+
+def autosquash_rebase (base_ref: str):
+   _run (
+      "rebase", "-i", "--autosquash", base_ref,
+      env={ "GIT_SEQUENCE_EDITOR": ":" },
+   )
+
+def stash_push (msg: str):
+   _run ("stash", "push", "-m", msg)
+
+def stash_list_raw () -> list [dict [str, str]]:
+   result = _run ("stash", "list", "--format=%gd%x09%gs%x09%cr", check=False)
+   entries: list [dict [str, str]] = []
+   for line in result.stdout.strip ().splitlines ():
+      parts = line.split ("\t", 2)
+      if len (parts) == 3:
+         entries.append ({ "ref": parts [0], "subject": parts [1], "age": parts [2] })
+   return entries
+
+def stash_show (idx: int = 0, patch: bool = False) -> str:
+   ref = f"stash@{{{idx}}}"
+   args = [ "stash", "show" ]
+   if patch:
+      args.append ("-p")
+   else:
+      args.append ("--numstat")
+   args.append (ref)
+   result = _run (*args, check=False)
+   return result.stdout
+
+def stash_pop (idx: int = 0):
+   _run ("stash", "pop", f"stash@{{{idx}}}")
+
+def stash_drop (idx: int = 0):
+   _run ("stash", "drop", f"stash@{{{idx}}}")
+
+def reflog (since: str = "") -> list [dict [str, str]]:
+   args = [ "reflog", "show", "--all", "--format=%H%x09%gD%x09%gs%x09%cr" ]
+   if since:
+      args.extend ([ "--since", since ])
+
+   result = _run (*args, check=False)
+   entries: list [dict [str, str]] = []
+   for line in result.stdout.strip ().splitlines ():
+      parts = line.split ("\t", 3)
+      if len (parts) == 4:
+         entries.append ({
+            "hash": parts [0],
+            "ref": parts [1],
+            "message": parts [2],
+            "age": parts [3],
+         })
+   return entries
+
+def dangling_commits () -> list [str]:
+   result = _run ("fsck", "--no-reflogs", "--lost-found", check=False)
+   commits: list [str] = []
+   for line in result.stdout.splitlines () + result.stderr.splitlines ():
+      line = line.strip ()
+      if line.startswith ("dangling commit "):
+         commits.append (line.split () [-1])
+   return commits
+
+def show_oneline (ref: str) -> str:
+   result = _run ("log", "-1", "--format=%h %s", ref, check=False)
+   return result.stdout.strip ()
+
+def show_age (ref: str) -> str:
+   result = _run ("log", "-1", "--format=%cr", ref, check=False)
+   return result.stdout.strip ()
+
+def show_stat (ref: str) -> str:
+   result = _run ("show", "--stat", "--format=", ref, check=False)
+   return result.stdout.strip ()
+
+def user_email () -> str:
+   result = _run ("config", "--get", "user.email", check=False)
+   return result.stdout.strip ()
+
+def log_by_author (author: str, since: str = "") -> list [dict [str, str]]:
+   args = [ "log", "--author", author, "--format=%H\t%ai\t%s", "--reverse" ]
+   if since:
+      args.extend ([ "--since", since ])
+   result = _run (*args, check=False)
+   entries: list [dict [str, str]] = []
+   for line in result.stdout.strip ().splitlines ():
+      parts = line.split ("\t", 2)
+      if len (parts) == 3:
+         entries.append ({
+            "hash": parts [0],
+            "subject": parts [2],
+            "date": parts [1].split () [0],
+         })
+   return entries
 
 def log_full (since: str = "", until: str = "") -> list [dict [str, str]]:
    args = [ "log", "--format=%H\t%ai\t%s", "--reverse" ]

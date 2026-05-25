@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- Add worktree command for managing git worktrees (add / list / path / remove / prune)
+- Add explain command for plain-english narration of diffs, commits, ranges, or files
+- Add fixup command that ai-matches staged changes to the right historical commit
+- Add stash sub-app with ai-generated titles (push / list / show / pop / drop)
+- Add rescue command that scans reflog and dangling commits for lost work
+- Add standup command that summarizes recent commits as a daily narrative
+
 ## [0.0.59] - 2026-05-22
 
 ### Added

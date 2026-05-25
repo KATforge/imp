@@ -372,6 +372,112 @@ Rules:
 
 Output:"""
 
+_EXPLAIN_MODES = {
+   "brief": "Be terse. 1-3 sentences total. Prefer prose over bullets. No headings.",
+   "balanced": "Be concise. 1 short paragraph summary, then 2-5 bullets of notable specifics if useful.",
+   "full": "Be thorough. Walk through the change file-by-file. Call out motivation, risks, and follow-ups.",
+}
+
+def explain (diff: str, mode: str = "balanced", whisper: str = "") -> str:
+   style = _EXPLAIN_MODES.get (mode, _EXPLAIN_MODES ["balanced"])
+
+   return f"""\
+Explain this code change in plain English. Audience: a developer who has not read the diff.
+{_whisper (whisper)}\
+Style: {style}
+
+Cover what changed and why (the intent), not a line-by-line readout. Skip noise
+(formatting, import reordering, generated files). Use markdown. No code fences
+around the whole response.
+
+Diff:
+{diff}
+
+Output ONLY the explanation:"""
+
+def fixup_pick (staged: str, candidates: str) -> str:
+   return f"""\
+Given a staged hunk and a list of recent commits, decide which commit the hunk
+most likely fixes up. Score 0-100 (100 = certain). If no commit is a clear
+target, return a low score.
+
+Staged hunk:
+{staged}
+
+Recent commits (newest first, each as "<hash> <subject>" followed by its diff):
+{candidates}
+
+Rules:
+- Output a JSON object, no markdown fences, no explanation
+- Shape: {{"best": "<full-or-prefix-hash>", "score": 0-100, "reason": "<short>", "alternates": [{{"sha": "<hash>", "score": 0-100, "reason": "<short>"}}]}}
+- "best" must be one of the candidate hashes above
+- alternates: up to 3 next-best candidates, may be empty array
+- Match on file overlap, line proximity, and topical similarity
+
+Output ONLY the JSON object:"""
+
+def stash_title (diff: str) -> str:
+   return f"""\
+Summarize this work-in-progress diff as a short stash title.
+
+Rules:
+- 5 to 12 words
+- Lowercase, no trailing period
+- Imperative mood ("add x", "fix y")
+- No quotes, no markdown, no prefix like "wip:" or "stash:"
+- Capture the dominant change, not every file
+
+Diff:
+{diff}
+
+Output ONLY the title:"""
+
+def rescue_rank (candidates: str, hint: str = "") -> str:
+   hint_block = ""
+   if hint:
+      hint_block = f"\nUser hint (filter / bias toward this topic): {hint}\n"
+
+   return f"""\
+Rank these orphaned or recently-moved-past commits by their likely value as
+recovery targets. Higher score = more likely to be lost work worth restoring.
+{hint_block}
+Candidates (each with sha, age, subject, file stat):
+{candidates}
+
+Rules:
+- Output a JSON array, no markdown fences, no explanation
+- Each element: {{"sha": "<hash>", "score": 0-100, "what": "<one-line description of what this looks like>"}}
+- Order: highest score first
+- Bias against tiny / mechanical commits (single line touched, formatting only)
+- Bias toward commits with meaningful subjects and substantive diffs
+- Limit to top 10
+
+Output ONLY the JSON array:"""
+
+def standup (commits: str, author: str = "", since: str = "") -> str:
+   meta = []
+   if author:
+      meta.append (f"author: {author}")
+   if since:
+      meta.append (f"since: {since}")
+   meta_line = ("\n" + "\n".join (meta) + "\n") if meta else ""
+
+   return f"""\
+Write a standup-style summary of recent work from these commits.
+{meta_line}
+Commits (oldest first, "<hash> <date> <subject>"):
+{commits}
+
+Rules:
+- Output markdown
+- Group commits by theme (3-5 themes at most); skip themes with only trivial commits
+- For each theme: a one-line header ("**theme name**") then 1-3 short bullets
+- Cite hashes in parentheses at end of bullets, like "(a1b2c3d)"
+- Skip release / version-bump / changelog noise
+- No greeting, no closing, no headings other than the theme names
+
+Output ONLY the summary:"""
+
 def changelog_entry (diffs: str) -> str:
    return f"""\
 Analyze these git commit diffs and produce a changelog entry.
