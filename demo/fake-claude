@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
-# Fake claude CLI for demo GIFs. Reads prompt from stdin, matches keywords,
-# prints a canned response that imp will accept.
+# Fake claude CLI for demo GIFs. Reads prompt from stdin, matches a sentinel
+# phrase from imp/prompts.py, and prints a canned response that imp accepts.
 set -e
 
 prompt=$(cat)
 
 case "$prompt" in
+
    *"Reply with OK"*)
       echo "OK"
       ;;
+
+   # ─── commit / amend ──────────────────────────────────────────────────
+   *"Conventional Commits message for this diff"*)
+      if printf "%s" "$prompt" | grep -q "rate_limit"; then
+         echo "feat: add rate limiting to auth endpoints"
+      elif printf "%s" "$prompt" | grep -q "password"; then
+         echo "fix: correct password typo in login"
+      else
+         echo "chore: update sources"
+      fi
+      ;;
+
+   # ─── tidy ────────────────────────────────────────────────────────────
    *"cleanup plan for this commit history"*)
       mapfile -t hashes < <(printf "%s\n" "$prompt" | grep -oE '^[a-f0-9]{12}' | head -20)
       if [ "${#hashes[@]}" -ge 3 ]; then
@@ -29,9 +43,12 @@ EOF
          echo "[]"
       fi
       ;;
-   *"Conventional Commits message for this diff"*)
-      echo "feat: add rate limiting to auth endpoints"
+
+   *"natural-language time reference"*)
+      echo "2024-01-01"
       ;;
+
+   # ─── pr ──────────────────────────────────────────────────────────────
    *"pull request title and description"*)
       cat <<EOF
 TITLE: feat: rate limit auth endpoints
@@ -48,12 +65,159 @@ DESCRIPTION:
 - Cover with integration tests
 EOF
       ;;
-   *"natural-language time reference"*)
-      echo "2024-01-01"
+
+   # ─── branch / fix ────────────────────────────────────────────────────
+   *"branch name for fixing this issue"*)
+      echo "fix/rate-limit-login-42"
       ;;
-   *"git branch name"*)
+   *"branch name"*)
       echo "feat/rate-limit"
       ;;
+
+   # ─── review ──────────────────────────────────────────────────────────
+   *"Review this code diff"*)
+      cat <<'EOF'
+**Looks reasonable overall.** A couple of things to tighten:
+
+- `rate_limit.py` uses a module-level dict for per-IP attempts; this won't survive worker restarts and isn't safe across processes. Swap for Redis or memcached if this is multi-worker.
+- `MAX_ATTEMPTS = 5` and `WINDOW = 60` are hardcoded; consider env-driven config.
+- No tests yet for the 429 path.
+
+Otherwise: clear, small, easy to revert.
+EOF
+      ;;
+
+   # ─── split ───────────────────────────────────────────────────────────
+   *"Group these"*"changed files into logical commits"*|*"Re-group these changed files"*)
+      cat <<'EOF'
+[
+  {"files": ["rate_limit.py"], "message": "feat: add rate limiter primitive"},
+  {"files": ["auth.py"], "message": "feat: wire rate limit into login"},
+  {"files": ["tests/test_rate_limit.py"], "message": "test: cover rate limit edge cases"},
+  {"files": ["README.md"], "message": "docs: document rate limit flags"}
+]
+EOF
+      ;;
+
+   # ─── revert ──────────────────────────────────────────────────────────
+   *"reverting this change"*)
+      echo "Revert: rate limit on auth endpoints"
+      ;;
+
+   # ─── explain ─────────────────────────────────────────────────────────
+   *"Explain this code change in plain English"*)
+      cat <<'EOF'
+Adds per-IP rate limiting in front of the login flow.
+
+- A new `rate_limit.py` module tracks recent attempts per IP inside a
+  rolling 60-second window with a cap of 5 attempts.
+- `auth.py` now consults the limiter before checking credentials and
+  returns HTTP 429 when an IP is over the budget.
+- No persistence layer yet; counters are in-process only.
+EOF
+      ;;
+
+   # ─── fixup pick ──────────────────────────────────────────────────────
+   *"decide which commit the hunk most likely fixes up"*)
+      sha=$(printf "%s" "$prompt" | grep -oE '^[a-f0-9]{7,}' | head -1)
+      sha=${sha:-abc1234}
+      cat <<EOF
+{"best": "$sha", "score": 92, "reason": "same file, adjacent lines", "alternates": []}
+EOF
+      ;;
+
+   # ─── stash title ─────────────────────────────────────────────────────
+   *"short stash title"*)
+      echo "experiment with token bucket rate limiter"
+      ;;
+
+   # ─── rescue ──────────────────────────────────────────────────────────
+   *"Rank these orphaned"*)
+      mapfile -t shas < <(printf "%s\n" "$prompt" | grep -oE '\b[a-f0-9]{7,40}\b' | head -3)
+      if [ "${#shas[@]}" -ge 2 ]; then
+         cat <<EOF
+[
+  {"sha": "${shas[0]}", "score": 88, "what": "feat: add rate limit middleware"},
+  {"sha": "${shas[1]}", "score": 41, "what": "wip: tweak window"}
+]
+EOF
+      elif [ "${#shas[@]}" -ge 1 ]; then
+         cat <<EOF
+[
+  {"sha": "${shas[0]}", "score": 88, "what": "feat: add rate limit middleware"}
+]
+EOF
+      else
+         echo "[]"
+      fi
+      ;;
+
+   # ─── standup ─────────────────────────────────────────────────────────
+   *"standup-style summary"*)
+      cat <<'EOF'
+**rate limiting**
+- shipped per-IP token bucket and wired it into the login path (a1b2c3d)
+- added 429 retry-after header and config flags (e4f5g6h)
+
+**docs**
+- documented the new auth flags in the README (i7j8k9l)
+EOF
+      ;;
+
+   # ─── changelog ───────────────────────────────────────────────────────
+   *"produce a changelog entry"*)
+      cat <<'EOF'
+### Added
+- per-IP rate limiting on /login and /register
+- 429 responses include a retry-after header
+- configurable window + max attempts via env vars
+
+### Fixed
+- typo in login flow (password parameter)
+EOF
+      ;;
+
+   *"Group these git commit subjects into logical version releases"*)
+      cat <<'EOF'
+[
+  {"version": "0.0.1", "commits": ["feat: add login endpoint"]},
+  {"version": "0.0.2", "commits": ["feat: add rate limiter primitive", "feat: wire rate limit into login"]}
+]
+EOF
+      ;;
+
+   # ─── gitignore ───────────────────────────────────────────────────────
+   *"Generate .gitignore entries"*)
+      cat <<'EOF'
+__pycache__/
+*.pyc
+.venv/
+.env
+.DS_Store
+.vscode/
+.idea/
+EOF
+      ;;
+
+   # ─── resolve / merge conflict ────────────────────────────────────────
+   *"Resolve all merge conflicts in this file"*)
+      file=$(printf "%s" "$prompt" | sed -n 's/^File: //p' | head -1)
+      cat <<EOF
+Conflict 1 (auth bias):
+  Ours: per-IP rate limiting
+  Theirs: per-user rate limiting
+  Resolution: kept both, layered the limits
+
+---RESOLVED---
+from rate_limit import allow_ip, allow_user
+
+def login(user, password, ip):
+    if not allow_ip(ip) or not allow_user(user):
+        return 429
+    return user == "admin" and password == "secret"
+EOF
+      ;;
+
    *)
       echo "chore: update"
       ;;
