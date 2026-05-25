@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.60] - 2026-05-25
+
+### Added
+- Add anthropic sdk with cli fallback to fix context leak
+- Add explain, fixup, rescue, standup, stash, worktree commands
+
 ## Unreleased
 
 ### Added
