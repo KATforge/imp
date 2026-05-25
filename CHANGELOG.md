@@ -5,12 +5,6 @@ All notable changes to this project will be documented in this file.
 ## [0.0.60] - 2026-05-25
 
 ### Added
-- Add anthropic sdk with cli fallback to fix context leak
-- Add explain, fixup, rescue, standup, stash, worktree commands
-
-## Unreleased
-
-### Added
 - Add worktree command for managing git worktrees (add / list / path / remove / prune)
 - Add explain command for plain-english narration of diffs, commits, ranges, or files
 - Add fixup command that ai-matches staged changes to the right historical commit
