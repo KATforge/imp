@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- `imp worktree add` now defaults its base to `origin/<trunk>` (fetched fresh), never the host worktree's HEAD. Previously, branching from a feature-branch HEAD silently inherited that branch's commits and could squash-merge unrelated work to trunk (KAT-35, KAT-36). Pass `--base <ref>` to root at an explicit ref instead (skips the fetch); pass `--no-fetch` to skip the fetch when using the default base.
+
+### Added
+- `git.ref_exists` helper and `git.fetch (remote=…, refspec=…)` to support targeted fetches.
+
 ## [0.0.60] - 2026-05-25
 
 ### Added
