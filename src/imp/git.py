@@ -229,12 +229,16 @@ def log_subjects (rev_range: str = "", count: int = 0) -> str:
    result = _run (*args, check=False)
    return result.stdout.strip ()
 
-def fetch (prune: bool = False, tags: bool = False):
+def fetch (prune: bool = False, tags: bool = False, remote: str = "", refspec: str = ""):
    args = [ "fetch" ]
    if prune:
       args.append ("--prune")
    if tags:
       args.append ("--tags")
+   if remote:
+      args.append (remote)
+   if refspec:
+      args.append (refspec)
    _run (*args, check=False)
 
 def rebase () -> bool:
@@ -451,6 +455,10 @@ def git_dir () -> str:
 def rev_parse (ref: str) -> str:
    result = _run ("rev-parse", ref, check=False)
    return result.stdout.strip ()
+
+def ref_exists (ref: str) -> bool:
+   result = _run ("rev-parse", "--verify", "--quiet", ref, check=False)
+   return result.returncode == 0
 
 def rev_parse_short (ref: str) -> str:
    result = _run ("rev-parse", "--short", ref, check=False)

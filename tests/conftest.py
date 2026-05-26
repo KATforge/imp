@@ -56,4 +56,35 @@ def mock_ai (monkeypatch):
 @pytest.fixture
 def mock_spin (monkeypatch):
    """Bypass console.spin, call function directly."""
-   monkeypatch.setattr (console, "spin", lambda title, fn, *args: fn (*args))
+   monkeypatch.setattr (console, "spin", lambda title, fn, *args, **kwargs: fn (*args, **kwargs))
+
+
+@pytest.fixture
+def repo_with_origin (tmp_path):
+   """Repo with an 'origin' remote pointing at a bare clone; primary branch 'master'.
+
+   Mirrors a real working clone: there's a local 'master' tracking 'origin/master',
+   plus a feature branch 'feat/wip' checked out at HEAD with a divergent commit.
+   Used to verify worktree-add defaults branch off origin/master, not whatever
+   feature branch the host worktree happens to be on.
+   """
+
+   origin = tmp_path / "origin.git"
+   work = tmp_path / "work"
+
+   git_run (tmp_path, "init", "--bare", "-b", "master", str (origin))
+
+   git_run (tmp_path, "init", "-b", "master", str (work))
+   git_run (work, "config", "user.email", "test@test.com")
+   git_run (work, "config", "user.name", "Test")
+   commit_file (work, "file.txt", "trunk\n", "Initial commit")
+   git_run (work, "remote", "add", "origin", str (origin))
+   git_run (work, "push", "-u", "origin", "master")
+
+   git_run (work, "checkout", "-b", "feat/wip")
+   commit_file (work, "wip.txt", "wip\n", "feat: wip work")
+
+   old_cwd = Path.cwd ()
+   os.chdir (work)
+   yield work
+   os.chdir (old_cwd)
