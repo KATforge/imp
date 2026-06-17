@@ -165,6 +165,7 @@ def fleet (
    rc: bool = typer.Option (False, "--rc", help="Tag every repo as pre-release"),
    stable: bool = typer.Option (False, "--stable", help="Tag every repo as stable"),
    squash: bool = typer.Option (False, "--squash", help="Squash split commits into a single release commit"),
+   fast: bool = typer.Option (False, "--fast", help="Skip the AI split; one 'chore: sync' commit per repo"),
    depth: int = typer.Option (5, "--depth", "-d", help="Max directory depth to scan"),
    dry_run: bool = typer.Option (False, "--dry-run", help="List repos without shipping"),
 ):
@@ -174,6 +175,10 @@ def fleet (
    has uncommitted changes or untagged commits. Clean repos are skipped.
    Failures in one repo do not stop the rest; a summary is printed at the
    end. Flags apply to every repo; when omitted, fleet prompts per-repo.
+
+   With --fast, each repo skips the AI split and lands all changes in a
+   single "chore: sync" commit before its release - the quick way to sync
+   a fleet without burning tokens on per-commit messages.
    """
 
    if rc and stable:
@@ -287,6 +292,7 @@ def fleet (
             rc=plan ["is_rc"],
             stable=not plan ["is_rc"],
             squash=squash,
+            fast=fast,
             whisper="",
          )
          kind = "rc" if plan ["is_rc"] else "stable"

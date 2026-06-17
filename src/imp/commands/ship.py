@@ -27,6 +27,7 @@ def ship (
    rc: bool = typer.Option (False, "--rc", help="Tag as pre-release candidate"),
    stable: bool = typer.Option (False, "--stable", help="Tag as stable release"),
    squash: bool = typer.Option (False, "--squash", help="Squash split commits into a single release commit"),
+   fast: bool = typer.Option (False, "--fast", help="Skip the AI split; commit everything as one 'chore: sync'"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Split changes into logical commits, then release.
@@ -34,6 +35,9 @@ def ship (
    Stages everything, uses AI to split into logical commits (or a single
    commit if only one file changed), then bumps the version, updates the
    changelog, tags, and pushes. Preserves feature commit history.
+
+   With --fast, the AI split is skipped entirely: every change lands in one
+   "chore: sync" commit before the release. Fast and cheap, no commit history.
    """
 
    git.require ()
@@ -49,18 +53,23 @@ def ship (
    files = git.diff_names ()
 
    if files:
-      did_split = False
+      if fast:
+         git.commit ("chore: sync")
+         console.item ("chore: sync")
+         console.success (f"Committed {len (files)} file(s)")
+      else:
+         did_split = False
 
-      if len (files) >= 2:
-         did_split = do_split (files, whisper, yes=True) is not None
+         if len (files) >= 2:
+            did_split = do_split (files, whisper, yes=True) is not None
 
-      if not did_split:
-         d = git.diff (staged=True)
-         b = git.branch ()
-         msg = ai.commit_message (prompts.commit (d, b, whisper))
-         console.item (msg)
-         git.commit (msg)
-         console.success ("Committed")
+         if not did_split:
+            d = git.diff (staged=True)
+            b = git.branch ()
+            msg = ai.commit_message (prompts.commit (d, b, whisper))
+            console.item (msg)
+            git.commit (msg)
+            console.success ("Committed")
 
       console.out.print ()
    else:
