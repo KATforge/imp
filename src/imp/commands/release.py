@@ -194,7 +194,7 @@ def do_release_rc (level: str):
    else:
       console.muted ("No remote, skipped push")
 
-def release_rc (level: str = ""):
+def release_rc (level: str = "", yes: bool = False):
    tag, log, count = release_scope ()
 
    console.header ("Pre-release")
@@ -215,6 +215,8 @@ def release_rc (level: str = ""):
       new_ver = minor_rc
    elif level == "major":
       new_ver = major_rc
+   elif yes:
+      new_ver = patch_rc
    else:
       console.muted (f"Current stable: {current}")
       console.out.print ()
@@ -243,16 +245,26 @@ def release_rc (level: str = ""):
 
    console.label (f"v{new_ver}")
 
-   if not console.confirm (f"Tag v{new_ver}?"):
+   if not yes and not console.confirm (f"Tag v{new_ver}?"):
       console.muted ("Cancelled")
       raise typer.Exit (0)
 
    git.tag (f"v{new_ver}")
    console.success (f"Tagged v{new_ver}")
 
-   if git.remote_exists () and console.confirm ("Push tag?"):
+   if git.remote_exists () and (yes or console.confirm ("Push tag?")):
       git.push (ref=f"v{new_ver}")
       console.success ("Pushed to origin")
+
+      # Publish a GitHub *pre-release* so release CI fires (it triggers on
+      # `release: published`, not on a bare tag push). Prerelease marks it
+      # as a release candidate downstream (e.g. deploy to qa, not prod).
+      if gh.available ():
+         notes = version.changelog_from_commits (subjects_since (tag, count))
+         if gh.release_create (new_ver, notes, prerelease=True):
+            console.success ("Created GitHub pre-release")
+         else:
+            console.muted ("GitHub pre-release skipped (gh auth or repo issue)")
 
 def _level_from_flags (patch: bool, minor: bool, major: bool) -> str:
    if sum ([ patch, minor, major ]) > 1:
@@ -272,6 +284,7 @@ def release (
    major: bool = typer.Option (False, "--major", help="Bump major version"),
    rc: bool = typer.Option (False, "--rc", help="Tag as pre-release candidate"),
    stable: bool = typer.Option (False, "--stable", help="Tag as stable release"),
+   yes: bool = typer.Option (False, "--yes", "-y", help="Skip all prompts: accept the chosen bump (defaults to patch) and push. For non-interactive use (CI, agents)."),
 ):
    """Squash, changelog, tag, and push a release.
 
@@ -279,6 +292,14 @@ def release (
    generates a changelog entry, squashes unpushed commits into one, tags
    the release, and optionally pushes with a GitHub release. Rolls back
    automatically if anything fails.
+
+   With --rc the tag is published as a GitHub *pre-release* (release CI
+   fires on a published release, not a bare tag); --stable publishes a
+   full release.
+
+   Pass --yes/-y to run non-interactively: every confirm is accepted, the
+   changelog is auto-generated (no edit step), the bump defaults to patch
+   when no --patch/--minor/--major is given, and the result is pushed.
    """
 
    git.require ()
@@ -292,15 +313,15 @@ def release (
    current = git.branch ()
 
    if rc:
-      return release_rc (level)
-   elif not stable and current != base:
+      return release_rc (level, yes)
+   elif not stable and not yes and current != base:
       choice = console.choose (
          "Release type",
          [ "rc   (pre-release)", "stable", "quit" ],
       )
 
       if choice.startswith ("rc"):
-         return release_rc (level)
+         return release_rc (level, yes)
       elif choice == "quit":
          console.muted ("Cancelled")
          raise typer.Exit (0)
@@ -318,6 +339,8 @@ def release (
 
    if level:
       new_version = version.bump (current, level)
+   elif yes:
+      new_version = patch_ver
    else:
       console.muted (f"Current: {current}")
       console.out.print ()
@@ -356,7 +379,7 @@ def release (
    console.divider ()
    console.out.print ()
 
-   choice = console.choose (
+   choice = "Yes" if yes else console.choose (
       f"Release v{new_version}?",
       [ "Yes", "Edit", "No" ],
    )
@@ -376,7 +399,7 @@ def release (
       console.muted ("Cancelled")
       raise typer.Exit (0)
 
-   will_push = console.confirm ("Push after release?")
+   will_push = True if yes else console.confirm ("Push after release?")
 
    if will_push and not git.remote_exists ():
       console.hint ("git remote add origin <url>")

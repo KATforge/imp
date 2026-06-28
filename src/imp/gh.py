@@ -41,15 +41,19 @@ def pr_create (title: str, body: str, base: str, head: str) -> str:
    )
    return result.stdout.strip ()
 
-def release_create (ver: str, notes: str) -> bool:
+def release_create (ver: str, notes: str, prerelease: bool = False) -> bool:
    try:
+      cmd = [
+         "gh", "release", "create",
+         f"v{ver}",
+         "--title", f"v{ver}",
+         "--notes", notes,
+      ]
+      if prerelease:
+         cmd.append ("--prerelease")
+
       subprocess.run (
-         [
-            "gh", "release", "create",
-            f"v{ver}",
-            "--title", f"v{ver}",
-            "--notes", notes,
-         ],
+         cmd,
          capture_output=True,
          text=True,
          check=True,
