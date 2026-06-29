@@ -1,4 +1,6 @@
+import os
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -111,7 +113,25 @@ def review (text: str) -> str:
 def confirm (msg: str) -> bool:
    return choose (msg, [ "Yes", "No" ]) == "Yes"
 
+def _auto () -> bool:
+   """Non-interactive mode: an explicit IMP_YES, or stdin that isn't a TTY
+   (piped / CI / agent). Prompts then resolve to their first option — the
+   primary/recommended choice questionary highlights by default — instead of
+   the not-a-TTY abort that made `imp fleet` unusable headless. Confirms list
+   Yes first, the release prompts list rc/patch first, so the auto-pick is the
+   safe "proceed" path. Force it in a TTY with IMP_YES=1."""
+   if os.environ.get ("IMP_YES") not in (None, "", "0"):
+      return True
+   try:
+      return not sys.stdin.isatty ()
+   except (ValueError, OSError):
+      return True
+
 def choose (title: str, options: list [str]) -> str:
+   if _auto ():
+      out.print (f"[muted]▸ {title} → {options [0]}[/muted]")
+      return options [0]
+
    result = questionary.select (
       title,
       choices=options,
@@ -128,6 +148,11 @@ def choose (title: str, options: list [str]) -> str:
    return result
 
 def prompt (label: str, placeholder: str = "") -> str:
+   if _auto ():
+      if placeholder:
+         out.print (f"[muted]▸ {label} → {placeholder}[/muted]")
+      return placeholder
+
    result = questionary.text (
       label,
       default=placeholder,
