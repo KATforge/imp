@@ -43,15 +43,16 @@ def _push_commits (force_lease: bool = False):
       b = git.branch ()
       git.push (set_upstream=True, target=b)
 
-def _push_tag (ver: str, notes: str):
+def _push_tag (ver: str, notes: str, prerelease: bool = False):
    git.push (ref=f"v{ver}")
    console.success ("Pushed to origin")
 
    if gh.available ():
-      if gh.release_create (ver, notes):
-         console.success ("Created GitHub release")
+      kind = "pre-release" if prerelease else "release"
+      if gh.release_create (ver, notes, prerelease=prerelease):
+         console.success (f"Created GitHub {kind}")
       else:
-         console.muted ("GitHub release skipped (gh auth or repo issue)")
+         console.muted (f"GitHub {kind} skipped (gh auth or repo issue)")
 
 def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) -> bool:
    can_squash = False
@@ -179,18 +180,18 @@ def do_release_rc (level: str):
 
    require_tag_available (new_ver)
 
+   # Notes from commits since the last tag — captured BEFORE tagging the new one.
+   notes = version.changelog_from_commits (subjects_since (git.last_tag ()))
+
    git.tag (f"v{new_ver}")
    console.success (f"Tagged v{new_ver}")
 
    if git.remote_exists ():
-      if git.has_upstream ():
-         git.push ()
-      else:
-         b = git.branch ()
-         git.push (set_upstream=True, target=b)
-
-      git.push (ref=f"v{new_ver}")
-      console.success ("Pushed to origin")
+      _push_commits ()
+      # Publish a GitHub *pre-release* so deploy CI fires (it triggers on
+      # `release: published`, not a bare tag push) — what `ship`/`fleet --rc`
+      # were missing, leaving qa on the last released image.
+      _push_tag (new_ver, notes, prerelease=True)
    else:
       console.muted ("No remote, skipped push")
 
