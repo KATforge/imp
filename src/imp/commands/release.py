@@ -187,9 +187,11 @@ def do_release (
          console.hint (f"commits landed; retry tag with: git push --force origin v{new_version}")
          raise typer.Exit (1) from None
 
-def do_release_rc (level: str):
+def do_release_rc (level: str, base_override: str = ""):
+   # base_override re-baselines the major line (e.g. darkerdb 0.0.2 → 2.0.0)
+   # that a level bump can't reach; the rc suffix is still auto-numbered.
    current = current_version ()
-   base_ver = version.bump (current, level)
+   base_ver = base_override or version.bump (current, level)
    new_ver = version.next_rc (base_ver, git.rc_tags (base_ver))
 
    require_tag_available (new_ver)

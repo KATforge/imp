@@ -29,6 +29,7 @@ def ship (
    squash: bool = typer.Option (False, "--squash", help="Squash split commits into a single release commit"),
    fast: bool = typer.Option (False, "--fast", help="Skip the AI split; commit everything as one 'chore: sync'"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+   set_version: str = typer.Option ("", "--version", help="Explicit base version (e.g. 2.0.0) to re-baseline a major line a level bump can't reach; rc suffix still auto-numbers"),
 ):
    """Split changes into logical commits, then release.
 
@@ -89,9 +90,9 @@ def ship (
       ).startswith ("rc")
 
    if is_rc:
-      do_release_rc (level)
+      do_release_rc (level, base_override=set_version)
    else:
       tag, _log, count = release_scope ()
-      new_version = version.bump (current_version (), level)
+      new_version = set_version or version.bump (current_version (), level)
       require_tag_available (new_version)
       do_release (new_version, tag, count, squash=squash)
