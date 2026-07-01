@@ -294,6 +294,7 @@ def fleet (
             squash=squash,
             fast=fast,
             whisper="",
+            set_version="",
          )
          kind = "rc" if plan ["is_rc"] else "stable"
          results.append ((rel, f"shipped v{plan ['new']} ({plan ['level']} {kind})"))
