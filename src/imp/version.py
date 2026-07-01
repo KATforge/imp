@@ -75,6 +75,29 @@ def changelog_from_commits (subjects: str) -> str:
 
    return "\n\n".join (sections)
 
+_PKG_VERSION = re.compile (r'("version"\s*:\s*")([^"]*)(")')
+
+def write_package_version (path: Path, new_version: str) -> bool:
+   """Rewrite the top-level "version" in a package.json in place, leaving the
+   rest of the file (indentation, key order, trailing newline) untouched.
+
+   imp derives the release version from git tags, but `bun publish` reads it
+   from package.json — so without this the two drift and every publish 409s on
+   the stale version. Targets the FIRST "version": match (always the top-level
+   field, above dependencies) like `npm version` does. No-op (False) when
+   there's no package.json or no version field — keeps imp git-generic."""
+   if not path.is_file ():
+      return False
+
+   text = path.read_text ()
+   new_text, n = _PKG_VERSION.subn (rf"\g<1>{new_version}\g<3>", text, count=1)
+
+   if n == 0 or new_text == text:
+      return False
+
+   path.write_text (new_text)
+   return True
+
 def write_changelog (path: Path, entry: str):
    if path.is_file ():
       content = path.read_text ()

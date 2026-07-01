@@ -15,6 +15,8 @@ def rollback (
    changelog_path: Path,
    original_changelog: str,
    committed: bool,
+   pkg_path: Path | None = None,
+   original_pkg: str = "",
 ):
    console.warn ("Rolling back...")
    git.tag_delete (f"v{ver}")
@@ -24,6 +26,8 @@ def rollback (
       changelog_path.write_text (original_changelog)
    elif changelog_path.is_file ():
       changelog_path.unlink ()
+   if original_pkg and pkg_path is not None:
+      pkg_path.write_text (original_pkg)
    console.err ("Release failed")
 
 def require_tag_available (ver: str):
@@ -54,7 +58,7 @@ def _push_tag (ver: str, notes: str, prerelease: bool = False):
       else:
          console.muted (f"GitHub {kind} skipped (gh auth or repo issue)")
 
-def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) -> bool:
+def _squash_commits (tag: str, summary: str, paths: list [str], count: int) -> bool:
    can_squash = False
    if tag:
       if git.has_upstream ():
@@ -70,7 +74,7 @@ def _squash_commits (tag: str, summary: str, changelog_path: str, count: int) ->
       git.commit (summary)
       console.success (f"Squashed {count} commits")
    else:
-      git.add ([ str (changelog_path) ])
+      git.add (paths)
       git.commit (summary)
       if tag:
          console.muted ("Commits already pushed, skipped squash")
@@ -123,11 +127,13 @@ def do_release (
 
    root = git.repo_root ()
    changelog_path = Path (root) / "CHANGELOG.md"
+   pkg_path = Path (root) / "package.json"
 
    original_head = git.rev_parse ("HEAD")
    original_changelog = ""
    if changelog_path.is_file ():
       original_changelog = changelog_path.read_text ()
+   original_pkg = pkg_path.read_text () if pkg_path.is_file () else ""
 
    committed = False
    can_squash = False
@@ -136,10 +142,18 @@ def do_release (
       version.write_changelog (changelog_path, new_entry)
       console.success ("Updated CHANGELOG.md")
 
+      paths = [ str (changelog_path) ]
+
+      # Keep package.json's version in lockstep with the tag so `bun publish`
+      # ships the released version, not the stale one (the 409 trap).
+      if version.write_package_version (pkg_path, new_version):
+         console.success (f"Bumped package.json → {new_version}")
+         paths.append (str (pkg_path))
+
       if squash:
-         can_squash = _squash_commits (tag, summary, changelog_path, count)
+         can_squash = _squash_commits (tag, summary, paths, count)
       else:
-         git.add ([ str (changelog_path) ])
+         git.add (paths)
          git.commit (summary)
 
       committed = True
@@ -151,7 +165,7 @@ def do_release (
       console.err (f"Release failed: {_error_detail (e)}")
       rollback (
          new_version, original_head, changelog_path,
-         original_changelog, committed,
+         original_changelog, committed, pkg_path, original_pkg,
       )
       raise typer.Exit (1) from None
 
@@ -162,7 +176,7 @@ def do_release (
          console.err (f"Push failed: {_error_detail (e)}")
          rollback (
             new_version, original_head, changelog_path,
-            original_changelog, committed,
+            original_changelog, committed, pkg_path, original_pkg,
          )
          raise typer.Exit (1) from None
 
