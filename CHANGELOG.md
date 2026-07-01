@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.63] - 2026-07-01
+
+### Added
+- Add set_version parameter
+- Add version override for major line re-baselining
+
 ## [0.0.62] - 2026-07-01
 
 ### Added
