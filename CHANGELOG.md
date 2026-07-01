@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.62] - 2026-07-01
+
+### Added
+- Sync package.json version with git tags
+
 ## [Unreleased]
 
 ## [0.0.61] - 2026-06-17
