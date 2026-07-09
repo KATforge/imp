@@ -76,6 +76,16 @@ class TestBaseBranch:
       git_run (repo, "branch", "-m", "main", "master")
       assert git.base_branch () == "master"
 
+   def test_follows_origin_head (self, repo):
+      git_run (repo, "update-ref", "refs/remotes/origin/develop", "HEAD")
+      git_run (repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop")
+      assert git.base_branch () == "develop"
+
+   def test_falls_back_without_trunk (self, repo):
+      git_run (repo, "checkout", "-b", "feature")
+      git_run (repo, "branch", "-D", "main")
+      assert git.base_branch () == "main"
+
 
 class TestCommitCount:
 

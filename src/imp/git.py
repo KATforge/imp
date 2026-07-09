@@ -146,6 +146,11 @@ def is_clean () -> bool:
    return result.stdout.strip () == ""
 
 def base_branch () -> str:
+   result = _run ("symbolic-ref", "--short", "refs/remotes/origin/HEAD", check=False)
+   head = result.stdout.strip ().removeprefix ("origin/")
+   if head:
+      return head
+
    for name in [ "main", "master" ]:
       result = _run ("rev-parse", "--verify", name, check=False)
       if result.returncode == 0:
