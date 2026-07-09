@@ -21,19 +21,21 @@ def _parse_response (content: str) -> tuple [str, str]:
 def pr (
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI description without review"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
+   into: str = typer.Option ("", "--into", "-i", help="Target branch (defaults to the repo's base branch)"),
 ):
    """Create a GitHub pull request with AI-generated description.
 
-   Diffs the current branch against the base branch, then uses AI to
-   generate a PR title and description. Pushes to origin if needed and
-   creates the PR via the gh CLI. Requires gh to be installed.
+   Diffs the current branch against the base branch (or --into target),
+   then uses AI to generate a PR title and description. Pushes to origin
+   if needed and creates the PR via the gh CLI. Requires gh to be
+   installed.
    """
 
    git.require ()
    gh.require ()
 
    b = git.branch ()
-   base = git.base_branch ()
+   base = into or git.base_branch ()
 
    if b == base:
       console.hint ("imp branch <description>")
@@ -42,12 +44,18 @@ def pr (
    if git.remote_exists ():
       console.spin ("Fetching...", git.fetch, False)
 
-   base_ref = f"origin/{base}" if git.rev_parse (f"origin/{base}") else base
+   if git.ref_exists (f"origin/{base}"):
+      base_ref = f"origin/{base}"
+   elif git.ref_exists (base):
+      base_ref = base
+   else:
+      console.hint ("imp pr --into <branch> to pick a target")
+      console.fatal (f"Base branch {base} not found")
 
    log = git.log_oneline (rev_range=f"{base_ref}..{b}")
 
    if not log:
-      console.fatal (f"No commits on {b}")
+      console.fatal (f"No commits on {b} that aren't on {base}")
 
    console.header ("Pull Request")
 
