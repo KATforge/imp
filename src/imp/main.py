@@ -34,6 +34,7 @@ from imp.commands.sync import sync
 from imp.commands.tag import tag
 from imp.commands.tidy import tidy
 from imp.commands.undo import undo
+from imp.commands.update import update
 from imp.commands.worktree import worktree
 
 app = typer.Typer (
@@ -65,7 +66,7 @@ _commands = [
    doctor, done, explain, fix, fixup, fleet, help,
    log, merge, pr, push, release, rescue, resolve,
    revert, review, setup, ship, split, standup,
-   status, sync, tag, tidy, undo,
+   status, sync, tag, tidy, undo, update,
 ]
 
 for _cmd in _commands:
