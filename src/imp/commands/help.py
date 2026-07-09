@@ -41,7 +41,7 @@ def help ():
    console.out.print ()
 
    console.out.print ("[bold]Shipping[/bold]")
-   console.out.print ("  imp pr                                    [muted]# create pull request[/muted]")
+   console.out.print ("  imp pr      [--into <branch>]             [muted]# create pull request[/muted]")
    console.out.print ("  imp done                                  [muted]# finish a feature branch (merge/pull + delete)[/muted]")
    console.out.print ("  imp clean                                 [muted]# delete merged branches[/muted]")
    console.out.print ("  imp tag     [--patch|--minor|--major]     [muted]# bump tag + CHANGELOG entry + push[/muted]")
@@ -53,6 +53,7 @@ def help ():
    console.out.print ("[bold]Setup[/bold]")
    console.out.print ("  imp config                                [muted]# configure AI provider and models[/muted]")
    console.out.print ("  imp doctor                                [muted]# verify tools and connection[/muted]")
+   console.out.print ("  imp update                                [muted]# update imp itself[/muted]")
    console.out.print ()
 
    console.divider ()

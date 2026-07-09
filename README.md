@@ -27,6 +27,8 @@ imp config
 imp doctor
 ```
 
+Update later with `imp update`.
+
 ## In one example
 
 ```

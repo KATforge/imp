@@ -577,7 +577,7 @@ rate_limit = RateLimiter(per_user=20, window=300)
       </div>
       <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
          <div class="font-bold mb-1"><code class="text-imp-green bg-transparent border-none p-0 text-sm">imp pr</code></div>
-         <div class="text-gray-400 text-sm leading-snug">Open a pull request with an AI-generated title and body derived from the branch diff.</div>
+         <div class="text-gray-400 text-sm leading-snug">Open a pull request with an AI-generated title and body derived from the branch diff. <code class="bg-transparent border-none p-0 text-xs">--into</code> targets any base branch.</div>
       </div>
       <div class="bg-imp-surface border border-imp-border rounded-xl p-5">
          <div class="font-bold mb-1"><code class="text-imp-green bg-transparent border-none p-0 text-sm">imp release</code></div>
@@ -748,6 +748,10 @@ pipx run --spec imp-git imp doctor</code></pre>
 
    <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto mb-4"><code>imp config
 imp doctor</code></pre>
+
+   <p class="mb-3">Later, update in place:</p>
+
+   <pre class="bg-imp-code border border-imp-border rounded-lg px-5 py-4 text-sm overflow-x-auto mb-4"><code>imp update</code></pre>
 
    <p>Works with the <a href="https://docs.claude.com/en/docs/claude-code" class="text-imp-green hover:text-imp-glow">Claude CLI</a> or local <a href="https://ollama.com" class="text-imp-green hover:text-imp-glow">Ollama</a> models. No API key required for Ollama.</p>
 </div>
@@ -1048,6 +1052,7 @@ const COMMANDS = [
      tokens: [
         { t: 'prog', s: 'imp' },
         { t: 'cmd',  s: 'pr' },
+        { t: 'opt',  s: '[--into branch]', tip: 'Target branch for the PR. Defaults to the repo\'s base branch.' },
         { t: 'opt',  s: '[-y]',       tip: 'Accept the AI title and body without review.' },
         { t: 'opt',  s: '[-w hint]',  tip: 'Whisper: hint to steer the description.' },
      ],
@@ -1139,6 +1144,13 @@ const COMMANDS = [
         { t: 'cmd',  s: 'doctor' },
      ],
      purpose: 'Verify install and configuration.' },
+
+   { cat: 'setup', name: 'update',
+     tokens: [
+        { t: 'prog', s: 'imp' },
+        { t: 'cmd',  s: 'update' },
+     ],
+     purpose: 'Update imp itself, through whichever installer owns it (pip, pipx, uv tool, or an editable checkout).' },
 
    { cat: 'setup', name: 'help',
      tokens: [
