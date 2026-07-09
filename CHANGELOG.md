@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.64] - 2026-07-09
+
+### Added
+- Add imp update command
+- Add --into flag to pr command
+
+### Changed
+- Add coverage for pr and update commands
+- Document imp update and pr --into flag
+
+### Fixed
+- Follow origin head when detecting base branch
+
 ## [0.0.63] - 2026-07-01
 
 ### Added
