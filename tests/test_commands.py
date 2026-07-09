@@ -4,14 +4,16 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp import ai, console, git
+from imp import ai, console, gh, git
 from imp.commands import branch as branch_cmd
 from imp.commands import commit as commit_cmd
 from imp.commands import merge as merge_cmd
+from imp.commands import pr as pr_cmd
 from imp.commands import push as push_mod
 from imp.commands import tag as tag_cmd
 from imp.commands import review as review_cmd
 from imp.commands import setup as setup_cmd
+from imp.commands import update as update_cmd
 from tests.conftest import commit_file, git_run, last_commit_subject
 
 
@@ -493,3 +495,76 @@ class TestTagCommand:
 
       assert not git.tag_exists ("v0.1.1")
       assert not (repo / "CHANGELOG.md").exists ()
+
+
+class TestPrCommand:
+
+   def _mock_gh (self, monkeypatch, captured):
+      monkeypatch.setattr (gh, "require", lambda: None)
+      monkeypatch.setattr (
+         gh, "pr_create",
+         lambda title, body, base, head: captured.update (base=base, head=head) or "https://example.com/pr/1",
+      )
+
+   def test_missing_base_fails_clearly (self, repo, monkeypatch, mock_spin):
+      self._mock_gh (monkeypatch, {})
+      git_run (repo, "checkout", "-b", "SPK-1-feature")
+      git_run (repo, "branch", "-D", "main")
+
+      with pytest.raises (typer.Exit):
+         pr_cmd.pr (yes=True, whisper="", into="")
+
+      assert "not found" in console.last_error ()
+
+   def test_into_targets_branch (self, repo, monkeypatch, mock_spin):
+      captured = {}
+      self._mock_gh (monkeypatch, captured)
+      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: "TITLE: add thing\n\nDESCRIPTION:\nbody")
+      monkeypatch.setattr (git, "push", lambda *args, **kwargs: None)
+      monkeypatch.setattr (git, "has_upstream", lambda: True)
+
+      git_run (repo, "branch", "develop")
+      git_run (repo, "checkout", "-b", "SPK-1-feature")
+      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
+
+      pr_cmd.pr (yes=True, whisper="", into="develop")
+
+      assert captured ["base"] == "develop"
+      assert captured ["head"] == "SPK-1-feature"
+
+   def test_no_commits_names_base (self, repo, monkeypatch, mock_spin):
+      self._mock_gh (monkeypatch, {})
+      git_run (repo, "checkout", "-b", "SPK-1-feature")
+
+      with pytest.raises (typer.Exit):
+         pr_cmd.pr (yes=True, whisper="", into="main")
+
+      assert "aren't on main" in console.last_error ()
+
+
+class TestUpdateHelpers:
+
+   def test_source_repo_editable (self):
+      info = { "url": "file:///home/x/imp", "dir_info": { "editable": True } }
+      assert update_cmd._source_repo (info) == "/home/x/imp"
+
+   def test_source_repo_non_editable (self):
+      assert update_cmd._source_repo ({ "url": "file:///x", "dir_info": {} }) == ""
+
+   def test_source_repo_empty (self):
+      assert update_cmd._source_repo ({}) == ""
+
+   def test_source_repo_remote_url (self):
+      info = { "url": "https://github.com/x/imp", "dir_info": { "editable": True } }
+      assert update_cmd._source_repo (info) == ""
+
+   def test_vcs_target_git (self):
+      info = { "url": "https://github.com/KATforge/imp", "vcs_info": { "vcs": "git", "commit_id": "abc" } }
+      assert update_cmd._vcs_target (info) == "git+https://github.com/KATforge/imp"
+
+   def test_vcs_target_pinned_revision (self):
+      info = { "url": "https://github.com/KATforge/imp", "vcs_info": { "vcs": "git", "requested_revision": "master" } }
+      assert update_cmd._vcs_target (info) == "git+https://github.com/KATforge/imp@master"
+
+   def test_vcs_target_absent (self):
+      assert update_cmd._vcs_target ({}) == ""
