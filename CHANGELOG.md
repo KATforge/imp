@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.65] - 2026-07-09
+
+### Added
+- Fetch tags before release operations
+
 ## [0.0.64] - 2026-07-09
 
 ### Added
