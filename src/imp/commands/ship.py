@@ -33,9 +33,11 @@ def ship (
 ):
    """Split changes into logical commits, then release.
 
-   Stages everything, uses AI to split into logical commits (or a single
-   commit if only one file changed), then bumps the version, updates the
-   changelog, tags, and pushes. Preserves feature commit history.
+   Fetches tags first so version and tag-availability checks see the
+   remote's latest, not a stale local cache. Stages everything, uses AI to
+   split into logical commits (or a single commit if only one file
+   changed), then bumps the version, updates the changelog, tags, and
+   pushes. Preserves feature commit history.
 
    With --fast, the AI split is skipped entirely: every change lands in one
    "chore: sync" commit before the release. Fast and cheap, no commit history.
@@ -49,6 +51,8 @@ def ship (
    level = _resolve_level (patch, minor, major)
 
    console.header ("Ship")
+
+   console.spin ("Fetching tags...", git.fetch, tags=True)
 
    git.stage ()
    files = git.diff_names ()

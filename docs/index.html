@@ -1085,7 +1085,7 @@ const COMMANDS = [
         { t: 'opt',  s: '[--no-push]', tip: 'Commit and tag locally without pushing.' },
         { t: 'opt',  s: '[-y]',        tip: 'Skip confirmation.' },
      ],
-     purpose: 'Bump the highest semver tag, append a CHANGELOG entry, commit, tag, push. No squash.' },
+     purpose: 'Fetches tags, then bumps the highest semver tag, appends a CHANGELOG entry, commits, tags, pushes. No squash.' },
 
    { cat: 'release', name: 'release',
      tokens: [
@@ -1095,7 +1095,7 @@ const COMMANDS = [
         { t: 'opt',  s: '[--rc|--stable]',           tip: 'Tag as release candidate, or promote one to stable.' },
         { t: 'opt',  s: '[--no-manifests]',          tip: 'Skip auto-updating package files (package.json, Cargo.toml, etc).' },
      ],
-     purpose: 'Squash, write the changelog entry, sync package manifests, tag, and push.' },
+     purpose: 'Fetches tags, then squashes, writes the changelog entry, syncs package manifests, tags, and pushes.' },
 
    { cat: 'release', name: 'ship',
      tokens: [
@@ -1107,7 +1107,7 @@ const COMMANDS = [
         { t: 'opt',  s: '[--no-manifests]',          tip: 'Skip auto-updating package files.' },
         { t: 'opt',  s: '[-w hint]',                 tip: 'Whisper: hint passed to split.' },
      ],
-     purpose: 'imp split, then imp release, in one step.' },
+     purpose: 'Fetches tags, then imp split, then imp release, in one step.' },
 
    { cat: 'release', name: 'fleet',
      tokens: [

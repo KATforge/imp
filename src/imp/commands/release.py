@@ -305,10 +305,11 @@ def release (
 ):
    """Squash, changelog, tag, and push a release.
 
-   Collects commits since the last tag, lets you pick a semver bump,
-   generates a changelog entry, squashes unpushed commits into one, tags
-   the release, and optionally pushes with a GitHub release. Rolls back
-   automatically if anything fails.
+   Fetches tags first so the version bump and tag-availability check see
+   the remote's latest. Collects commits since the last tag, lets you pick
+   a semver bump, generates a changelog entry, squashes unpushed commits
+   into one, tags the release, and optionally pushes with a GitHub
+   release. Rolls back automatically if anything fails.
 
    With --rc the tag is published as a GitHub *pre-release* (release CI
    fires on a published release, not a bare tag); --stable publishes a
@@ -323,6 +324,8 @@ def release (
 
    if rc and stable:
       console.fatal ("--rc and --stable are mutually exclusive")
+
+   console.spin ("Fetching tags...", git.fetch, tags=True)
 
    level = _level_from_flags (patch, minor, major)
 

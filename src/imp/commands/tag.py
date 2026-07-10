@@ -17,13 +17,17 @@ def tag (
 ):
    """Bump the highest semver tag, update CHANGELOG.md, commit, and push.
 
-   Picks the next version from the highest existing v-prefixed tag,
-   writes a CHANGELOG.md entry from commits since the last tag, commits it
-   as chore: release vX.Y.Z, tags HEAD, and pushes. No squash.
+   Fetches tags first so the bump picks up the remote's latest instead of
+   a stale local cache. Picks the next version from the highest existing
+   v-prefixed tag, writes a CHANGELOG.md entry from commits since the last
+   tag, commits it as chore: release vX.Y.Z, tags HEAD, and pushes. No
+   squash.
    """
 
    git.require ()
    git.require_clean ("imp commit first")
+
+   console.spin ("Fetching tags...", git.fetch, tags=True)
 
    levels = { "patch": patch, "minor": minor, "major": major }
    selected = [ k for k, v in levels.items () if v ]
