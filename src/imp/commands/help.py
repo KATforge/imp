@@ -48,6 +48,7 @@ def help ():
    console.out.print ("  imp release [--patch|--minor|--major]     [muted]# squash + changelog + tag + push[/muted]")
    console.out.print ("  imp ship    [--patch|--minor|--major]     [muted]# commit + release, no prompts[/muted]")
    console.out.print ("  imp fleet   [path]                        [muted]# ship every dirty repo in a directory[/muted]")
+   console.out.print ("  imp version [--sync]                      [muted]# check/fix manifest drift vs tag[/muted]")
    console.out.print ()
 
    console.out.print ("[bold]Setup[/bold]")

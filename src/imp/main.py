@@ -35,6 +35,7 @@ from imp.commands.tag import tag
 from imp.commands.tidy import tidy
 from imp.commands.undo import undo
 from imp.commands.update import update
+from imp.commands.version import version as version_cmd
 from imp.commands.worktree import worktree
 
 app = typer.Typer (
@@ -73,5 +74,6 @@ for _cmd in _commands:
    app.command () (_cmd)
 
 app.command ("config") (configure)
+app.command ("version") (version_cmd)
 app.add_typer (stash, name="stash")
 app.add_typer (worktree, name="worktree")

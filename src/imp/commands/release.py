@@ -15,8 +15,7 @@ def rollback (
    changelog_path: Path,
    original_changelog: str,
    committed: bool,
-   pkg_path: Path | None = None,
-   original_pkg: str = "",
+   manifests: dict [Path, str] | None = None,
 ):
    console.warn ("Rolling back...")
    git.tag_delete (f"v{ver}")
@@ -26,8 +25,8 @@ def rollback (
       changelog_path.write_text (original_changelog)
    elif changelog_path.is_file ():
       changelog_path.unlink ()
-   if original_pkg and pkg_path is not None:
-      pkg_path.write_text (original_pkg)
+   for path, original in (manifests or {}).items ():
+      path.write_text (original)
    console.err ("Release failed")
 
 def require_tag_available (ver: str):
@@ -125,15 +124,14 @@ def do_release (
    today = date.today ().isoformat ()
    new_entry = f"## [{new_version}] - {today}\n\n{entry}"
 
-   root = git.repo_root ()
-   changelog_path = Path (root) / "CHANGELOG.md"
-   pkg_path = Path (root) / "package.json"
+   root = Path (git.repo_root ())
+   changelog_path = root / "CHANGELOG.md"
 
    original_head = git.rev_parse ("HEAD")
    original_changelog = ""
    if changelog_path.is_file ():
       original_changelog = changelog_path.read_text ()
-   original_pkg = pkg_path.read_text () if pkg_path.is_file () else ""
+   originals = { p: p.read_text () for p in version.manifest_paths (root) if p.is_file () }
 
    committed = False
    can_squash = False
@@ -144,11 +142,12 @@ def do_release (
 
       paths = [ str (changelog_path) ]
 
-      # Keep package.json's version in lockstep with the tag so `bun publish`
-      # ships the released version, not the stale one (the 409 trap).
-      if version.write_package_version (pkg_path, new_version):
-         console.success (f"Bumped package.json → {new_version}")
-         paths.append (str (pkg_path))
+      # Keep every manifest's version in lockstep with the tag (the
+      # canonical version) so `bun publish` ships the released version,
+      # not the stale one (the 409 trap).
+      for p in version.sync_manifests (root, new_version):
+         console.success (f"Bumped {p.relative_to (root)} → {new_version}")
+         paths.append (str (p))
 
       if squash:
          can_squash = _squash_commits (tag, summary, paths, count)
@@ -165,7 +164,7 @@ def do_release (
       console.err (f"Release failed: {_error_detail (e)}")
       rollback (
          new_version, original_head, changelog_path,
-         original_changelog, committed, pkg_path, original_pkg,
+         original_changelog, committed, originals,
       )
       raise typer.Exit (1) from None
 
@@ -176,7 +175,7 @@ def do_release (
          console.err (f"Push failed: {_error_detail (e)}")
          rollback (
             new_version, original_head, changelog_path,
-            original_changelog, committed, pkg_path, original_pkg,
+            original_changelog, committed, originals,
          )
          raise typer.Exit (1) from None
 
@@ -186,6 +185,25 @@ def do_release (
          console.err (f"Tag push failed: {_error_detail (e)}")
          console.hint (f"commits landed; retry tag with: git push --force origin v{new_version}")
          raise typer.Exit (1) from None
+
+def sync_manifests (new_ver: str) -> bool:
+   """Write the version about to be tagged into every manifest and commit
+   the result, so rc releases keep manifests in lockstep with the tag too
+   (stable releases sync inside do_release). Call BEFORE git.tag so the tag
+   points at the synced tree. True when a sync commit was made."""
+   root = Path (git.repo_root ())
+   changed = version.sync_manifests (root, new_ver)
+
+   if not changed:
+      return False
+
+   git.add ([ str (p) for p in changed ])
+   git.commit (f"chore: sync manifests to v{new_ver}")
+
+   for p in changed:
+      console.success (f"Bumped {p.relative_to (root)} → {new_ver}")
+
+   return True
 
 def do_release_rc (level: str, base_override: str = ""):
    # base_override re-baselines the major line (e.g. darkerdb 0.0.2 → 2.0.0)
@@ -198,6 +216,8 @@ def do_release_rc (level: str, base_override: str = ""):
 
    # Notes from commits since the last tag — captured BEFORE tagging the new one.
    notes = version.changelog_from_commits (subjects_since (git.last_tag ()))
+
+   sync_manifests (new_ver)
 
    git.tag (f"v{new_ver}")
    console.success (f"Tagged v{new_ver}")
@@ -266,10 +286,14 @@ def release_rc (level: str = "", yes: bool = False):
       console.muted ("Cancelled")
       raise typer.Exit (0)
 
+   synced = sync_manifests (new_ver)
+
    git.tag (f"v{new_ver}")
    console.success (f"Tagged v{new_ver}")
 
    if git.remote_exists () and (yes or console.confirm ("Push tag?")):
+      if synced:
+         _push_commits ()
       git.push (ref=f"v{new_ver}")
       console.success ("Pushed to origin")
 

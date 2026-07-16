@@ -76,6 +76,42 @@ def changelog_from_commits (subjects: str) -> str:
    return "\n\n".join (sections)
 
 _PKG_VERSION = re.compile (r'("version"\s*:\s*")([^"]*)(")')
+_PYPROJECT_VERSION = re.compile (r'^(version\s*=\s*")([^"]*)(")', re.MULTILINE)
+
+# Manifests that carry a copy of the release version, relative to the repo
+# root. The git tag is canonical; these are downstream copies kept in
+# lockstep on every release. cli/pyproject.toml covers repos whose Python
+# package lives one level down (hearth).
+MANIFESTS = ( "package.json", "composer.json", "pyproject.toml", "cli/pyproject.toml" )
+
+def manifest_paths (root: Path) -> list [Path]:
+   return [ root / rel for rel in MANIFESTS ]
+
+def _pattern_for (path: Path) -> re.Pattern:
+   return _PYPROJECT_VERSION if path.suffix == ".toml" else _PKG_VERSION
+
+def read_manifest_version (path: Path) -> str | None:
+   """The version a manifest currently declares, or None when the file or
+   field is absent (dynamic pyproject versions read as absent — hatch-vcs
+   already derives those from the tag)."""
+   if not path.is_file ():
+      return None
+
+   match = _pattern_for (path).search (path.read_text ())
+   return match.group (2) if match else None
+
+def _write_version (path: Path, new_version: str) -> bool:
+   if not path.is_file ():
+      return False
+
+   text = path.read_text ()
+   new_text, n = _pattern_for (path).subn (rf"\g<1>{new_version}\g<3>", text, count=1)
+
+   if n == 0 or new_text == text:
+      return False
+
+   path.write_text (new_text)
+   return True
 
 def write_package_version (path: Path, new_version: str) -> bool:
    """Rewrite the top-level "version" in a package.json in place, leaving the
@@ -86,17 +122,19 @@ def write_package_version (path: Path, new_version: str) -> bool:
    the stale version. Targets the FIRST "version": match (always the top-level
    field, above dependencies) like `npm version` does. No-op (False) when
    there's no package.json or no version field — keeps imp git-generic."""
-   if not path.is_file ():
-      return False
+   return _write_version (path, new_version)
 
-   text = path.read_text ()
-   new_text, n = _PKG_VERSION.subn (rf"\g<1>{new_version}\g<3>", text, count=1)
+def write_pyproject_version (path: Path, new_version: str) -> bool:
+   """Rewrite the static `version = "..."` in a pyproject.toml in place.
+   Repos with `dynamic = ["version"]` have no such line, so they no-op —
+   their build backend already reads the tag."""
+   return _write_version (path, new_version)
 
-   if n == 0 or new_text == text:
-      return False
-
-   path.write_text (new_text)
-   return True
+def sync_manifests (root: Path, new_version: str) -> list [Path]:
+   """Write the release version into every manifest the repo carries.
+   Returns the paths that changed. Manifests without a version field are
+   left alone — keeps imp git-generic."""
+   return [ p for p in manifest_paths (root) if _write_version (p, new_version) ]
 
 def write_changelog (path: Path, entry: str):
    if path.is_file ():
