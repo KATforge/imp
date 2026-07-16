@@ -22,13 +22,15 @@ def pr (
    yes: bool = typer.Option (False, "--yes", "-y", help="Accept AI description without review"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
    into: str = typer.Option ("", "--into", "-i", help="Target branch (defaults to the repo's base branch)"),
+   update: bool = typer.Option (False, "--update", "-u", help="Update the existing PR's title and description"),
 ):
    """Create a GitHub pull request with AI-generated description.
 
    Diffs the current branch against the base branch (or --into target),
    then uses AI to generate a PR title and description. Pushes to origin
-   if needed and creates the PR via the gh CLI. Requires gh to be
-   installed.
+   if needed and creates the PR via the gh CLI. With --update, rewrites
+   the title and description of the branch's existing open PR instead
+   of creating a new one. Requires gh to be installed.
    """
 
    git.require ()
@@ -56,6 +58,14 @@ def pr (
 
    if not log:
       console.fatal (f"No commits on {b} that aren't on {base}")
+
+   existing = {}
+   if update:
+      existing = gh.pr_view (b)
+
+      if existing.get ("state") != "OPEN":
+         console.hint ("imp pr to create one")
+         console.fatal (f"No open PR found for {b}")
 
    console.header ("Pull Request")
 
@@ -91,8 +101,10 @@ def pr (
    console.divider ()
    console.out.print ()
 
+   verb = "Update" if update else "Create"
+
    if not yes:
-      choice = console.choose ("Create PR?", [ "Yes", "Edit", "No" ])
+      choice = console.choose (f"{verb} PR?", [ "Yes", "Edit", "No" ])
 
       if choice == "Edit":
          edited = console.edit (f"{title}\n\n{description}")
@@ -107,12 +119,20 @@ def pr (
       console.spin ("Pushing to origin...", git.push, False, True, b)
 
    try:
-      pr_url = gh.pr_create (title, description, base, b)
-   except subprocess.CalledProcessError:
-      console.fatal ("Failed to create PR")
+      if update:
+         pr_url = gh.pr_edit (existing ["number"], title, description) or existing ["url"]
+      else:
+         pr_url = gh.pr_create (title, description, base, b)
+   except subprocess.CalledProcessError as e:
+      err = (e.stderr or "").strip ()
+
+      if err:
+         console.muted (err)
+
+      console.fatal (f"Failed to {verb.lower ()} PR")
 
    console.out.print ()
-   console.success ("Created PR")
+   console.success (f"{verb}d PR")
    console.item (pr_url)
 
    console.hint ("gh pr view --web to open in browser")

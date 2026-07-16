@@ -41,6 +41,36 @@ def pr_create (title: str, body: str, base: str, head: str) -> str:
    )
    return result.stdout.strip ()
 
+def pr_edit (number: int, title: str, body: str) -> str:
+   # REST instead of gh pr edit: its GraphQL query trips on deprecated
+   # Projects (classic) fields (fails on gh <= 2.52)
+   result = subprocess.run (
+      [
+         "gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{number}",
+         "-X", "PATCH",
+         "-f", f"title={title}",
+         "-f", f"body={body}",
+      ],
+      capture_output=True,
+      text=True,
+      check=True,
+      timeout=30,
+   )
+   return json.loads (result.stdout).get ("html_url", "")
+
+def pr_view (head: str) -> dict:
+   try:
+      result = subprocess.run (
+         [ "gh", "pr", "view", head, "--json", "number,state,url" ],
+         capture_output=True,
+         text=True,
+         check=True,
+         timeout=30,
+      )
+      return json.loads (result.stdout)
+   except (subprocess.CalledProcessError, json.JSONDecodeError, OSError):
+      return {}
+
 def release_create (ver: str, notes: str, prerelease: bool = False) -> bool:
    try:
       cmd = [

@@ -512,7 +512,7 @@ class TestPrCommand:
       git_run (repo, "branch", "-D", "main")
 
       with pytest.raises (typer.Exit):
-         pr_cmd.pr (yes=True, whisper="", into="")
+         pr_cmd.pr (yes=True, whisper="", into="", update=False)
 
       assert "not found" in console.last_error ()
 
@@ -527,7 +527,7 @@ class TestPrCommand:
       git_run (repo, "checkout", "-b", "SPK-1-feature")
       commit_file (repo, "feature.txt", "work\n", "feat: add thing")
 
-      pr_cmd.pr (yes=True, whisper="", into="develop")
+      pr_cmd.pr (yes=True, whisper="", into="develop", update=False)
 
       assert captured ["base"] == "develop"
       assert captured ["head"] == "SPK-1-feature"
@@ -537,9 +537,41 @@ class TestPrCommand:
       git_run (repo, "checkout", "-b", "SPK-1-feature")
 
       with pytest.raises (typer.Exit):
-         pr_cmd.pr (yes=True, whisper="", into="main")
+         pr_cmd.pr (yes=True, whisper="", into="main", update=False)
 
       assert "aren't on main" in console.last_error ()
+
+   def test_update_edits_existing_pr (self, repo, monkeypatch, mock_spin):
+      captured = {}
+      monkeypatch.setattr (gh, "require", lambda: None)
+      monkeypatch.setattr (gh, "pr_view", lambda head: { "number": 7, "state": "OPEN", "url": "https://example.com/pr/7" })
+      monkeypatch.setattr (
+         gh, "pr_edit",
+         lambda number, title, body: captured.update (number=number, title=title, body=body) or "https://example.com/pr/7",
+      )
+      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: "TITLE: add thing\n\nDESCRIPTION:\nbody")
+      monkeypatch.setattr (git, "has_upstream", lambda: True)
+
+      git_run (repo, "checkout", "-b", "SPK-1-feature")
+      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
+
+      pr_cmd.pr (yes=True, whisper="", into="main", update=True)
+
+      assert captured ["number"] == 7
+      assert captured ["title"] == "add thing"
+      assert captured ["body"] == "body"
+
+   def test_update_requires_open_pr (self, repo, monkeypatch, mock_spin):
+      monkeypatch.setattr (gh, "require", lambda: None)
+      monkeypatch.setattr (gh, "pr_view", lambda head: { "number": 7, "state": "MERGED", "url": "" })
+
+      git_run (repo, "checkout", "-b", "SPK-1-feature")
+      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
+
+      with pytest.raises (typer.Exit):
+         pr_cmd.pr (yes=True, whisper="", into="main", update=True)
+
+      assert "No open PR" in console.last_error ()
 
 
 class TestUpdateHelpers:
