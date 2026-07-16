@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.66] - 2026-07-16
+
+### Added
+- Add version command and multi-manifest sync
+- Add --update flag to pr command
+
+### Changed
+- Redirect github pages to katforge docs site
+- Replace imp logo with green-flame katforge mascot
+
 ## [0.0.65] - 2026-07-09
 
 ### Added
