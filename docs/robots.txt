@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://katforge.github.io/imp/sitemap.xml
