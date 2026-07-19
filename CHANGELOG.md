@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.67] - 2026-07-19
+
+### Changed
+- Sync
+
 ## [0.0.66] - 2026-07-16
 
 ### Added
