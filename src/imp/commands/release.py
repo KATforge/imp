@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from imp import console, gh, git, version
+from imp import console, gh, git, repo, version
 
 def _error_detail (e: Exception) -> str:
    return (getattr (e, "stderr", "") or str (e)).strip ()
@@ -110,16 +110,25 @@ def _semver_bumps (current: str) -> tuple [str, str, str]:
       version.bump (current, "major"),
    )
 
+def build_entry (tag: str, count: int, fast: bool) -> str:
+   """The changelog entry for a release. Interactive releases read the actual
+   diffs (fast=False); non-interactive ones use the deterministic subject
+   entry (fast=True) so CI stays cheap and never waits on a model."""
+   commits = git.log_full (since=tag) if tag else git.log_full ()
+   text = version.entry (commits, fast=fast)
+
+   return text or version.changelog_from_commits (subjects_since (tag, count))
+
 def do_release (
    new_version: str,
    tag: str,
    count: int,
    will_push: bool = True,
    squash: bool = True,
+   entry: str | None = None,
 ):
-   subjects = subjects_since (tag, count)
-
-   entry = version.changelog_from_commits (subjects)
+   if entry is None:
+      entry = version.changelog_from_commits (subjects_since (tag, count))
    summary = f"chore: release v{new_version}"
    today = date.today ().isoformat ()
    new_entry = f"## [{new_version}] - {today}\n\n{entry}"
@@ -414,8 +423,7 @@ def release (
 
    require_tag_available (new_version)
 
-   subjects = subjects_since (tag, count)
-   entry = version.changelog_from_commits (subjects)
+   entry = build_entry (tag, count, fast=yes)
 
    console.label (f"v{new_version}")
    console.divider ()
@@ -449,6 +457,17 @@ def release (
       console.hint ("git remote add origin <url>")
       console.fatal ("No remote configured")
 
-   do_release (new_version, tag, count, will_push)
+   # Sync docs before the squash so the pass sees the real commits, not the
+   # single release commit they collapse into. Edits land in the docs tree
+   # (often a sibling repo) uncommitted; a docs failure never fails the release.
+   if repo.docs_path () and repo.docs_release ():
+      from imp.commands import docs as docs_cmd
+      try:
+         docs_cmd.docs (since=tag, yes=yes)
+      except typer.Exit:
+         pass
+      console.out.print ()
+
+   do_release (new_version, tag, count, will_push, entry=entry)
 
    console.hint ("make changes, then imp commit")

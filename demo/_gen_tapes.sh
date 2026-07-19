@@ -370,6 +370,18 @@ Enter
 Sleep 6s
 EOF
 
+tape pull setup-diverged <<'EOF'
+Type "imp pull"
+Sleep 600ms
+Enter
+Sleep 6s
+
+Type "git log --oneline -4"
+Sleep 600ms
+Enter
+Sleep 4s
+EOF
+
 tape merge setup-conflict 800 <<'EOF'
 Type "imp merge feat/per-user-limits"
 Sleep 600ms
@@ -475,10 +487,27 @@ Enter
 Sleep 6s
 EOF
 
+tape version setup-version <<'EOF'
+Type "imp version"
+Sleep 600ms
+Enter
+Sleep 4s
+
+Type "imp version --sync"
+Sleep 600ms
+Enter
+Sleep 4s
+
+Type "cat package.json"
+Sleep 600ms
+Enter
+Sleep 3s
+EOF
+
 # ─── setup ────────────────────────────────────────────────────────────────
 
-tape setup setup-empty <<'EOF'
-Type "imp setup git@github.com:demo/auth-service.git"
+tape init setup-empty <<'EOF'
+Type "imp init git@github.com:demo/auth-service.git"
 Sleep 600ms
 Enter
 Sleep 6s
@@ -487,6 +516,48 @@ Type "ls -la"
 Sleep 600ms
 Enter
 Sleep 3s
+EOF
+
+tape setup setup-project 800 <<'EOF'
+Type "imp setup"
+Sleep 600ms
+Enter
+Sleep 1500ms
+
+Enter
+Sleep 1400ms
+
+Enter
+Sleep 1200ms
+
+Enter
+Sleep 1200ms
+
+Enter
+Sleep 1200ms
+
+Enter
+Sleep 2500ms
+
+Type "cat .imp"
+Sleep 600ms
+Enter
+Sleep 4s
+EOF
+
+tape docs setup-docs 800 <<'EOF'
+Type "imp docs"
+Sleep 600ms
+Enter
+Sleep 8s
+
+Enter
+Sleep 4s
+
+Type "cat ../docs-site/reference/commands.md"
+Sleep 600ms
+Enter
+Sleep 4s
 EOF
 
 tape config "" <<'EOF'

@@ -28,6 +28,17 @@ def last_commit_subject (repo):
    return result.stdout.strip ()
 
 
+@pytest.fixture (autouse=True)
+def _clear_repo_cache ():
+   """repo.load() is process-cached; clear it around every test so a `.imp`
+   written by one test never leaks into another repo."""
+   from imp import repo as repo_mod
+
+   repo_mod.load.cache_clear ()
+   yield
+   repo_mod.load.cache_clear ()
+
+
 @pytest.fixture
 def repo (tmp_path):
    """Create a temporary git repo with one commit."""

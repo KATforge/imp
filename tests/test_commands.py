@@ -7,6 +7,7 @@ import typer
 from imp import ai, console, gh, git
 from imp.commands import branch as branch_cmd
 from imp.commands import commit as commit_cmd
+from imp.commands import init as init_cmd
 from imp.commands import merge as merge_cmd
 from imp.commands import pr as pr_cmd
 from imp.commands import push as push_mod
@@ -217,7 +218,7 @@ class TestStatusParsing:
       assert found, "File with leading spaces not found in status"
 
 
-class TestSetupCommand:
+class TestInitCommand:
 
    @pytest.fixture
    def bare_dir (self, tmp_path):
@@ -231,7 +232,7 @@ class TestSetupCommand:
 
       (bare_dir / "package.json").write_text ("{}\n")
 
-      setup_cmd.setup (url="https://github.com/test/repo.git")
+      init_cmd.init (url="https://github.com/test/repo.git")
 
       assert (bare_dir / ".git").is_dir ()
       result = git_run (bare_dir, "remote", "get-url", "origin")
@@ -243,7 +244,7 @@ class TestSetupCommand:
    def test_skips_init_if_already_repo (self, repo, monkeypatch, mock_spin):
       monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: ".env\n")
 
-      setup_cmd.setup (url="https://github.com/test/repo.git")
+      init_cmd.init (url="https://github.com/test/repo.git")
 
       result = git_run (repo, "remote", "get-url", "origin")
       assert result.stdout.strip () == "https://github.com/test/repo.git"
@@ -254,7 +255,7 @@ class TestSetupCommand:
       (bare_dir / ".gitignore").write_text ("node_modules\n")
       (bare_dir / "index.js").write_text ("//\n")
 
-      setup_cmd.setup (url="https://github.com/test/repo.git")
+      init_cmd.init (url="https://github.com/test/repo.git")
 
       contents = (bare_dir / ".gitignore").read_text ()
       assert "node_modules" in contents
@@ -265,9 +266,39 @@ class TestSetupCommand:
 
       (bare_dir / "file.txt").write_text ("hello\n")
 
-      setup_cmd.setup (url="https://github.com/test/repo.git")
+      init_cmd.init (url="https://github.com/test/repo.git")
 
       assert not (bare_dir / ".gitignore").exists ()
+
+   def test_init_without_url (self, bare_dir, monkeypatch, mock_spin):
+      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "NONE")
+
+      init_cmd.init (url="")
+
+      assert (bare_dir / ".git").is_dir ()
+      result = git_run (bare_dir, "remote")
+      assert result.stdout.strip () == ""
+
+
+class TestSetupCommand:
+
+   def test_url_arg_redirects_to_init (self, repo):
+      with pytest.raises (typer.Exit):
+         setup_cmd.setup (arg="git@github.com:test/repo.git")
+
+      assert "imp init" in console.last_error ()
+
+   def test_writes_imp_file (self, repo, monkeypatch):
+      monkeypatch.setattr (console, "prompt", lambda label, placeholder="": "")
+      monkeypatch.setattr (console, "check", lambda title, options, selected=None: [ "chore", "release", "merge" ])
+
+      setup_cmd.setup (arg="")
+
+      assert (repo / ".imp").is_file ()
+      import json
+      cfg = json.loads ((repo / ".imp").read_text ())
+      assert cfg ["changelog:skip"] == [ "chore", "release", "merge" ]
+      assert "docs:path" not in cfg
 
 
 class TestMergeCommand:

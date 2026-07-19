@@ -1,7 +1,17 @@
 import re
 from pathlib import Path
 
+from imp import ai, git, prompts
 from imp.validate import COMMIT_RE
+
+# The Keep-a-Changelog preamble, defined once. Every path that writes a fresh
+# CHANGELOG.md reuses it so the header never drifts between generators.
+HEADER = (
+   "# Changelog\n\n"
+   "All notable changes to this project will be documented in this file.\n"
+)
+
+MAX_DIFF_LINES = 3000
 
 def _capitalize (text: str) -> str:
    return text [0].upper () + text [1:] if len (text) > 1 else text
@@ -21,6 +31,15 @@ def bump (current: str, level: str) -> str:
       parts [i] = 0
 
    return ".".join (map (str, parts))
+
+def base_tuple (ref: str) -> tuple [int, int, int] | None:
+   """The (major, minor, patch) of a version or v-tag, ignoring any -rc
+   suffix. `base_tuple("v2.3.3-rc.1")` → (2, 3, 3). None if unparseable —
+   so non-semver tags are never mistaken for a version to compare."""
+   match = re.match (r"^v?(\d+)\.(\d+)\.(\d+)", ref)
+   if not match:
+      return None
+   return tuple (int (x) for x in match.groups ())
 
 def next_rc (ver: str, existing: list [str]) -> str:
    if not existing:
@@ -74,6 +93,72 @@ def changelog_from_commits (subjects: str) -> str:
       sections.append ("### Fixed\n" + "\n".join (fixed))
 
    return "\n\n".join (sections)
+
+def _filter (commits: list [dict]) -> list [dict]:
+   """Drop the commit types listed in `.imp` changelog:skip (chore/release/merge
+   by default) so noise never reaches an entry."""
+   from imp import repo
+
+   skip = { s.lower () for s in repo.changelog_skip () }
+   if not skip:
+      return commits
+
+   kept = []
+   for c in commits:
+      subject = c.get ("subject", "")
+      kind = subject.split (":", 1) [0].split ("(", 1) [0].strip ().lower ()
+
+      if kind in skip:
+         continue
+      if "merge" in skip and subject.lower ().startswith ("merge "):
+         continue
+
+      kept.append (c)
+
+   return kept
+
+def collect_diffs (commits: list [dict], max_lines: int = MAX_DIFF_LINES) -> str:
+   parts = []
+   total = 0
+
+   for c in commits:
+      patch = git.show_patch (c ["hash"])
+      if not patch:
+         continue
+
+      lines = patch.splitlines ()
+      if total + len (lines) > max_lines:
+         remaining = max_lines - total
+         if remaining > 0:
+            parts.append ("\n".join (lines [:remaining]))
+         break
+
+      parts.append (patch)
+      total += len (lines)
+
+   return "\n".join (parts)
+
+def entry (commits: list [dict], fast: bool = False) -> str:
+   """The single changelog-entry generator. Reads the actual diffs and asks the
+   AI to describe them (a real "what changed"); falls back to the deterministic
+   subject-based entry when fast, offline, or diffless. Honors changelog:skip."""
+   commits = _filter (commits)
+   if not commits:
+      return ""
+
+   subjects = "\n".join (c.get ("subject", "") for c in commits)
+
+   if fast:
+      return changelog_from_commits (subjects)
+
+   diffs = collect_diffs (commits)
+   if not diffs:
+      return changelog_from_commits (subjects)
+
+   result = ai.smart (prompts.changelog_entry (diffs))
+   text = ai.strip_fences (result).strip ()
+
+   return text or changelog_from_commits (subjects)
 
 _PKG_VERSION = re.compile (r'("version"\s*:\s*")([^"]*)(")')
 _PYPROJECT_VERSION = re.compile (r'^(version\s*=\s*")([^"]*)(")', re.MULTILINE)
@@ -136,6 +221,97 @@ def sync_manifests (root: Path, new_version: str) -> list [Path]:
    left alone — keeps imp git-generic."""
    return [ p for p in manifest_paths (root) if _write_version (p, new_version) ]
 
+_CL_SECTION_RE = re.compile (r"^##\s+\[?(\d+\.\d+\.\d+)")
+_CL_SUB_ORDER  = [ "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security" ]
+
+def _split_sections (text: str) -> tuple [str, list [tuple [str | None, str]]]:
+   """(preamble, [(version, block), ...]) split at each '## ' header. version
+   is None for non-semver headers (e.g. Unreleased) so they're never merged."""
+   lines = text.splitlines (keepends=True)
+   heads = [ i for i, l in enumerate (lines) if l.lstrip ().startswith ("## ") ]
+
+   if not heads:
+      return text, []
+
+   preamble = "".join (lines [:heads [0]])
+   sections = []
+
+   for j, start in enumerate (heads):
+      end   = heads [j + 1] if j + 1 < len (heads) else len (lines)
+      block = "".join (lines [start:end])
+      match = _CL_SECTION_RE.match (lines [start].strip ())
+      sections.append ((match.group (1) if match else None, block))
+
+   return preamble, sections
+
+def _merge_bodies (blocks: list [str]) -> str:
+   """Merge the bodies of several changelog sections: bullets grouped under
+   their '### ' subsection in canonical order, identical lines deduped.
+   Handles plain-bullet sections (no subsections) too."""
+   groups: dict [str, list [str]] = {}
+   extra_order: list [str] = []
+   flat: list [str] = []
+   seen: set [str] = set ()
+
+   def add (bucket: list [str], line: str):
+      key = line.strip ()
+      if key and key not in seen:
+         seen.add (key)
+         bucket.append (line.rstrip ())
+
+   for block in blocks:
+      current = None
+      for line in block.splitlines () [1:]:  # skip the '## ' header line
+         stripped = line.strip ()
+         if stripped.startswith ("### "):
+            current = stripped [4:].strip ()
+            if current not in groups:
+               groups [current] = []
+               extra_order.append (current)
+            continue
+         if not stripped:
+            continue
+         add (flat if current is None else groups [current], line)
+
+   out = list (flat)
+   if flat and groups:
+      out.append ("")
+
+   emitted: set [str] = set ()
+   for name in _CL_SUB_ORDER + extra_order:
+      if name in groups and name not in emitted:
+         emitted.add (name)
+         out.append (f"### {name}")
+         out.extend (groups [name])
+         out.append ("")
+
+   return "\n".join (out).rstrip () + "\n"
+
+def consolidate_changelog (
+   text: str,
+   floor: tuple [int, int, int],
+   new_version: str,
+   today: str,
+) -> str:
+   """Fold every changelog section above `floor` into a single
+   [new_version] section dated `today`, keeping sections at or below the
+   floor untouched. Returns the text unchanged when nothing sits above the
+   floor, so it's safe to call unconditionally."""
+   preamble, sections = _split_sections (text)
+
+   collapse = [ b for v, b in sections if v and base_tuple (v) > floor ]
+   keep     = [ b for v, b in sections if not (v and base_tuple (v) > floor) ]
+
+   if not collapse:
+      return text
+
+   new_section = f"## [{new_version}] - {today}\n\n{_merge_bodies (collapse)}"
+
+   parts = [ preamble.rstrip ("\n"), new_section.rstrip ("\n") ]
+   parts += [ b.rstrip ("\n") for b in keep ]
+
+   return "\n\n".join (parts) + "\n"
+
 def write_changelog (path: Path, entry: str):
    if path.is_file ():
       content = path.read_text ()
@@ -156,8 +332,4 @@ def write_changelog (path: Path, entry: str):
 
       path.write_text (content)
    else:
-      path.write_text (
-         f"# Changelog\n\n"
-         f"All notable changes to this project will be documented in this file.\n\n"
-         f"{entry}\n"
-      )
+      path.write_text (f"{HEADER}\n{entry}\n")

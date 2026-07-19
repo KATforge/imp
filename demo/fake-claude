@@ -218,6 +218,27 @@ def login(user, password, ip):
 EOF
       ;;
 
+   # ─── documentation sync ──────────────────────────────────────────────
+   *"focused ONLY on things that could affect"*)
+      echo "- added a \`logout\` endpoint to the auth service"
+      ;;
+
+   *"choose which files this change could make inaccurate"*)
+      printf "%s" "$prompt" | grep -oE '[A-Za-z0-9_./-]+\.md' | head -1 | sed 's/.*/["&"]/'
+      ;;
+
+   *"Update this documentation page so it matches"*)
+      cat <<'EOF'
+# Commands
+
+## login
+Authenticate a user.
+
+## logout
+End a user's session and clear their token.
+EOF
+      ;;
+
    *)
       echo "chore: update"
       ;;

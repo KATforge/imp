@@ -508,6 +508,68 @@ Diffs:
 
 Output ONLY the changelog sections, nothing else:"""
 
+def docs_changes (diffs: str) -> str:
+   return f"""\
+Summarize what changed in this diff, focused ONLY on things that could affect
+user-facing documentation: new/renamed/removed commands, flags, options,
+endpoints, config keys, defaults, response shapes, status codes, or behavior.
+
+Rules:
+- Output a short markdown bullet list, one concrete fact per line
+- State the change precisely: "added command `imp docs`", "renamed flag --foo to --bar", "changed default of X from a to b"
+- Ignore internal refactors, tests, and formatting that expose no documented surface
+- If nothing could affect documentation, output exactly: NONE
+
+Diff:
+{diffs}
+
+Output ONLY the bullet list, or NONE:"""
+
+def docs_select (summary: str, manifest: str) -> str:
+   return f"""\
+Given a change summary and a list of documentation files (path then headings),
+choose which files this change could make inaccurate or incomplete.
+
+Change summary:
+{summary}
+
+Documentation files:
+{manifest}
+
+Rules:
+- Output a JSON array of file paths, no markdown fences, no explanation
+- Include a path only if the change plausibly affects its content
+- Prefer precision: an empty array [] is correct when nothing is affected
+
+Output ONLY the JSON array:"""
+
+def docs_edit (summary: str, path: str, content: str, mode: str = "reconcile") -> str:
+   scope = (
+      "Only ADD documentation for genuinely new surface. Do not alter existing prose."
+      if mode == "additive" else
+      "Correct statements the change contradicts, and add documentation for new surface. Do not restyle prose that is still accurate."
+   )
+
+   return f"""\
+Update this documentation page so it matches the change described. {scope}
+
+Change summary:
+{summary}
+
+File: {path}
+
+Rules:
+- Return the COMPLETE updated file, nothing else, no markdown fences
+- Change only what the summary makes inaccurate or missing
+- Preserve the file's existing voice, structure, headings, and formatting
+- Never invent behavior the summary does not state
+- If the page is already accurate and complete, output exactly: NO CHANGE
+
+Current contents:
+{content}
+
+Output the full updated file, or NO CHANGE:"""
+
 def changelog_infer (subjects: str) -> str:
    return f"""\
 Group these git commit subjects into logical version releases.

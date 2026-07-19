@@ -1,7 +1,6 @@
 import typer
 
-from imp import console, git
-from imp.commands.resolve import resolve as resolve_cmd
+from imp import console, git, workflow
 
 def merge (
    source: str = typer.Argument (..., help="Branch to merge in"),
@@ -53,33 +52,14 @@ def merge (
       console.muted ("Cancelled")
       raise typer.Exit (0)
 
-   if git.merge (ref, no_ff=no_ff):
-      console.success (f"Merged {source} into {current}")
-      return
-
-   if not git.merge_in_progress ():
-      console.fatal ("Merge failed (not in conflict state); check the error above")
-
-   conflicts = git.conflicts ()
-   console.warn (f"{len (conflicts)} conflict(s); handing off to resolve")
-   console.out.print ()
-
-   try:
-      resolve_cmd (
-         whisper=whisper,
-         favor_ours=favor_ours,
-         favor_theirs=favor_theirs,
-         yes=auto,
-      )
-   except typer.Exit:
-      pass
-
-   remaining = git.conflicts ()
-   if remaining:
-      console.hint ("imp resolve to finish, or git merge --abort")
-      console.fatal (f"{len (remaining)} conflict(s) still unresolved")
-
-   if not git.merge_continue ():
-      console.fatal ("Failed to finalize merge commit")
+   workflow.integrate (
+      ref,
+      strategy="merge",
+      no_ff=no_ff,
+      whisper=whisper,
+      favor_ours=favor_ours,
+      favor_theirs=favor_theirs,
+      auto=auto,
+   )
 
    console.success (f"Merged {source} into {current}")

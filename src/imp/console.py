@@ -147,6 +147,25 @@ def choose (title: str, options: list [str]) -> str:
 
    return result
 
+def check (title: str, options: list [str], selected: list [str] | None = None) -> list [str]:
+   selected = selected or []
+
+   if _auto ():
+      out.print (f"[muted]▸ {title} → {', '.join (selected) or 'none'}[/muted]")
+      return list (selected)
+
+   choices = [ questionary.Choice (o, checked=(o in selected)) for o in options ]
+
+   result = questionary.checkbox (
+      title,
+      choices=choices,
+      style=_pt_style,
+      qmark="▸",
+      pointer="▸",
+   ).ask ()
+
+   return result or []
+
 def prompt (label: str, placeholder: str = "") -> str:
    if _auto ():
       if placeholder:

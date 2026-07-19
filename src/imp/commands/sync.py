@@ -1,6 +1,6 @@
 import typer
 
-from imp import console, git
+from imp import console, git, workflow
 
 def sync (
    yes: bool = typer.Option (False, "--yes", "-y", help="Push without confirmation"),
@@ -48,9 +48,7 @@ def sync (
 
    if behind > 0:
       console.muted ("Rebasing...")
-      if not git.rebase ():
-         console.hint ("imp resolve to fix conflicts, or git rebase --abort")
-         console.fatal ("Rebase failed")
+      workflow.integrate ("@{u}", strategy="rebase", auto=yes)
       console.success ("Rebased")
 
    if ahead > 0 or behind > 0:

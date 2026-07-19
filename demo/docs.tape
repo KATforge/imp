@@ -1,4 +1,4 @@
-Output setup.gif
+Output docs.gif
 
 Set Shell "bash"
 Set FontSize 16
@@ -8,31 +8,19 @@ Set Theme { "name": "Imp", "background": "#0d120d", "foreground": "#e5e7eb", "cu
 Set TypingSpeed 60ms
 
 Hide
-Type "setup-project >/dev/null && cd /tmp/demo-repo && clear" Enter
+Type "setup-docs >/dev/null && cd /tmp/demo-repo && clear" Enter
 Sleep 600ms
 Show
 
-Type "imp setup"
+Type "imp docs"
 Sleep 600ms
 Enter
-Sleep 1500ms
+Sleep 8s
 
 Enter
-Sleep 1400ms
+Sleep 4s
 
-Enter
-Sleep 1200ms
-
-Enter
-Sleep 1200ms
-
-Enter
-Sleep 1200ms
-
-Enter
-Sleep 2500ms
-
-Type "cat .imp"
+Type "cat ../docs-site/reference/commands.md"
 Sleep 600ms
 Enter
 Sleep 4s

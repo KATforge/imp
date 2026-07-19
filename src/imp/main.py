@@ -6,8 +6,10 @@ from imp.commands.amend import amend
 from imp.commands.branch import branch
 from imp.commands.changelog import changelog
 from imp.commands.clean import clean
+from imp.commands.collapse import collapse
 from imp.commands.commit import commit
 from imp.commands.config import configure
+from imp.commands.docs import docs
 from imp.commands.doctor import doctor
 from imp.commands.done import done
 from imp.commands.explain import explain
@@ -15,9 +17,11 @@ from imp.commands.fix import fix
 from imp.commands.fixup import fixup
 from imp.commands.fleet import fleet
 from imp.commands.help import help
+from imp.commands.init import init
 from imp.commands.log import log
 from imp.commands.merge import merge
 from imp.commands.pr import pr
+from imp.commands.pull import pull
 from imp.commands.push import push
 from imp.commands.release import release
 from imp.commands.rescue import rescue
@@ -63,9 +67,9 @@ def main (
    """[green]imp[/green] — AI-powered git workflow"""
 
 _commands = [
-   amend, branch, changelog, clean, commit,
-   doctor, done, explain, fix, fixup, fleet, help,
-   log, merge, pr, push, release, rescue, resolve,
+   amend, branch, changelog, clean, collapse, commit,
+   docs, doctor, done, explain, fix, fixup, fleet, help,
+   init, log, merge, pr, pull, push, release, rescue, resolve,
    revert, review, setup, ship, split, standup,
    status, sync, tag, tidy, undo, update,
 ]

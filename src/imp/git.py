@@ -179,6 +179,20 @@ def rc_tags (ver: str) -> list [str]:
    result = _run ("tag", "-l", f"v{ver}-rc.*", "--sort=-v:refname", check=False)
    return [ l.strip () for l in result.stdout.splitlines () if l.strip () ]
 
+def tags (pattern: str = "v*") -> list [str]:
+   result = _run ("tag", "-l", pattern, "--sort=-v:refname", check=False)
+   return [ l.strip () for l in result.stdout.splitlines () if l.strip () ]
+
+def remote_tags (remote: str = "origin") -> list [str]:
+   result = _run ("ls-remote", "--tags", remote, check=False)
+   out = []
+   for line in result.stdout.splitlines ():
+      _, _, ref = line.partition ("refs/tags/")
+      # Peeled annotated-tag rows end in ^{}; the bare ref already covers them.
+      if ref and not ref.endswith ("^{}"):
+         out.append (ref.strip ())
+   return out
+
 def tag (name: str, ref: str = ""):
    args = [ "tag", name ]
    if ref:
@@ -191,6 +205,13 @@ def tag_exists (name: str) -> bool:
 
 def tag_delete (name: str):
    _run ("tag", "-d", name, check=False)
+
+def push_delete (refs: list [str], remote: str = "origin"):
+   """Delete tags (or branches) on the remote in one push. Only pass refs
+   known to exist remotely — one missing ref fails the whole push."""
+   if not refs:
+      return
+   _run ("push", remote, "--delete", *refs)
 
 def has_upstream () -> bool:
    result = _run ("rev-parse", "--verify", "@{u}", check=False)
@@ -246,9 +267,19 @@ def fetch (prune: bool = False, tags: bool = False, remote: str = "", refspec: s
       args.append (refspec)
    _run (*args, check=False)
 
-def rebase () -> bool:
-   result = _run ("rebase", check=False)
+def rebase (onto: str = "") -> bool:
+   args = [ "rebase" ]
+   if onto:
+      args.append (onto)
+   result = _run (*args, check=False)
    return result.returncode == 0
+
+def rebase_continue () -> bool:
+   result = _run ("rebase", "--continue", check=False, env={ "GIT_EDITOR": ":" })
+   return result.returncode == 0
+
+def rebase_abort ():
+   _run ("rebase", "--abort", check=False)
 
 def push (
    force_lease: bool = False,

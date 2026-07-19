@@ -92,3 +92,19 @@ def release_create (ver: str, notes: str, prerelease: bool = False) -> bool:
       return True
    except subprocess.CalledProcessError:
       return False
+
+def release_delete (tag: str) -> bool:
+   """Delete the GitHub release for a full tag name (e.g. "v2.3.1"). The
+   underlying git tag is deleted separately; this only removes the release
+   object so it isn't left dangling. False when there was no release."""
+   try:
+      subprocess.run (
+         [ "gh", "release", "delete", tag, "--yes" ],
+         capture_output=True,
+         text=True,
+         check=True,
+         timeout=30,
+      )
+      return True
+   except subprocess.CalledProcessError:
+      return False
