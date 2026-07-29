@@ -64,6 +64,60 @@ def integrate (
 
    return True
 
+def reconcile (fetch: bool = True) -> bool:
+   """Integrate upstream into the current branch before publishing.
+
+   Fetches, then no-ops when up to date or purely ahead. A clean rebase runs
+   silently; overlapping edits stop, name the conflicting files, and offer the
+   AI resolve path, so publishing never leaves the branch diverged. Pass
+   fetch=False when origin was just fetched. Returns False when the caller
+   must not push.
+   """
+
+   if not git.has_upstream ():
+      return True
+
+   if fetch:
+      git.fetch ()
+
+   behind = git.count_behind ()
+
+   if behind == 0:
+      return True
+
+   ahead = git.count_ahead ()
+
+   console.label ("Diverged" if ahead else "Behind")
+   console.item (f"{ahead} ahead, {behind} behind" if ahead else f"{behind} commits")
+   console.out.print ()
+
+   if not git.is_clean ():
+      console.hint ("imp commit, then retry")
+      console.err ("Uncommitted changes; cannot rebase onto upstream")
+      return False
+
+   conflicts = git.merge_preview ("@{u}")
+
+   if conflicts:
+      console.warn (f"{len (conflicts)} file(s) conflict with upstream")
+
+      for path in conflicts:
+         console.item (path)
+
+      console.out.print ()
+
+      if console.choose ("Reconcile?", [ "Reconcile automatically", "Leave it" ]) == "Leave it":
+         console.hint ("imp pull to reconcile with review")
+         console.err ("Still diverged; nothing pushed")
+         return False
+
+   console.muted ("Rebasing onto upstream...")
+   integrate ("@{u}", strategy="rebase", auto=True)
+   console.success ("Rebased")
+   console.out.print ()
+
+   return True
+
 def review_commit (
    msg: str,
    yes: bool,

@@ -1,6 +1,6 @@
 import typer
 
-from imp import console, git, version
+from imp import console, git, version, workflow
 from imp.commands.release import (
    current_version,
    do_release,
@@ -18,16 +18,20 @@ def tag (
    """Bump the highest semver tag, update CHANGELOG.md, commit, and push.
 
    Fetches tags first so the bump picks up the remote's latest instead of
-   a stale local cache. Picks the next version from the highest existing
-   v-prefixed tag, writes a CHANGELOG.md entry from commits since the last
-   tag, commits it as chore: release vX.Y.Z, tags HEAD, and pushes. No
-   squash.
+   a stale local cache, and rebases onto upstream if origin moved so the tag
+   never lands on a diverged branch. Picks the next version from the highest
+   existing v-prefixed tag, writes a CHANGELOG.md entry from commits since
+   the last tag, commits it as chore: release vX.Y.Z, tags HEAD, and pushes.
+   No squash.
    """
 
    git.require ()
    git.require_clean ("imp commit first")
 
    console.spin ("Fetching tags...", git.fetch, tags=True)
+
+   if not no_push and not workflow.reconcile (fetch=False):
+      raise typer.Exit (1)
 
    levels = { "patch": patch, "minor": minor, "major": major }
    selected = [ k for k, v in levels.items () if v ]

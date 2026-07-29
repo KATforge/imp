@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from imp import console, gh, git, repo, version
+from imp import console, gh, git, repo, version, workflow
 
 def _error_detail (e: Exception) -> str:
    return (getattr (e, "stderr", "") or str (e)).strip ()
@@ -339,10 +339,11 @@ def release (
    """Squash, changelog, tag, and push a release.
 
    Fetches tags first so the version bump and tag-availability check see
-   the remote's latest. Collects commits since the last tag, lets you pick
-   a semver bump, generates a changelog entry, squashes unpushed commits
-   into one, tags the release, and optionally pushes with a GitHub
-   release. Rolls back automatically if anything fails.
+   the remote's latest, and rebases onto upstream if origin moved so the tag
+   never lands on a diverged branch. Collects commits since the last tag,
+   lets you pick a semver bump, generates a changelog entry, squashes
+   unpushed commits into one, tags the release, and optionally pushes with a
+   GitHub release. Rolls back automatically if anything fails.
 
    With --rc the tag is published as a GitHub *pre-release* (release CI
    fires on a published release, not a bare tag); --stable publishes a
@@ -359,6 +360,9 @@ def release (
       console.fatal ("--rc and --stable are mutually exclusive")
 
    console.spin ("Fetching tags...", git.fetch, tags=True)
+
+   if not workflow.reconcile (fetch=False):
+      raise typer.Exit (1)
 
    level = _level_from_flags (patch, minor, major)
 

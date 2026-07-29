@@ -1,14 +1,15 @@
 import typer
 
-from imp import ai, console, git, prompts
+from imp import ai, console, git, prompts, workflow
 from imp.commands.split import do_split
 
-def do_push (force_lease: bool = False):
+def do_push (force_lease: bool = False, pull: bool = True):
    """Push the current branch to origin.
 
-   Checks for a remote, fetches, counts ahead, sets upstream if needed.
-   Returns silently if nothing to push. Pass force_lease=True to rewrite
-   history safely (used after amend or rebase).
+   Checks for a remote, fetches, reconciles with upstream, counts ahead, sets
+   upstream if needed. Returns silently if nothing to push. Pass
+   force_lease=True to rewrite history safely (used after amend or rebase),
+   pull=False to push without reconciling first.
    """
 
    b = git.branch ()
@@ -19,7 +20,10 @@ def do_push (force_lease: bool = False):
       raise typer.Exit (1)
 
    if git.has_upstream ():
-      git.fetch ()
+      if not pull:
+         git.fetch ()
+      elif not workflow.reconcile ():
+         raise typer.Exit (1)
 
       if force_lease:
          console.item (f"Force-pushing {b}")
@@ -40,12 +44,15 @@ def do_push (force_lease: bool = False):
    console.success ("Pushed to origin")
 
 def push (
+   no_pull: bool = typer.Option (False, "--no-pull", help="Push without reconciling with upstream first"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide the AI"),
 ):
    """Commit any changes, then push to origin.
 
    Stages everything, splits into logical commits if needed (or a single
-   commit), then pushes. Does not create tags, changelogs, or releases.
+   commit), rebases onto upstream if it moved, then pushes. Conflicts are
+   named up front with the option to resolve them automatically. Does not
+   create tags, changelogs, or releases.
    """
 
    git.require ()
@@ -71,4 +78,4 @@ def push (
 
       console.out.print ()
 
-   do_push ()
+   do_push (pull=not no_pull)

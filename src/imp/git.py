@@ -306,6 +306,30 @@ def merge (ref: str, no_ff: bool = False) -> bool:
    result = _run (*args, check=False)
    return result.returncode == 0
 
+def merge_preview (ref: str, base: str = "HEAD") -> list [str] | None:
+   """Dry-run an integration of <ref>, touching neither the worktree nor the
+   index. Returns the conflicting paths, [] when it would land clean, or None
+   when git can't say (merge-tree without --write-tree, unrelated histories).
+
+   Output is the merged tree OID, then the conflicted paths, then a blank line
+   and informational messages. Exit 0 is clean, 1 is conflicted."""
+   result = _run ("merge-tree", "--write-tree", "--name-only", base, ref, check=False)
+
+   if result.returncode == 0:
+      return []
+
+   if result.returncode != 1:
+      return None
+
+   paths = []
+
+   for line in result.stdout.splitlines () [1:]:
+      if not line.strip ():
+         break
+      paths.append (line)
+
+   return paths
+
 def merge_continue () -> bool:
    result = _run ("commit", "--no-edit", check=False)
    return result.returncode == 0

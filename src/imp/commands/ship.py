@@ -1,6 +1,6 @@
 import typer
 
-from imp import ai, console, git, prompts, version
+from imp import ai, console, git, prompts, version, workflow
 from imp.commands.release import (
    current_version,
    do_release,
@@ -36,8 +36,11 @@ def ship (
    Fetches tags first so version and tag-availability checks see the
    remote's latest, not a stale local cache. Stages everything, uses AI to
    split into logical commits (or a single commit if only one file
-   changed), then bumps the version, updates the changelog, tags, and
-   pushes. Preserves feature commit history.
+   changed), rebases onto upstream if origin moved, then bumps the version,
+   updates the changelog, tags, and pushes. Preserves feature commit history.
+
+   Conflicts with upstream are named before anything is tagged, with the
+   option to resolve them automatically.
 
    With --fast, the AI split is skipped entirely: every change lands in one
    "chore: sync" commit before the release. Fast and cheap, no commit history.
@@ -80,6 +83,12 @@ def ship (
    else:
       console.muted ("No staged changes, skipping commit")
       console.out.print ()
+
+   # Reconcile after committing, before release_scope: the changelog then
+   # covers upstream's commits too, and the tag lands on top of them instead
+   # of on a branch that diverged the moment origin moved.
+   if not workflow.reconcile (fetch=False):
+      raise typer.Exit (1)
 
    base = git.base_branch ()
 
