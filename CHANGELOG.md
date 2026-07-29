@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.68] - 2026-07-29
+
+### Added
+- Reconcile with upstream before publishing
+
+### Changed
+- Add reconcile coverage
+
 ## [0.0.67] - 2026-07-19
 
 ### Changed
