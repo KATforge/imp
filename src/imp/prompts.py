@@ -478,18 +478,38 @@ Rules:
 
 Output ONLY the summary:"""
 
+MAX_WORDS = 8
+
 def changelog_entry (diffs: str) -> str:
    return f"""\
 Analyze these git commit diffs and produce a changelog entry.
 
-Rules:
-- Categorize every meaningful change as Added, Changed, Removed, or Fixed
-- Describe what changed from a user's perspective, not implementation details
+Every line is a terse one-liner. A changelog is scanned, not read: uniform
+shape matters more than detail, and the reader can always open the diff.
+
+Line rules, no exceptions:
+- Start with a plain present-tense verb: Add, Fix, Change, Remove, Rename, Move, Speed up
+- {MAX_WORDS} words maximum, and fewer is better
+- Name the user-visible thing that changed, nothing else
+- No explanation, justification, or outcome: no "so that", "which lets", "in order to", "for better X"
+- No implementation detail: no file paths, function names, class names, internals
+- No parentheses, no dashes introducing a clause, no trailing period
+- Merge related small changes into one line
 - One line per change, prefix with "- "
-- Merge related small changes into a single line
 - Skip trivial changes (whitespace, formatting, import reordering)
 - Skip release/changelog commits themselves
-- Output sections in this exact format (omit empty sections):
+
+Write like this:
+- Add oauth login
+- Fix crash on empty config
+- Remove legacy token endpoint
+
+Never like this:
+- Added a new OAuth login flow to the auth service so users can sign in with Google
+- Refactored TokenRepository (src/token.py) to use a cleaner abstraction
+
+Categorize every meaningful change as Added, Changed, Removed, or Fixed, and
+output sections in this exact format (omit empty sections):
 
 ### Added
 - description

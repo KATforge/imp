@@ -168,12 +168,12 @@ EOF
    *"produce a changelog entry"*)
       cat <<'EOF'
 ### Added
-- per-IP rate limiting on /login and /register
-- 429 responses include a retry-after header
-- configurable window + max attempts via env vars
+- Add per-IP rate limiting on login
+- Return retry-after header on 429
+- Add configurable rate limit window
 
 ### Fixed
-- typo in login flow (password parameter)
+- Fix login password parameter typo
 EOF
       ;;
 

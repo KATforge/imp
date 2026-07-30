@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 from imp import ai, git, prompts
-from imp.validate import COMMIT_RE
+from imp.validate import COMMIT_RE, TYPES_PATTERN
 
 # The Keep-a-Changelog preamble, defined once. Every path that writes a fresh
 # CHANGELOG.md reuses it so the header never drifts between generators.
@@ -13,8 +13,95 @@ HEADER = (
 
 MAX_DIFF_LINES = 3000
 
+# Every bullet, AI-written or derived from a subject, is squeezed through
+# `normalize_line` before it reaches the file. A changelog is scanned, not read:
+# uniform one-liners beat accurate paragraphs, and the diff holds the detail.
+_TYPE_PREFIX = re.compile (
+   rf"^(?:(?:{TYPES_PATTERN})(\(.+?\))?!?"
+   r"|added|changed|deprecated|removed|fixed|security)"
+   r":\s*",
+   re.I,
+)
+_PAREN       = re.compile (r"\s*\([^()]*\)")
+_SENTENCE    = re.compile (r"(?<=[a-z0-9])\.\s+\S")
+_TAIL        = re.compile (
+   r"\s+(?:[-–—]\s|so\s|in order to\b|instead of\b|rather than\b"
+   r"|which\b|allowing\b|ensuring\b|enabling\b)"
+   r"|,\s+(?:so|which|because|allowing|ensuring|enabling)\b",
+   re.I,
+)
+
 def _capitalize (text: str) -> str:
    return text [0].upper () + text [1:] if len (text) > 1 else text
+
+def normalize_line (text: str) -> str:
+   """One changelog bullet, normalized to the house shape: no commit-type
+   prefix, no parenthetical aside, no explanatory tail, one sentence, no
+   trailing punctuation, capitalized. Returns "" when nothing survives."""
+   text = _TYPE_PREFIX.sub ("", re.sub (r"\s+", " ", text.strip ().lstrip ("-*").strip ()))
+   text = _PAREN.sub ("", text)
+
+   # A mid-line colon introduces explanation once a clause stands before it.
+   head, sep, _ = text.partition (": ")
+   if sep and len (head.split ()) >= 3:
+      text = head
+
+   sentence = _SENTENCE.search (text)
+   if sentence:
+      text = text [:sentence.start () + 1]
+
+   tail = _TAIL.search (text)
+   if tail:
+      text = text [:tail.start ()]
+
+   words = text.rstrip (" .,;:").split ()
+
+   # Over the cap with a comma in reach: the head of the list says it.
+   # Nothing else is truncated — a long readable line beats a fragment.
+   if len (words) > prompts.MAX_WORDS:
+      head = " ".join (words).split (",") [0].split ()
+      if len (head) >= 3:
+         words = head
+
+   text = " ".join (words).rstrip (" .,;:")
+
+   return _capitalize (text) if text else ""
+
+def normalize (entry: str) -> str:
+   """Run every bullet of a generated entry through `normalize_line`, keeping the
+   headings that still have bullets under them. Stray prose, bullets that
+   squeeze down to nothing, and duplicates the squeeze creates are dropped."""
+   sections: list [tuple [str | None, list [str]]] = []
+   seen: set [str] = set ()
+
+   for raw in entry.splitlines ():
+      stripped = raw.strip ()
+
+      if stripped.startswith ("#"):
+         sections.append ((stripped, []))
+         continue
+
+      if not stripped.startswith (("-", "*")):
+         continue
+
+      text = normalize_line (stripped)
+      if not text or text.lower () in seen:
+         continue
+
+      seen.add (text.lower ())
+
+      if not sections:
+         sections.append ((None, []))
+
+      sections [-1] [1].append (f"- {text}")
+
+   blocks = [
+      "\n".join (([ head ] if head else []) + bullets)
+      for head, bullets in sections
+      if bullets
+   ]
+
+   return "\n\n".join (blocks)
 
 def bump (current: str, level: str) -> str:
    match = re.match (r"^(\d+)\.(\d+)\.(\d+)$", current)
@@ -57,6 +144,7 @@ def changelog_from_commits (subjects: str) -> str:
    added = []
    fixed = []
    changed = []
+   seen = set ()
 
    for line in subjects.splitlines ():
       line = line.strip ()
@@ -67,15 +155,13 @@ def changelog_from_commits (subjects: str) -> str:
          line = line.split (" ", 1) [1]
 
       match = COMMIT_RE.match (line)
-      if match:
-         kind = match.group (1)
-         desc = match.group (3)
-      else:
-         desc = _capitalize (line)
-         changed.append (f"- {desc}")
+      kind = match.group (1) if match else ""
+      desc = normalize_line (match.group (3) if match else line)
+
+      if not desc or desc.lower () in seen:
          continue
 
-      desc = _capitalize (desc)
+      seen.add (desc.lower ())
 
       if kind == "feat":
          added.append (f"- {desc}")
@@ -156,7 +242,7 @@ def entry (commits: list [dict], fast: bool = False) -> str:
       return changelog_from_commits (subjects)
 
    result = ai.smart (prompts.changelog_entry (diffs))
-   text = ai.strip_fences (result).strip ()
+   text = normalize (ai.strip_fences (result).strip ())
 
    return text or changelog_from_commits (subjects)
 
@@ -311,6 +397,29 @@ def consolidate_changelog (
    parts += [ b.rstrip ("\n") for b in keep ]
 
    return "\n\n".join (parts) + "\n"
+
+def tidy_changelog (text: str) -> str:
+   """Rewrite a whole CHANGELOG.md to the house shape: every bullet squeezed
+   through `normalize_line`, `###` subsections that end up empty dropped,
+   duplicates dropped per version. The preamble and every released version
+   heading survive untouched — a release with nothing left to say still has a
+   date. An empty unreleased heading is dropped; it records nothing."""
+   preamble, sections = _split_sections (text)
+
+   blocks = []
+   for ver, block in sections:
+      lines = block.splitlines ()
+      head  = lines [0].strip ()
+      body  = normalize ("\n".join (lines [1:]))
+
+      if not body and not ver:
+         continue
+
+      blocks.append (f"{head}\n\n{body}" if body else head)
+
+   parts = ([ preamble.strip () ] if preamble.strip () else []) + blocks
+
+   return "\n\n".join (parts).strip () + "\n"
 
 def write_changelog (path: Path, entry: str):
    if path.is_file ():

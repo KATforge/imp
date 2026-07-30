@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Add `imp changelog --tidy`
+
+### Changed
+- Squeeze every changelog line to a one-liner
+
 ## [0.0.68] - 2026-07-29
 
 ### Added
@@ -54,29 +62,27 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Sync package.json version with git tags
 
-## [Unreleased]
-
 ## [0.0.61] - 2026-06-17
 
 ### Added
-- `--fast` flag on `imp ship` and `imp fleet`: skip the AI split and land every change in a single `chore: sync` commit before the release. The quick way to sync a fleet without spending tokens on per-commit messages.
-- `git.ref_exists` helper and `git.fetch (remote=…, refspec=…)` to support targeted fetches.
+- `--fast` flag on `imp ship` and `imp fleet`
+- `git.ref_exists` helper and `git.fetch` to support targeted fetches
 
 ### Changed
-- `imp worktree add` now defaults its base to `origin/<trunk>` (fetched fresh), never the host worktree's HEAD. Previously, branching from a feature-branch HEAD silently inherited that branch's commits and could squash-merge unrelated work to trunk (KAT-35, KAT-36). Pass `--base <ref>` to root at an explicit ref instead (skips the fetch); pass `--no-fetch` to skip the fetch when using the default base.
+- `imp worktree add` now defaults its base to `origin/<trunk>`
 
 ## [0.0.60] - 2026-05-25
 
 ### Added
-- Add worktree command for managing git worktrees (add / list / path / remove / prune)
-- Add explain command for plain-english narration of diffs, commits, ranges, or files
+- Add worktree command for managing git worktrees
+- Add explain command for plain-english narration of diffs
 - Add fixup command that ai-matches staged changes to the right historical commit
-- Add stash sub-app with ai-generated titles (push / list / show / pop / drop)
+- Add stash sub-app with ai-generated titles
 - Add rescue command that scans reflog and dangling commits for lost work
 - Add standup command that summarizes recent commits as a daily narrative
 
 ### Changed
-- Use anthropic SDK with prompt caching when ANTHROPIC_API_KEY is set, falling back to claude CLI subprocess (now isolated with cwd=/tmp). Fixes context-leak bug where small diffs picked up cwd CLAUDE.md and recently-modified files.
+- Use anthropic SDK with prompt caching when ANTHROPIC_API_KEY is set
 
 ## [0.0.59] - 2026-05-22
 
@@ -392,7 +398,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Include exception details in error messages
-- Parse status file paths with lstrip instead of fixed index
+- Parse status file paths with lstrip
 
 ## [0.0.11] - 2026-03-15
 
@@ -400,40 +406,40 @@ All notable changes to this project will be documented in this file.
 - Add __main__ entry point and dynamic version from metadata
 
 ### Changed
-- Use builtin print instead of console.out.print
+- Use builtin print
 - Update install instructions for python package
 - Add ai tests, command tests, and update imports
 - Move sanitize to ai module and add truncate helper
 - Remove deprecated bash scripts and bin wrapper
-- Sync (alias).
+- Sync
 - Rewrite in python
 
 ### Fixed
-- Rename range to rev_range, add git timeout, fix split paths
+- Rename range to rev_range
 
 ## [0.0.10] - 2026-02-26
 
-- Added: add split, done, clean commands and branch switching
-- Changed: normalize output to use item helper
-- Changed: remove stash, diff, describe, and init commands
-- Fixed: improve reliability and ux across commands
+- Add split, done, clean commands and branch switching
+- Normalize output to use item helper
+- Remove stash, diff, describe, and init commands
+- Improve reliability and ux across commands
 
 ## [0.0.9] - 2026-02-24
 
-- Changed: Pipe AI prompts via stdin instead of passing as shell arguments, removing argument size limits
-- Changed: Increase Claude request timeout from 60s to 120s
-- Added: `--tools ""` flag to Claude CLI calls to disable tool use
-- Changed: Ollama prompt now piped through `jq -Rs` and `curl -d @-` instead of inline JSON argument
-- Fixed: Changelog file path now resolved relative to repo root instead of current working directory
-- Changed: `prompt_changelog` now receives full diff as primary input alongside commit log
-- Changed: Changelog prompt format changed from Keep a Changelog sections to flat prefixed lines (`Added:`, `Changed:`, `Fixed:`, `Removed:`)
-- Changed: `prompt_commit` now counts and reports number of changed files in the prompt
-- Changed: Commit message rules updated to require prose body (semicolon-separated) instead of bullet points, with example included
-- Changed: Release squash now stages all changes with `git add -A` instead of only staging the changelog file
-- Added: Integration test verifying release creates a tag and includes changelog in the commit
-- Added: Integration test verifying release squashes multiple commits into one since the last tag
-- Removed: Directory structure section from README
-- Changed: README description, examples, and command reference updated for clarity
+- Pipe AI prompts via stdin
+- Increase Claude request timeout from 60s to 120s
+- `--tools ""` flag to Claude CLI calls to disable tool use
+- Ollama prompt now piped through `jq -Rs` and `curl -d @-`
+- Changelog file path now resolved relative to repo root
+- `prompt_changelog` now receives full diff as primary input alongside commit log
+- Changelog prompt format changed from Keep a Changelog sections to flat prefixed lines
+- `prompt_commit` now counts and reports number of changed files in the prompt
+- Commit message rules updated to require prose body
+- Release squash now stages all changes with `git add -A`
+- Integration test verifying release creates a tag and includes changelog in the commit
+- Integration test verifying release squashes multiple commits into one since the last tag
+- Directory structure section from README
+- README description, examples, and command reference updated for clarity
 
 ## [0.0.8] - 2026-02-21
 

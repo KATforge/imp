@@ -142,6 +142,41 @@ def _upsert_unreleased (path: Path, entry: str):
    else:
       version.write_changelog (path, block)
 
+def _tidy (yes: bool, changelog_path: Path):
+   """Reformat the existing file to the house shape. No git, no AI: every
+   bullet already in CHANGELOG.md squeezed down to a one-liner."""
+   if not changelog_path.is_file ():
+      console.fatal ("No CHANGELOG.md to tidy")
+
+   before = changelog_path.read_text ()
+   after = version.tidy_changelog (before)
+
+   if after == before:
+      console.muted ("Already in house style")
+      raise typer.Exit (0)
+
+   old = [ l for l in before.splitlines () if l.strip ().startswith ("- ") ]
+   new = [ l for l in after.splitlines () if l.strip ().startswith ("- ") ]
+
+   changed = [
+      (o, version.normalize_line (o))
+      for o in old
+      if f"- {version.normalize_line (o)}" != o.strip ()
+   ]
+
+   console.label (f"{len (changed)} line(s) rewritten, {len (old) - len (new)} dropped")
+   for old_line, new_line in changed [:5]:
+      console.item (f"{old_line.strip () [2:]}")
+      console.item (f"  → {new_line}")
+   console.out.print ()
+
+   if not yes and not console.confirm ("Rewrite CHANGELOG.md?"):
+      console.muted ("Cancelled")
+      raise typer.Exit (0)
+
+   changelog_path.write_text (after)
+   console.success ("Tidied CHANGELOG.md")
+
 def _tag_plan (
    versions: list [dict],
    existing_tags: dict [str, str],
@@ -302,6 +337,7 @@ def changelog (
    since: str = typer.Option ("", "--since", "-s", help="Date, tag, or commit hash to start from"),
    apply: bool = typer.Option (False, "--apply", help="With --rebuild: create missing/corrected git tags"),
    rebuild: bool = typer.Option (False, "--rebuild", help="Regenerate the entire file from git history"),
+   tidy: bool = typer.Option (False, "--tidy", help="Reformat the existing file to one-liners (no git, no AI)"),
    fast: bool = typer.Option (False, "--fast", help="Use the deterministic subject-based entry (no AI)"),
    yes: bool = typer.Option (False, "--yes", "-y", help="Skip confirmations"),
 ):
@@ -311,7 +347,8 @@ def changelog (
    tag using a diff-aware AI entry (the same engine imp release uses). Pass
    --rebuild to regenerate the whole file from history, mapping tags to version
    boundaries and inferring untagged ones. --fast swaps the AI for the
-   deterministic subject-based entry.
+   deterministic subject-based entry. --tidy leaves history alone and just
+   reformats the file you already have.
    """
 
    git.require ()
@@ -320,7 +357,9 @@ def changelog (
 
    changelog_path = Path (git.repo_root ()) / "CHANGELOG.md"
 
-   if rebuild:
+   if tidy:
+      _tidy (yes, changelog_path)
+   elif rebuild:
       _rebuild (since, apply, yes, fast, changelog_path)
    else:
       _incremental (since, yes, fast, changelog_path)

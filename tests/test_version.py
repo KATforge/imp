@@ -3,8 +3,11 @@ import pytest
 from imp.version import (
    bump,
    changelog_from_commits,
+   normalize,
+   normalize_line,
    read_manifest_version,
    sync_manifests,
+   tidy_changelog,
    write_package_version,
    write_pyproject_version,
 )
@@ -25,6 +28,137 @@ class TestBump:
    ])
    def test_bump (self, current, level, expected):
       assert bump (current, level) == expected
+
+
+class TestNormalizeLine:
+
+   @pytest.mark.parametrize ("raw, expected", [
+      ("- add oauth login", "Add oauth login"),
+      ("add oauth login.", "Add oauth login"),
+      ("feat(auth): add oauth login", "Add oauth login"),
+      ("Add oauth login (see AuthController.php)", "Add oauth login"),
+      ("Add oauth login so that users can sign in with Google", "Add oauth login"),
+      ("Add oauth login, so users can sign in", "Add oauth login"),
+      ("Add oauth login - users can now sign in", "Add oauth login"),
+      ("Add oauth login which replaces the old flow", "Add oauth login"),
+      ("Pipe prompts via stdin instead of shell arguments", "Pipe prompts via stdin"),
+      ("Add oauth login. It replaces the legacy token flow.", "Add oauth login"),
+      ("Add   oauth\tlogin", "Add oauth login"),
+      ("Fix crash on empty config", "Fix crash on empty config"),
+      ("- ", ""),
+      ("", ""),
+   ])
+   def test_normalize_line (self, raw, expected):
+      assert normalize_line (raw) == expected
+
+   def test_trims_at_comma_when_over_the_cap (self):
+      raw = "Add oauth login, refresh tokens, session revocation and audit logging"
+      assert normalize_line (raw) == "Add oauth login"
+
+   def test_keeps_a_short_line_with_a_comma (self):
+      assert normalize_line ("Add oauth login, fix logout") == "Add oauth login, fix logout"
+
+   def test_cuts_at_a_mid_line_colon (self):
+      raw = "Add `--fast` flag on ship: skips the AI split entirely"
+      assert normalize_line (raw) == "Add `--fast` flag on ship"
+
+   def test_keeps_a_colon_with_no_clause_before_it (self):
+      assert normalize_line ("Fix crash: null config") == "Fix crash: null config"
+
+   def test_strips_a_changelog_label (self):
+      assert normalize_line ("Changed: pipe prompts via stdin") == "Pipe prompts via stdin"
+
+   def test_never_truncates_mid_phrase (self):
+      raw = "Speed up changelog generation dramatically without external network dependencies"
+      assert normalize_line (raw) == raw
+
+
+class TestNormalize:
+
+   def test_squeezes_every_bullet (self):
+      entry = (
+         "### Added\n"
+         "- Added a new OAuth login flow (AuthController.php) so users can sign in\n"
+         "\n"
+         "### Fixed\n"
+         "- fix: resolve the crash on empty config.\n"
+      )
+      assert normalize (entry) == (
+         "### Added\n"
+         "- Added a new OAuth login flow\n"
+         "\n"
+         "### Fixed\n"
+         "- Resolve the crash on empty config"
+      )
+
+   def test_drops_stray_prose (self):
+      entry = "Here is the changelog:\n\n### Added\n- Add oauth login"
+      assert normalize (entry) == "### Added\n- Add oauth login"
+
+   def test_drops_duplicates_the_squeeze_creates (self):
+      entry = "### Added\n- Add oauth login (initial)\n- Add oauth login (polish)"
+      assert normalize (entry) == "### Added\n- Add oauth login"
+
+   def test_drops_a_heading_left_empty (self):
+      entry = "### Added\n- Add oauth login\n\n### Fixed\n"
+      assert normalize (entry) == "### Added\n- Add oauth login"
+
+   def test_empty (self):
+      assert normalize ("") == ""
+
+
+CHANGELOG_MESSY = """\
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.0.2] - 2026-07-01
+
+### Added
+- Added: a new OAuth login flow (AuthController.php) so users can sign in.
+
+### Fixed
+
+## [Unreleased]
+
+## [0.0.1] - 2026-06-01
+
+### Changed
+- Sync
+"""
+
+CHANGELOG_TIDY = """\
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.0.2] - 2026-07-01
+
+### Added
+- A new OAuth login flow
+
+## [0.0.1] - 2026-06-01
+
+### Changed
+- Sync
+"""
+
+
+class TestTidyChangelog:
+
+   def test_tidies_a_messy_file (self):
+      assert tidy_changelog (CHANGELOG_MESSY) == CHANGELOG_TIDY
+
+   def test_is_idempotent (self):
+      assert tidy_changelog (CHANGELOG_TIDY) == CHANGELOG_TIDY
+
+   def test_keeps_a_released_version_with_nothing_left (self):
+      text = "# Changelog\n\n## [0.0.1] - 2026-06-01\n"
+      assert tidy_changelog (text) == text
+
+   def test_keeps_an_unreleased_section_that_has_bullets (self):
+      text = "# Changelog\n\n## [Unreleased]\n\n### Added\n- Add oauth login\n"
+      assert tidy_changelog (text) == text
 
 
 class TestChangelogFromCommits:
