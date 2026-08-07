@@ -22,6 +22,8 @@ All notable changes to this project will be documented in this file.
 - Fixed agent diagnostics so untrusted Codex hooks report `guided` until reviewed through `/hooks`
 - Fixed the installed entrypoint so native command failures preserve their exit code
 - Fixed reviewed integration candidates so `imp done` reuses the exact approved plan
+- Fixed dirty source releases to show and enforce the separate commit approval flow
+- Fixed isolated package installs by declaring the directly imported Click dependency
 
 ## [0.0.68] - 2026-07-29
 

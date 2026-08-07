@@ -5,7 +5,9 @@ import pytest
 
 from imp_git import console, features, git, identity, integration, plans, runtime, source_release, state
 from imp_git import repo as repo_mod
+from imp_git.commands import commit as commit_cmd
 from imp_git.commands import review as review_cmd
+from imp_git.commands import ship as ship_cmd
 from tests.conftest import commit_file, git_run
 
 ACTOR = identity.resource ("actor", "human", "anders")
@@ -219,6 +221,30 @@ class TestDone:
 
 
 class TestSourceRelease:
+
+   def test_dirty_source_reports_exact_next_steps (self, repo):
+      (repo / "file.txt").write_text ("changed\n")
+
+      with pytest.raises (state.StateError) as error:
+         source_release.plan_ship (level="patch")
+
+      assert "Uncommitted changes cannot be shipped" in str (error.value)
+      assert "imp commit --all --plan" in str (error.value)
+      assert "imp ship --plan" in str (error.value)
+
+   def test_include_dirty_runs_separate_commit_flow_before_ship_plan (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("changed\n")
+      commits = []
+      plan = { "payload": {}, "plan_id": "plan:ship:demo:1", "state": "ready" }
+      monkeypatch.setattr (runtime, "options", runtime.Options ())
+      monkeypatch.setattr (commit_cmd, "commit", lambda **options: commits.append (options ["all"]))
+      monkeypatch.setattr (source_release, "plan_ship", lambda **_options: plan)
+      monkeypatch.setattr (ship_cmd, "_show", lambda _plan: None)
+
+      result = ship_cmd.ship (include_dirty=True, plan_only=True)
+
+      assert result == plan
+      assert commits == [ True ]
 
    def test_apply_revalidates_release_notes (self, repo):
       plan = source_release.plan_ship (level="patch")

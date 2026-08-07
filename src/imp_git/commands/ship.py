@@ -2,7 +2,14 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, plans, result, runtime, source_release, state
+from imp_git import console, git, plans, result, runtime, source_release, state
+
+_DIRTY_AUTOMATION = """Dirty source requires a separately approved commit plan.
+
+Next:
+  imp commit --all --plan
+  imp commit --apply <plan-id> --yes
+  imp ship --plan"""
 
 
 def _level (patch: bool, minor: bool, major: bool) -> str:
@@ -45,7 +52,10 @@ def ship (
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
    dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
    json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
-   include_dirty: Annotated [bool, typer.Option ("--include-dirty", help="Enter commit planning first")] = False,
+   include_dirty: Annotated [
+      bool,
+      typer.Option ("--include-dirty", help="Commit dirty work with separate approval"),
+   ] = False,
    rc: Annotated [bool, typer.Option ("--rc", hidden=True)] = False,
    stable: Annotated [bool, typer.Option ("--stable", hidden=True)] = False,
    squash: Annotated [bool, typer.Option ("--squash", hidden=True)] = False,
@@ -53,8 +63,13 @@ def ship (
    """Create an exact source release. It never builds or deploys."""
 
    del rc, stable, squash
-   if include_dirty:
-      console.fatal ("Commit dirty work through imp commit before release planning")
+   if include_dirty and not git.is_clean ():
+      machine = json_output or runtime.options.json or runtime.options.no_input
+      if machine or yes or runtime.options.yes:
+         console.fatal (_DIRTY_AUTOMATION)
+      from imp_git.commands.commit import commit
+
+      commit (all=True)
    yes = yes or runtime.options.yes
    dry_run = dry_run or runtime.options.dry_run
    try:

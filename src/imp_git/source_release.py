@@ -18,6 +18,14 @@ _LOCK_COMMANDS = {
    "yarn.lock": [ "yarn", "install", "--mode=update-lockfile", "--ignore-scripts" ],
 }
 
+_DIRTY_SOURCE = """Uncommitted changes cannot be shipped.
+
+Next:
+  imp commit --all --plan
+
+After the exact commit plan is approved and applied:
+  imp ship --plan"""
+
 
 def _hash (path: Path) -> str:
    return f"sha256:{hashlib.sha256 (path.read_bytes ()).hexdigest ()}"
@@ -106,7 +114,7 @@ def plan_ship (
    if level not in { "patch", "minor", "major" }:
       raise state.StateError (f"Unsupported version level: {level}")
    if not source_plan_id and not git.is_clean ():
-      raise state.StateError ("imp ship requires clean approved source")
+      raise state.StateError (_DIRTY_SOURCE)
    if git.remote_exists ():
       git.fetch (tags=True)
    source_oid, target_ref, public_target_oid, source_plan = _source (source_plan_id)
