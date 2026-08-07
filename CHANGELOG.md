@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - Fixed reviewed integration candidates so `imp done` reuses the exact approved plan
 - Fixed dirty source releases to show and enforce the separate commit approval flow
 - Fixed isolated package installs by declaring the directly imported Click dependency
+- Fixed fresh installs by constraining Typer to the tested CLI-compatible release line
 
 ## [0.0.68] - 2026-07-29
 
