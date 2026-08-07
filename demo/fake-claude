@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fake claude CLI for demo GIFs. Reads prompt from stdin, matches a sentinel
-# phrase from imp/prompts.py, and prints a canned response that imp accepts.
+# phrase from imp_git/prompts.py, and prints a canned response that imp accepts.
 set -e
 
 prompt=$(cat)
