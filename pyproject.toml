@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "imp-git"
 dynamic = ["version"]
-description = "AI git CLI: write commit messages, split dirty trees, tidy history, generate changelogs, open PRs, and resolve merge conflicts. Works with Claude or local Ollama."
+description = "Safe Git workstreams and approved logical commits for people and parallel AI agents."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -48,6 +48,7 @@ classifiers = [
    "Programming Language :: Python :: 3.11",
    "Programming Language :: Python :: 3.12",
    "Programming Language :: Python :: 3.13",
+   "Programming Language :: Python :: 3.14",
    "Topic :: Software Development",
    "Topic :: Software Development :: Version Control",
    "Topic :: Software Development :: Version Control :: Git",
@@ -73,10 +74,17 @@ dev = [
 ]
 
 [project.scripts]
-imp = "imp.main:app"
+imp = "imp_git.main:run"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/imp"]
+packages = ["src/imp_git"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+   "/.claude",
+   "/demo",
+   "/dist",
+]
 
 [tool.hatch.version]
 source = "vcs"
@@ -106,7 +114,6 @@ ignore = [
    "A001",   # variable shadows builtin (help command, intentional)
    "A002",   # argument shadows builtin (typer's `all` param, intentional)
    "A004",   # import shadows builtin (help command, intentional)
-   "A005",   # module shadows stdlib (imp is deprecated, intentional name)
    "B008",   # function call in default arg (typer convention)
    "E201",   # whitespace after '(' (intentional style)
    "E202",   # whitespace before ')' (intentional style)
@@ -128,4 +135,4 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["imp"]
+known-first-party = ["imp_git"]
