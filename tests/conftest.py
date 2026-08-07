@@ -29,11 +29,12 @@ def last_commit_subject (repo):
 
 
 @pytest.fixture (autouse=True)
-def _clear_repo_cache ():
+def _clear_repo_cache (monkeypatch):
    """repo.load() is process-cached; clear it around every test so a `.imp`
    written by one test never leaks into another repo."""
    from imp_git import repo as repo_mod
 
+   monkeypatch.setenv ("COLUMNS", "120")
    repo_mod.load.cache_clear ()
    yield
    repo_mod.load.cache_clear ()
