@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/<you>/imp.git
+imp clone https://github.com/<you>/imp.git
 cd imp
 pip install -e ".[dev]"
 ```
@@ -17,7 +17,7 @@ imp doctor    # verify install + AI connection
 ## Test
 
 ```bash
-pytest        # full suite (~9 files, ~1.3k LOC)
+pytest        # full suite
 pytest tests/test_release.py -v
 ```
 
@@ -33,7 +33,7 @@ The formatter is **not** auto-run. Style rules in `pyproject.toml` reflect delib
 ## Project shape
 
 ```
-src/imp/
+src/imp_git/
    ai.py          # provider dispatch (claude CLI, ollama HTTP)
    git.py         # subprocess wrapper, one fluent function per git verb
    prompts.py     # all AI prompts in one place (SSOT)
