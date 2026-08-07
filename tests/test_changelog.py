@@ -1,5 +1,6 @@
 import json
 
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from imp_git import ai
@@ -189,6 +190,7 @@ class TestChangelogCommand:
    def test_help (self):
       runner = CliRunner ()
       result = runner.invoke (app, [ "changelog", "--help" ])
+      options = { option for param in get_command (app).commands ["changelog"].params for option in param.opts }
       assert result.exit_code == 0
-      assert "--since" in result.output
-      assert "--apply" in result.output
+      assert "--since" in options
+      assert "--apply" in options

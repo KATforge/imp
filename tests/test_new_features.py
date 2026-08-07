@@ -1,5 +1,6 @@
 import json
 
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from imp_git import repo as repo_mod
@@ -96,15 +97,18 @@ class TestNewCommandsRegistered:
    def _help (self, name):
       return CliRunner ().invoke (app, [ name, "--help" ])
 
+   def _options (self, name):
+      return { option for param in get_command (app).commands [name].params for option in param.opts }
+
    def test_start (self):
       result = self._help ("start")
       assert result.exit_code == 0
-      assert "--task" in result.output
+      assert "--task" in self._options ("start")
 
    def test_commit (self):
       result = self._help ("commit")
       assert result.exit_code == 0
-      assert "--plan" in result.output
+      assert "--plan" in self._options ("commit")
 
    def test_init (self):
       result = self._help ("init")
@@ -117,5 +121,5 @@ class TestNewCommandsRegistered:
    def test_changelog_rebuild_flag (self):
       result = self._help ("changelog")
       assert result.exit_code == 0
-      assert "--rebuild" in result.output
-      assert "--fast" in result.output
+      assert "--rebuild" in self._options ("changelog")
+      assert "--fast" in self._options ("changelog")
