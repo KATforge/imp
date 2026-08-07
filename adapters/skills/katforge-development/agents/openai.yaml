@@ -1,0 +1,4 @@
+interface:
+  display_name: "KATforge Development"
+  short_description: "Safe Imp and Temper development workflow"
+  default_prompt: "Use $katforge-development to make this change safely."

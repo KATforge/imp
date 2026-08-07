@@ -1,0 +1,42 @@
+{
+   "description": "KATforge Imp and Temper development guard",
+   "hooks": {
+      "PreToolUse": [
+         {
+            "matcher": "Bash|Edit|Write|apply_patch",
+            "hooks": [
+               {
+                  "type": "command",
+                  "command": "python3 KATFORGE_AGENT_GUARD PROVIDER",
+                  "timeout": 30,
+                  "statusMessage": "Checking KATforge source policy"
+               }
+            ]
+         }
+      ],
+      "SessionEnd": [
+         {
+            "hooks": [
+               {
+                  "type": "command",
+                  "command": "python3 KATFORGE_AGENT_GUARD PROVIDER",
+                  "timeout": 3
+               }
+            ]
+         }
+      ],
+      "SessionStart": [
+         {
+            "matcher": "startup|resume|clear|compact",
+            "hooks": [
+               {
+                  "type": "command",
+                  "command": "python3 KATFORGE_AGENT_GUARD PROVIDER",
+                  "timeout": 20,
+                  "statusMessage": "Discovering KATforge source context"
+               }
+            ]
+         }
+      ]
+   }
+}
