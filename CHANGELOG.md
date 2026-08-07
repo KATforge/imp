@@ -4,11 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-- Add `imp changelog --tidy`
-
-### Changed
-- Squeeze every changelog line to a one-liner
+- Added versioned JSON results, immutable plans, exact repository fingerprints, common-directory locks, atomic state writes, and schema migrations
+- Added managed feature records, readable actor and feature IDs, exclusive writer claims, and active-source selection
+- Added two-phase `imp start` with fresh remote-trunk validation, safe argv-only setup, and allowlisted ignored-file sharing
+- Added transactional `imp commit` planning with exact hunk coverage, same-file splitting, Conventional Commits, and unrelated index preservation
+- Added direct manual commits through `imp commit -m`, local amend and fixup modes, and `imp split` as an exact `imp commit --all` alias
+- Added styled worktree tables, machine-readable context, and a two-writer isolation proof suite
+- Added immutable integration candidates, configured checks, exact human review receipts, and direct or pull-request completion
+- Added source-release candidates that update versions, lockfiles, and the flat changelog before exact publication
+- Added guarded Codex and Claude adapters with automatic actor identity and ephemeral local instructions
+- Added the adapter-neutral versioned JSON protocol for Temper and other automation
+- Changed the native CLI to the focused v2 workflow surface and pass every ordinary Git command through unchanged
+- Changed prompts to fail closed when no terminal or explicit approval is available
+- Changed `imp push` to ordinary Git passthrough and prevented `imp ship` from silently committing dirty work
+- Fixed feature creation so branches cannot inherit the caller's feature branch or stale remote-trunk state
+- Fixed commit failures so the starting branch, index, worktree, and untracked content remain unchanged
+- Fixed agent diagnostics so untrusted Codex hooks report `guided` until reviewed through `/hooks`
+- Fixed the installed entrypoint so native command failures preserve their exit code
+- Fixed reviewed integration candidates so `imp done` reuses the exact approved plan
 
 ## [0.0.68] - 2026-07-29
 
