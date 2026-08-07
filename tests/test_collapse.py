@@ -1,8 +1,8 @@
 import pytest
 import typer
 
-from imp import git, version
-from imp.commands.collapse import _default_floor, _victims, collapse
+from imp_git import git, version
+from imp_git.commands.collapse import _default_floor, _victims, collapse
 from tests.conftest import git_run
 
 

@@ -1,7 +1,9 @@
+import subprocess
+
 import pytest
 import typer
 
-from imp import git
+from imp_git import git
 from tests.conftest import commit_file, git_run, last_commit_subject
 
 
@@ -25,6 +27,16 @@ class TestRequireClean:
       (repo / "file.txt").write_text ("dirty\n")
       with pytest.raises (typer.Exit):
          git.require_clean ()
+
+
+class TestFetch:
+
+   def test_fails_when_git_fetch_fails (self, repo, monkeypatch):
+      error = subprocess.CalledProcessError (1, [ "git", "fetch" ], stderr="offline")
+      monkeypatch.setattr (git, "_run", lambda *args, **kwargs: (_ for _ in ()).throw (error))
+
+      with pytest.raises (typer.Exit):
+         git.fetch ()
 
 
 class TestDiff:

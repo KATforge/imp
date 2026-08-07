@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from imp import console, git, workflow
-from imp.commands import push as push_cmd
+from imp_git import console, git, workflow
+from imp_git.commands import push as push_cmd
+from imp_git.commands import resolve as resolve_cmd
 from tests.conftest import commit_file, git_run
 
 
@@ -125,6 +126,25 @@ class TestReconcile:
       assert workflow.reconcile () is False
       assert git.count_behind () == 1
 
+
+class TestAutomaticResolution:
+
+   def test_does_not_stage_ai_output_with_conflict_markers (self, repo, monkeypatch):
+      conflict = "<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> main\n"
+      (repo / "file.txt").write_text (conflict)
+
+      monkeypatch.setattr (resolve_cmd.ai, "smart", lambda prompt: conflict)
+      monkeypatch.setattr (resolve_cmd.git, "conflicts", lambda: [ "file.txt" ])
+      monkeypatch.setattr (resolve_cmd.git, "merge_in_progress", lambda: False)
+      monkeypatch.setattr (resolve_cmd.git, "rebase_in_progress", lambda: False)
+
+      staged = []
+      monkeypatch.setattr (resolve_cmd.git, "add", lambda paths: staged.extend (paths))
+
+      resolve_cmd.resolve (yes=True, whisper="", favor_ours=False, favor_theirs=False)
+
+      assert staged == []
+      assert (repo / "file.txt").read_text () == conflict
 
 class TestPushReconciles:
 

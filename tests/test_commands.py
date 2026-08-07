@@ -4,17 +4,18 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp import ai, console, gh, git
-from imp.commands import branch as branch_cmd
-from imp.commands import commit as commit_cmd
-from imp.commands import init as init_cmd
-from imp.commands import merge as merge_cmd
-from imp.commands import pr as pr_cmd
-from imp.commands import push as push_mod
-from imp.commands import tag as tag_cmd
-from imp.commands import review as review_cmd
-from imp.commands import setup as setup_cmd
-from imp.commands import update as update_cmd
+from imp_git import ai, console, gh, git
+from imp_git.commands import branch as branch_cmd
+from imp_git.commands import commit as commit_cmd
+from imp_git.commands import init as init_cmd
+from imp_git.commands import merge as merge_cmd
+from imp_git.commands import pr as pr_cmd
+from imp_git.commands import push as push_mod
+from imp_git.commands import review as review_cmd
+from imp_git.commands import setup as setup_cmd
+from imp_git.commands import stash as stash_cmd
+from imp_git.commands import tag as tag_cmd
+from imp_git.commands import update as update_cmd
 from tests.conftest import commit_file, git_run, last_commit_subject
 
 
@@ -22,7 +23,7 @@ class TestCommitCommand:
 
    def test_commits_with_ai_message (self, repo, monkeypatch):
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-      monkeypatch.setattr (console, "review", lambda text: "Yes")
+      monkeypatch.setattr (console, "confirm", lambda text: True)
 
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
@@ -33,7 +34,7 @@ class TestCommitCommand:
 
    def test_commit_all_stages_everything (self, repo, monkeypatch):
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add feature")
-      monkeypatch.setattr (console, "review", lambda text: "Yes")
+      monkeypatch.setattr (console, "confirm", lambda text: True)
 
       (repo / "new.txt").write_text ("new file\n")
 
@@ -43,7 +44,7 @@ class TestCommitCommand:
 
    def test_commit_cancelled (self, repo, monkeypatch):
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-      monkeypatch.setattr (console, "review", lambda text: "No")
+      monkeypatch.setattr (console, "confirm", lambda text: False)
 
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
@@ -57,23 +58,18 @@ class TestCommitCommand:
       with pytest.raises (typer.Exit):
          commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
 
-   def test_commit_push_calls_do_push (self, repo, monkeypatch):
+   def test_commit_rejects_push (self, repo, monkeypatch):
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-      monkeypatch.setattr (console, "review", lambda text: "Yes")
-
-      pushed = []
-      monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
 
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
 
-      commit_cmd.commit (all=False, exclude=None, yes=False, push=True, whisper="")
-
-      assert len (pushed) == 1
+      with pytest.raises (typer.Exit):
+         commit_cmd.commit (all=False, exclude=None, yes=False, push=True, whisper="")
 
    def test_commit_push_skipped_on_cancel (self, repo, monkeypatch):
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-      monkeypatch.setattr (console, "review", lambda text: "No")
+      monkeypatch.setattr (console, "confirm", lambda text: False)
 
       pushed = []
       monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
@@ -88,7 +84,7 @@ class TestCommitCommand:
 
    def test_commit_no_push_by_default (self, repo, monkeypatch):
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-      monkeypatch.setattr (console, "review", lambda text: "Yes")
+      monkeypatch.setattr (console, "confirm", lambda text: True)
 
       pushed = []
       monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
@@ -111,6 +107,7 @@ class TestCommitCommand:
 
       monkeypatch.setattr (ai, "fast", mock_fast)
       monkeypatch.setattr (console, "review", lambda text: "Yes")
+      monkeypatch.setattr (console, "confirm", lambda text: True)
 
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
@@ -279,6 +276,27 @@ class TestInitCommand:
       result = git_run (bare_dir, "remote")
       assert result.stdout.strip () == ""
 
+   def test_rejects_attributed_gitignore (self, bare_dir, monkeypatch, mock_spin):
+      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "Generated with Claude Code")
+      (bare_dir / "package.json").write_text ("{}\n")
+
+      with pytest.raises (typer.Exit):
+         init_cmd.init (url="")
+
+      assert not (bare_dir / ".gitignore").exists ()
+
+
+class TestStashCommand:
+
+   def test_rejects_attributed_title (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("changed\n")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "Generated with Claude Code")
+
+      with pytest.raises (typer.Exit):
+         stash_cmd._push ()
+
+      assert git.stash_list_raw () == []
+
 
 class TestSetupCommand:
 
@@ -441,7 +459,7 @@ class TestTagCommand:
       assert git.tag_exists ("v0.1.1")
       changelog = (repo / "CHANGELOG.md").read_text ()
       assert "## [0.1.1]" in changelog
-      assert "Add login" in changelog
+      assert "- Added login" in changelog
       assert last_commit_subject (repo) == "chore: release v0.1.1"
 
    def test_bumps_minor_resets_patch (self, repo):
@@ -575,7 +593,11 @@ class TestPrCommand:
    def test_update_edits_existing_pr (self, repo, monkeypatch, mock_spin):
       captured = {}
       monkeypatch.setattr (gh, "require", lambda: None)
-      monkeypatch.setattr (gh, "pr_view", lambda head: { "number": 7, "state": "OPEN", "url": "https://example.com/pr/7" })
+      monkeypatch.setattr (
+         gh,
+         "pr_view",
+         lambda head: { "number": 7, "state": "OPEN", "url": "https://example.com/pr/7" },
+      )
       monkeypatch.setattr (
          gh, "pr_edit",
          lambda number, title, body: captured.update (number=number, title=title, body=body) or "https://example.com/pr/7",
@@ -603,6 +625,25 @@ class TestPrCommand:
          pr_cmd.pr (yes=True, whisper="", into="main", update=True)
 
       assert "No open PR" in console.last_error ()
+
+   def test_rejects_ai_attribution_before_publish (self, repo, monkeypatch, mock_spin):
+      captured = {}
+      self._mock_gh (monkeypatch, captured)
+      monkeypatch.setattr (
+         ai,
+         "smart",
+         lambda prompt, spin=True: "TITLE: add thing\n\nDESCRIPTION:\nGenerated with Claude Code",
+      )
+      monkeypatch.setattr (git, "has_upstream", lambda: True)
+
+      git_run (repo, "checkout", "-b", "SPK-1-feature")
+      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
+
+      with pytest.raises (typer.Exit):
+         pr_cmd.pr (yes=True, whisper="", into="main", update=False)
+
+      assert captured == {}
+      assert "must not include AI attribution" in console.last_error ()
 
 
 class TestUpdateHelpers:

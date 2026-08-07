@@ -1,7 +1,8 @@
 import pytest
 import typer
 
-from imp import git
+from imp_git import git
+from imp_git.commands import undo as undo_cmd
 from tests.conftest import commit_file
 
 
@@ -28,4 +29,9 @@ class TestUndoIntegration:
    def test_cannot_undo_past_initial (self, repo):
       assert git.commit_count () == 1
       with pytest.raises (typer.Exit):
-         git.reset ("HEAD~2", soft=True)
+         undo_cmd.undo (1)
+
+   @pytest.mark.parametrize ("count", [ 0, -1 ])
+   def test_rejects_non_positive_count (self, repo, count):
+      with pytest.raises (typer.Exit):
+         undo_cmd.undo (count)

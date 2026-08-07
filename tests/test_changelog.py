@@ -2,9 +2,9 @@ import json
 
 from typer.testing import CliRunner
 
-from imp import ai
-from imp.commands.changelog import _build_version_map, _generate_changelog, _infer_versions, _tag_plan
-from imp.main import app
+from imp_git import ai
+from imp_git.commands.changelog import _build_version_map, _generate_changelog, _infer_versions, _tag_plan
+from imp_git.main import app
 
 
 class TestBuildVersionMap:
@@ -94,8 +94,7 @@ class TestGenerateChangelog:
       result = _generate_changelog (versions)
       assert "# Changelog" in result
       assert "## [0.0.1] - 2025-01-01" in result
-      assert "### Added" in result
-      assert "Add login" in result
+      assert "- Added login" in result
 
    def test_unreleased_section (self):
       versions = [ {

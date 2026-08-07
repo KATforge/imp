@@ -1,4 +1,4 @@
-from imp import prompts
+from imp_git import prompts
 
 
 class TestCommit:

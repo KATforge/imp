@@ -1,8 +1,8 @@
 import pytest
 import typer
 
-from imp import git
-from imp.commands import worktree as worktree_cmd
+from imp_git import git
+from imp_git.commands import worktree as worktree_cmd
 from tests.conftest import commit_file, git_run
 
 
@@ -27,12 +27,13 @@ class TestWorktreeAddSafeBase:
          base="",
          path=str (wt_path),
          no_fetch=False,
+         yes=True,
       )
 
       assert wt_path.exists ()
 
       origin_master_sha = git.rev_parse ("origin/master")
-      new_branch_sha = git.rev_parse ("KAT-99-thing")
+      new_branch_sha = git.rev_parse ("feature/kat-99-thing")
 
       assert new_branch_sha == origin_master_sha, (
          "new branch was rooted at HEAD (feat/wip), not origin/master — "
@@ -59,10 +60,12 @@ class TestWorktreeAddSafeBase:
          base="",
          path=str (tmp_path / "fetched-wt"),
          no_fetch=False,
+         yes=True,
       )
 
       assert any (
-         kwargs.get ("remote") == "origin" and kwargs.get ("refspec") == "master"
+         kwargs.get ("remote") == "origin"
+         and kwargs.get ("refspec") == "+refs/heads/master:refs/remotes/origin/master"
          for _args, kwargs in fetched
       ), f"expected fetch(origin, master); got {fetched}"
 
@@ -77,6 +80,8 @@ class TestWorktreeAddSafeBase:
          base="",
          path=str (tmp_path / "cached-wt"),
          no_fetch=True,
+         unmanaged=True,
+         yes=True,
       )
 
       assert fetched == []
@@ -92,9 +97,10 @@ class TestWorktreeAddSafeBase:
          base="feat/wip",
          path=str (wt_path),
          no_fetch=False,
+         yes=True,
       )
 
-      assert git.rev_parse ("KAT-99-explicit") == target_sha
+      assert git.rev_parse ("feature/kat-99-explicit") == target_sha
 
    def test_explicit_base_does_not_fetch (self, repo_with_origin, tmp_path, mock_spin, monkeypatch):
       """--base is an explicit choice; we don't second-guess with a fetch."""
@@ -107,6 +113,7 @@ class TestWorktreeAddSafeBase:
          base="feat/wip",
          path=str (tmp_path / "explicit-no-fetch-wt"),
          no_fetch=False,
+         yes=True,
       )
 
       assert fetched == []
@@ -126,9 +133,10 @@ class TestWorktreeAddSafeBase:
          base="",
          path=str (wt_path),
          no_fetch=False,
+         yes=True,
       )
 
-      assert git.rev_parse ("KAT-99-main-base") == git.rev_parse ("origin/main")
+      assert git.rev_parse ("feature/kat-99-main-base") == git.rev_parse ("origin/main")
 
    def test_falls_back_to_local_trunk_when_no_remote (self, repo, tmp_path, mock_spin):
       """No remote configured: fall back to local trunk branch, never HEAD."""
@@ -148,9 +156,10 @@ class TestWorktreeAddSafeBase:
          base="",
          path=str (wt_path),
          no_fetch=False,
+         yes=True,
       )
 
-      assert git.rev_parse ("KAT-99-no-remote") == main_sha
+      assert git.rev_parse ("feature/kat-99-no-remote") == main_sha
 
    def test_aborts_when_no_remote_and_no_local_trunk (self, tmp_path, mock_spin, monkeypatch):
       """No remote AND no local trunk: refuse, don't silently pick HEAD."""
@@ -169,6 +178,7 @@ class TestWorktreeAddSafeBase:
             base="",
             path=str (tmp_path / "doomed-wt"),
             no_fetch=False,
+            yes=True,
          )
 
 

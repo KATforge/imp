@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from imp import ai, console
+from imp_git import ai, console
 
 
 def git_run (cwd, *args):
@@ -32,7 +32,7 @@ def last_commit_subject (repo):
 def _clear_repo_cache ():
    """repo.load() is process-cached; clear it around every test so a `.imp`
    written by one test never leaks into another repo."""
-   from imp import repo as repo_mod
+   from imp_git import repo as repo_mod
 
    repo_mod.load.cache_clear ()
    yield
@@ -47,6 +47,20 @@ def repo (tmp_path):
    git_run (tmp_path, "config", "user.email", "test@test.com")
    git_run (tmp_path, "config", "user.name", "Test")
    commit_file (tmp_path, "file.txt", "hello\n", "Initial commit")
+
+   old_cwd = Path.cwd ()
+   os.chdir (tmp_path)
+   yield tmp_path
+   os.chdir (old_cwd)
+
+
+@pytest.fixture
+def unborn_repo (tmp_path):
+   """Create a temporary Git repo whose branch has no commits."""
+
+   git_run (tmp_path, "init", "-b", "main")
+   git_run (tmp_path, "config", "user.email", "test@test.com")
+   git_run (tmp_path, "config", "user.name", "Test")
 
    old_cwd = Path.cwd ()
    os.chdir (tmp_path)

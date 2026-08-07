@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from imp import depgraph
+from imp_git import depgraph
 
 
 def _git (cwd: Path, *args: str):

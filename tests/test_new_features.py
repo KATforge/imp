@@ -2,10 +2,10 @@ import json
 
 from typer.testing import CliRunner
 
-from imp import repo as repo_mod
-from imp import version
-from imp.commands import changelog as changelog_cmd
-from imp.main import app
+from imp_git import repo as repo_mod
+from imp_git import version
+from imp_git.commands import changelog as changelog_cmd
+from imp_git.main import app
 
 
 class TestRepoConfig:
@@ -43,8 +43,7 @@ class TestEntry:
 
       out = version.entry (commits, fast=True)
 
-      assert "### Added" in out
-      assert "Add login" in out
+      assert out == "- Added login"
 
    def test_skip_filters_noise (self, repo):
       commits = [
@@ -97,22 +96,22 @@ class TestNewCommandsRegistered:
    def _help (self, name):
       return CliRunner ().invoke (app, [ name, "--help" ])
 
-   def test_pull (self):
-      result = self._help ("pull")
+   def test_start (self):
+      result = self._help ("start")
       assert result.exit_code == 0
-      assert "--merge" in result.output
+      assert "--task" in result.output
 
-   def test_docs (self):
-      result = self._help ("docs")
+   def test_commit (self):
+      result = self._help ("commit")
       assert result.exit_code == 0
-      assert "--since" in result.output
+      assert "--plan" in result.output
 
    def test_init (self):
       result = self._help ("init")
       assert result.exit_code == 0
 
-   def test_setup (self):
-      result = self._help ("setup")
+   def test_worktree (self):
+      result = self._help ("worktree")
       assert result.exit_code == 0
 
    def test_changelog_rebuild_flag (self):

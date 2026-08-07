@@ -1,7 +1,36 @@
+import json
+
 import pytest
 import typer
 
-from imp import ai
+from imp_git import ai
+
+
+class _Response:
+
+   def __enter__ (self):
+      return self
+
+   def __exit__ (self, *_):
+      return None
+
+   def read (self):
+      return b'{"response": "OK"}'
+
+
+class TestOllama:
+
+   def test_disables_thinking (self, monkeypatch):
+      payload = {}
+
+      def urlopen (request, timeout):
+         payload.update (json.loads (request.data))
+         return _Response ()
+
+      monkeypatch.setattr (ai.urllib.request, "urlopen", urlopen)
+
+      assert ai._ollama ("Reply with OK", "qwen3:8b") == "OK"
+      assert payload ["think"] is False
 
 
 class TestOneline:
@@ -39,6 +68,18 @@ class TestTruncate:
 
    def test_default_limit (self):
       assert ai.MAX_DIFF_LINES == 2000
+
+
+class TestGuard:
+
+   def test_adds_authorship_rule (self, monkeypatch):
+      captured = {}
+      monkeypatch.setattr (ai.config, "get", lambda key: "test-model")
+      monkeypatch.setattr (ai, "_call", lambda prompt, model: captured.update (prompt=prompt) or "OK")
+
+      assert ai.fast ("Do the task", spin=False) == "OK"
+      assert "Never identify an AI agent" in captured ["prompt"]
+      assert "actor IDs" in captured ["prompt"]
 
 
 class TestCommitMessage:

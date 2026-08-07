@@ -1,6 +1,6 @@
 import pytest
 
-from imp.version import (
+from imp_git.version import (
    bump,
    changelog_from_commits,
    normalize,
@@ -71,6 +71,14 @@ class TestNormalizeLine:
    def test_never_truncates_mid_phrase (self):
       raw = "Speed up changelog generation dramatically without external network dependencies"
       assert normalize_line (raw) == raw
+
+   @pytest.mark.parametrize ("raw", [
+      "Generated with Claude Code",
+      "Co-Authored-By: Bot <bot@example.com>",
+      "actor:codex:release-agent",
+   ])
+   def test_drops_provenance (self, raw):
+      assert normalize_line (raw) == ""
 
 
 class TestNormalize:
@@ -165,35 +173,28 @@ class TestChangelogFromCommits:
 
    def test_feat (self):
       result = changelog_from_commits ("feat: add login page")
-      assert "### Added" in result
-      assert "Add login page" in result
+      assert result == "- Added login page"
 
    def test_fix (self):
       result = changelog_from_commits ("fix: resolve crash on startup")
-      assert "### Fixed" in result
-      assert "Resolve crash on startup" in result
+      assert result == "- Fixed resolve crash on startup"
 
    def test_other_types (self):
       result = changelog_from_commits ("refactor: simplify auth flow")
-      assert "### Changed" in result
-      assert "Simplify auth flow" in result
+      assert result == "- Changed simplify auth flow"
 
    def test_mixed (self):
       subjects = "feat: add dark mode\nfix: resolve null pointer\nchore: update deps"
       result = changelog_from_commits (subjects)
-      assert "### Added" in result
-      assert "### Fixed" in result
-      assert "### Changed" in result
+      assert result.splitlines () == [ "- Added dark mode", "- Fixed resolve null pointer", "- Changed deps" ]
 
    def test_non_conventional (self):
       result = changelog_from_commits ("some random commit")
-      assert "### Changed" in result
-      assert "Some random commit" in result
+      assert result == "- Changed some random commit"
 
    def test_strips_hash_prefix (self):
       result = changelog_from_commits ("abc1234 feat: add feature")
-      assert "### Added" in result
-      assert "Add feature" in result
+      assert result == "- Added feature"
 
    def test_empty (self):
       result = changelog_from_commits ("")
@@ -201,10 +202,12 @@ class TestChangelogFromCommits:
 
    def test_scoped_commit (self):
       result = changelog_from_commits ("feat(auth): add oauth support")
-      assert "### Added" in result
-      assert "Add oauth support" in result
+      assert result == "- Added oauth support"
 
-PACKAGE_JSON = '{\n   "name": "demo",\n   "version": "1.0.0",\n   "dependencies": { "left-pad": { "version": "9.9.9" } }\n}\n'
+PACKAGE_JSON = (
+   '{\n   "name": "demo",\n   "version": "1.0.0",\n'
+   '   "dependencies": { "left-pad": { "version": "9.9.9" } }\n}\n'
+)
 
 PYPROJECT = '[project]\nname = "demo"\nversion = "1.0.0"\n\n[tool.ruff]\ntarget-version = "py310"\n'
 
