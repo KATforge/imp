@@ -14,8 +14,6 @@ COMMIT_RE = re.compile (
 
 _TICKET_RE = re.compile (r"^[A-Z]+-[0-9]")
 
-_BRANCH_RE = re.compile (r"^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$")
-
 _ATTRIBUTION_SOURCE = (
    r"(?:ai(?: agent)?|artificial intelligence(?: agent)?|llm|language model|bot|chatgpt|"
    r"claude(?: code)?|codex|gemini|(?:github )?copilot|openai(?: codex)?|anthropic)"

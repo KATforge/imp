@@ -8,6 +8,7 @@ import urllib.request
 from imp_git import config, console
 
 MAX_DIFF_LINES = 2000
+MAX_DIFF_CHARS = 100_000
 
 _ATTRIBUTION_RULE = """\
 Authorship rule:
@@ -139,11 +140,14 @@ def strip_fences (text: str) -> str:
 def oneline (text: str) -> str:
    return text.replace ("\n", "").strip ()
 
-def truncate (text: str, max_lines: int = MAX_DIFF_LINES) -> str:
+def truncate (
+   text: str,
+   max_lines: int = MAX_DIFF_LINES,
+   max_chars: int = MAX_DIFF_CHARS,
+) -> str:
    lines = text.splitlines ()
-   if len (lines) <= max_lines:
-      return text
-   return "\n".join (lines [:max_lines])
+   value = text if len (lines) <= max_lines else "\n".join (lines [:max_lines])
+   return value [:max_chars]
 
 def commit_message (prompt: str) -> str:
    from imp_git import validate

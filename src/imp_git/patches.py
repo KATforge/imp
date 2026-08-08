@@ -66,15 +66,6 @@ def changes (paths: list [str], mode: str) -> tuple [list [dict [str, str]], str
       index.unlink (missing_ok=True)
 
 
-def content (changes: list [dict [str, str]]) -> str:
-   """Render change identities and patches for the commit planner."""
-
-   return "\n".join (
-      f"--- {change ['id']} ---\n{change ['patch']}"
-      for change in changes
-   )
-
-
 def apply (index: Path, changes: list [dict [str, Any]], change_ids: list [str]):
    """Apply selected planned changes to one isolated index."""
 

@@ -21,7 +21,13 @@ def _groups (
    whisper: str,
    single: bool,
 ) -> list [dict [str, Any]]:
-   diffs = patches.content (changes)
+   count = len (changes)
+   max_lines = max (1, ai.MAX_DIFF_LINES // count)
+   max_chars = max (1, ai.MAX_DIFF_CHARS // count)
+   diffs = "\n".join (
+      f"--- {change ['id']} ---\n{ai.truncate (change ['patch'], max_lines, max_chars)}"
+      for change in changes
+   )
    branch = git.branch ()
    change_ids = [change ["id"] for change in changes]
    if single or len (changes) == 1:

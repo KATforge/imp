@@ -63,11 +63,15 @@ class TestTruncate:
       result = ai.truncate (text, max_lines=3)
       assert result == "line0\nline1\nline2"
 
+   def test_over_character_limit (self):
+      assert ai.truncate ("abcdefgh", max_lines=10, max_chars=4) == "abcd"
+
    def test_empty (self):
       assert ai.truncate ("", max_lines=5) == ""
 
    def test_default_limit (self):
       assert ai.MAX_DIFF_LINES == 2000
+      assert ai.MAX_DIFF_CHARS == 100_000
 
 
 class TestGuard:

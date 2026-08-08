@@ -64,6 +64,18 @@ class TestPlans:
       )
       assert git.is_clean ()
 
+   def test_planner_bounds_large_changes_without_dropping_sections (self, repo, monkeypatch):
+      (repo / "large-a.txt").write_text ("a" * 200_000)
+      (repo / "large-b.txt").write_text ("b" * 200_000)
+      prompts = []
+      monkeypatch.setattr (ai, "fast", lambda prompt: prompts.append (prompt) or "chore: add large fixtures")
+
+      commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
+
+      assert "large-a.txt#1" in prompts [0]
+      assert "large-b.txt#1" in prompts [0]
+      assert len (prompts [0]) < ai.MAX_DIFF_CHARS + 5_000
+
    def test_staged_plan_preserves_unstaged_changes_in_same_file (self, repo, monkeypatch):
       _prepare_changes (repo)
       staged = _lines ().replace ("line 2\n", "line two\n")
