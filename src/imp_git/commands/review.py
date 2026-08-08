@@ -1,9 +1,14 @@
-from pathlib import Path
+import shlex
+from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 import typer
 
-from imp_git import ai, console, features, git, identity, integration, prompts, result, runtime, state
+from imp_git import ai, console, features, git, identity, integration, prompts, result, runtime, state, validate
+
+_FIX = "Fix recommendations with smart AI"
+_MARK = "Mark this exact candidate reviewed"
+_LEAVE = "Leave unmarked"
 
 
 def _direct_review (last: int, whisper: str):
@@ -35,6 +40,27 @@ def _feature (value: str) -> dict | None:
    return features.pick ("Select feature to review", candidates)
 
 
+def _patch_paths (patch: str) -> list [str]:
+   paths = set ()
+   for line in patch.splitlines ():
+      if not line.startswith ("diff --git "):
+         continue
+      try:
+         parts = shlex.split (line)
+      except ValueError as error:
+         raise state.StateError ("Smart AI returned an invalid patch header") from error
+      if len (parts) != 4 or parts [:2] != [ "diff", "--git" ]:
+         raise state.StateError ("Smart AI returned an invalid patch header")
+      left, right = parts [2:]
+      if not left.startswith ("a/") or not right.startswith ("b/") or left [2:] != right [2:]:
+         raise state.StateError ("Smart AI fixes cannot rename files")
+      path = PurePosixPath (left [2:])
+      if path.is_absolute () or ".." in path.parts:
+         raise state.StateError ("Smart AI patch contains an unsafe path")
+      paths.add (path.as_posix ())
+   return sorted (paths)
+
+
 def _patch (feature: dict, plan: dict) -> tuple [str, list [str]]:
    payload = plan ["payload"]
    path = str (feature ["path"])
@@ -57,12 +83,7 @@ def _patch (feature: dict, plan: dict) -> tuple [str, list [str]]:
       parts.append (f"diff --git a/{relative} b/{relative}\n--- /dev/null\n+++ b/{relative}\n")
       parts.append ("".join (f"+{line}" for line in text.splitlines (keepends=True)))
    patch = "\n".join (part.rstrip () for part in parts if part).rstrip () + "\n"
-   files = sorted ({
-      line.removeprefix ("diff --git a/").split (" b/", 1) [0]
-      for line in patch.splitlines ()
-      if line.startswith ("diff --git a/")
-   })
-   return patch, files
+   return patch, _patch_paths (patch)
 
 
 def _plan (feature: dict, actor_id: str) -> tuple [dict, str, list [str]]:
@@ -101,6 +122,66 @@ def _findings (patch: str, whisper: str, no_ai: bool, machine: bool) -> tuple [s
    return text, counts
 
 
+def _action (
+   findings: str,
+   *,
+   dirty: bool,
+   fix: bool,
+   machine: bool,
+   mark_reviewed: bool,
+) -> str:
+   if fix:
+      return "fix"
+   if mark_reviewed:
+      return "mark"
+   if machine or dirty or not console.interactive ():
+      return ""
+   if findings:
+      selected = console.choose ("Review action", [ _FIX, _MARK, _LEAVE ])
+      return { _FIX: "fix", _MARK: "mark", _LEAVE: "" } [selected]
+   return "mark" if console.confirm ("Mark this exact candidate reviewed?") else ""
+
+
+def _fix (
+   feature: dict,
+   patch: str,
+   findings: str,
+   files: list [str],
+   *,
+   actor_id: str,
+   candidate_oid: str,
+   machine: bool,
+) -> dict:
+   prompt = prompts.review_fix (ai.truncate (patch), findings, files)
+   response = ai.smart (prompt, False) if machine else console.spin ("Fixing...", ai.smart, prompt, False)
+   value = ai.strip_fences (response).strip ()
+   if value == "NO_CHANGES":
+      if not machine:
+         console.muted ("Smart AI found no safe changes to apply")
+      return { "applied": False, "files": [] }
+   if "GIT binary patch" in value or not validate.publishable (value):
+      raise state.StateError ("Smart AI returned an unsafe patch")
+   changed = _patch_paths (value)
+   if not changed:
+      raise state.StateError ("Smart AI did not return a unified Git patch")
+   unexpected = sorted (set (changed) - set (files))
+   if unexpected:
+      raise state.StateError (f"Smart AI patch escaped the reviewed files: {', '.join (unexpected)}")
+   features.claim (feature, actor_id)
+   path = str (feature ["path"])
+   head = git.run_at (path, "rev-parse", "HEAD", check=False).stdout.strip ()
+   if head != candidate_oid or not git.clean_at (path):
+      raise state.StateError ("Feature changed while smart AI prepared its patch")
+   try:
+      git.apply_at (path, value + "\n")
+   except RuntimeError as error:
+      raise state.StateError (str (error)) from error
+   if not machine:
+      console.success (f"Applied smart AI fixes to {len (changed)} file(s)")
+      console.hint ("inspect, test, commit, then run imp review again")
+   return { "applied": True, "files": changed }
+
+
 def _mark (
    plan: dict,
    feature: dict,
@@ -113,8 +194,6 @@ def _mark (
    requested: bool,
 ) -> dict | None:
    should_mark = requested
-   if not machine and not requested and not dirty and console.interactive ():
-      should_mark = console.confirm ("Mark this exact candidate reviewed?")
    if dirty:
       if should_mark:
          console.fatal ("Commit or remove dirty feature state before marking reviewed")
@@ -132,11 +211,16 @@ def _managed_review (
    feature: dict,
    *,
    actor_id: str,
+   fix: bool,
    json_output: bool,
    mark_reviewed: bool,
    no_ai: bool,
    whisper: str,
 ) -> dict:
+   if fix and no_ai:
+      raise state.StateError ("--fix requires smart AI review")
+   if fix and mark_reviewed:
+      raise state.StateError ("--fix and review approval are mutually exclusive")
    plan, patch, files = _plan (feature, actor_id)
    payload = plan ["payload"]
    machine = json_output or runtime.options.json
@@ -144,16 +228,39 @@ def _managed_review (
    if not machine:
       _show (feature, payload, patch, len (files), dirty)
    findings_text, findings = _findings (patch, whisper, no_ai, machine)
-   receipt = _mark (
-      plan,
-      feature,
-      files,
-      findings,
-      actor_id=actor_id,
+   action = _action (
+      findings_text,
       dirty=dirty,
+      fix=fix,
       machine=machine,
-      requested=mark_reviewed,
+      mark_reviewed=mark_reviewed,
    )
+   fixed = { "applied": False, "files": [] }
+   receipt = None
+   if action == "fix":
+      if dirty:
+         raise state.StateError ("Commit or remove dirty feature state before applying smart AI fixes")
+      fixed = _fix (
+         feature,
+         patch,
+         findings_text,
+         files,
+         actor_id=actor_id,
+         candidate_oid=str (payload ["candidate_oid"]),
+         machine=machine,
+      )
+      dirty = bool (fixed ["applied"])
+   else:
+      receipt = _mark (
+         plan,
+         feature,
+         files,
+         findings,
+         actor_id=actor_id,
+         dirty=dirty,
+         machine=machine,
+         requested=action == "mark",
+      )
    data = {
       "candidate_oid": payload ["candidate_oid"],
       "diff": patch,
@@ -161,6 +268,7 @@ def _managed_review (
       "files": files,
       "findings": findings,
       "findings_text": findings_text,
+      "fix": fixed,
       "mark_available": not dirty,
       "path": str (feature ["path"]),
       "plan_id": plan ["plan_id"],
@@ -177,6 +285,7 @@ def _managed_review (
 
 def review (
    feature: Annotated [str, typer.Argument (help="Managed feature name")] = "",
+   fix: Annotated [bool, typer.Option ("--fix", help="Apply review recommendations with smart AI")] = False,
    no_ai: Annotated [bool, typer.Option ("--no-ai", help="Show complete deterministic review only")] = False,
    mark_reviewed: Annotated [
       bool,
@@ -192,11 +301,14 @@ def review (
    try:
       managed = _feature (feature)
       if not managed:
+         if fix:
+            raise state.StateError ("--fix requires a managed feature")
          return _direct_review (last, whisper)
       actor = identity.actor (actor_id)
       return _managed_review (
          managed,
          actor_id=actor,
+         fix=fix,
          json_output=json_output,
          mark_reviewed=mark_reviewed,
          no_ai=no_ai,

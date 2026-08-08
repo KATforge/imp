@@ -65,6 +65,7 @@ class TestSurface:
 
       assert result.exit_code == 0
       assert "[FEATURE]" in result.output
+      assert "--fix" in result.output
       assert "--mark-reviewed" not in result.output
 
    def test_ship_exposes_prerelease_without_legacy_release_flags (self):

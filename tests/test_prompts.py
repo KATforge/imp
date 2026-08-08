@@ -44,3 +44,11 @@ class TestReview:
    def test_whisper (self):
       result = prompts.review ("diff", whisper="focus on SQL injection")
       assert "User hint: focus on SQL injection" in result
+
+   def test_fix_is_limited_to_reviewed_files (self):
+      result = prompts.review_fix ("some diff", "fix the value", [ "src/value.py" ])
+
+      assert "src/value.py" in result
+      assert "fix the value" in result
+      assert "some diff" in result
+      assert "NO_CHANGES" in result

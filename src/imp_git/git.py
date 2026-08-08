@@ -336,6 +336,22 @@ def run_at (
 def clean_at (path: str) -> bool:
    return not run_at (path, "status", "--porcelain=v1", check=False).stdout.strip ()
 
+def apply_at (path: str, patch: str):
+   """Apply one atomic worktree patch through the Git boundary."""
+
+   try:
+      subprocess.run (
+         [ "git", "-C", path, "apply", "--recount", "--whitespace=nowarn", "-" ],
+         input=patch,
+         capture_output=True,
+         text=True,
+         check=True,
+         timeout=60,
+      )
+   except subprocess.CalledProcessError as error:
+      detail = (error.stderr or error.stdout or "").strip ()
+      raise RuntimeError (f"Smart AI patch did not apply: {detail}") from error
+
 def reset_at (path: str, ref: str):
    run_at (path, "reset", "--hard", ref)
 

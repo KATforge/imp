@@ -2,8 +2,9 @@ import sys
 from pathlib import Path
 
 import pytest
+import typer
 
-from imp_git import console, features, git, identity, integration, plans, runtime, source_release, state
+from imp_git import ai, console, features, git, identity, integration, plans, runtime, source_release, state
 from imp_git.commands import commit as commit_cmd
 from imp_git.commands import review as review_cmd
 from imp_git.commands import ship as ship_cmd
@@ -200,6 +201,49 @@ class TestIntegration:
 
       assert prompts == [ "Mark this exact candidate reviewed?" ]
       assert value ["receipt"] ["candidate_oid"] == value ["candidate_oid"]
+
+   def test_human_review_can_apply_smart_fixes (self, repo, tmp_path, monkeypatch):
+      feature = _feature (repo, tmp_path)
+      responses = iter ([
+         "The checkout value should be clearer.",
+         """diff --git a/checkout.txt b/checkout.txt
+--- a/checkout.txt
++++ b/checkout.txt
+@@ -1 +1 @@
+-checkout
++fixed checkout
+""",
+      ])
+      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: next (responses))
+      monkeypatch.setattr (console, "interactive", lambda: True)
+      monkeypatch.setattr (console, "choose", lambda _title, values: values [0])
+
+      value = review_cmd.review (feature ["feature_id"], actor_id=ACTOR)
+
+      assert value ["fix"] == { "applied": True, "files": [ "checkout.txt" ] }
+      assert value ["receipt"] is None
+      assert value ["mark_available"] is False
+      assert (Path (feature ["path"]) / "checkout.txt").read_text () == "fixed checkout\n"
+
+   def test_smart_fix_cannot_escape_reviewed_files (self, repo, tmp_path, monkeypatch):
+      feature = _feature (repo, tmp_path)
+      responses = iter ([
+         "Change an unrelated file.",
+         """diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -1 +1 @@
+-hello
++changed
+""",
+      ])
+      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: next (responses))
+
+      with pytest.raises (typer.Exit):
+         review_cmd.review (feature ["feature_id"], fix=True, actor_id=ACTOR)
+
+      assert (Path (feature ["path"]) / "file.txt").read_text () == "hello\n"
+      assert git.clean_at (str (feature ["path"]))
 
    def test_pull_request_keeps_worktree_until_merge_is_observed (
       self,

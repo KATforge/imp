@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added optional smart-AI review fixes constrained to the exact reviewed files
 - Added `imp.error.v1` machine-readable failure envelopes under `--json`
 - Changed plan-driven commands to share one display, approval, and apply flow
 - Removed legacy commands, duplicate aliases, their exclusive code, tests, and 117 obsolete demo assets
