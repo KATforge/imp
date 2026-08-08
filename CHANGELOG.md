@@ -7,14 +7,20 @@ All notable changes to this project will be documented in this file.
 - Added versioned JSON results, immutable plans, exact repository fingerprints, common-directory locks, atomic state writes, and schema migrations
 - Added managed feature records, readable actor and feature IDs, exclusive writer claims, and active-source selection
 - Added two-phase `imp start` with fresh remote-trunk validation, safe argv-only setup, and allowlisted ignored-file sharing
-- Added transactional `imp commit` planning with exact hunk coverage, same-file splitting, Conventional Commits, and unrelated index preservation
+- Added transactional `imp commit` planning with exact change coverage, same-file splitting, Conventional Commits, and unrelated index preservation
 - Added direct manual commits through `imp commit -m`, local amend and fixup modes, and `imp split` as an exact `imp commit --all` alias
 - Added styled worktree tables, machine-readable context, and a two-writer isolation proof suite
 - Added immutable integration candidates, configured checks, exact human review receipts, and direct or pull-request completion
 - Added source-release candidates that update versions, lockfiles, and the flat changelog before exact publication
+- Added explicit stable and prerelease source releases with monotonic `-rc.N` versions and matching GitHub release types
 - Added guarded Codex and Claude adapters with automatic actor identity and ephemeral local instructions
+- Added human-approved, repository- and session-scoped direct-edit grants for guarded agents
 - Added the adapter-neutral versioned JSON protocol for Temper and other automation
 - Changed the native CLI to the focused v2 workflow surface and pass every ordinary Git command through unchanged
+- Changed commit plan JSON to `imp.commit-plan.v2` and renamed diff units to changes
+- Changed source-release plans and receipts to versioned prerelease-aware formats
+- Changed repository policy to need no schema key
+- Changed new plan metadata and generated agent context to use Imp-owned names
 - Changed prompts to fail closed when no terminal or explicit approval is available
 - Changed `imp push` to ordinary Git passthrough and prevented `imp ship` from silently committing dirty work
 - Fixed feature creation so branches cannot inherit the caller's feature branch or stale remote-trunk state
@@ -22,6 +28,11 @@ All notable changes to this project will be documented in this file.
 - Fixed agent diagnostics so untrusted Codex hooks report `guided` until reviewed through `/hooks`
 - Fixed the installed entrypoint so native command failures preserve their exit code
 - Fixed reviewed integration candidates so `imp done` reuses the exact approved plan
+- Fixed review file extraction for complete feature diffs
+- Fixed source releases so GitHub publication failures produce recovery records instead of false success
+- Fixed interrupted integration and source-release plans so their recorded recovery commands can resume safely
+- Fixed completed rewritten features so their obsolete branches are removed after exact integration
+- Fixed recovery listings to show the command, plan, error, and next action
 - Fixed dirty source releases to show and enforce the separate commit approval flow
 - Fixed isolated package installs by declaring the directly imported Click dependency
 - Fixed fresh installs by constraining Typer to the tested CLI-compatible release line

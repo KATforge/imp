@@ -20,17 +20,20 @@ Every result uses this envelope:
 }
 ```
 
-Saved operation plans use `katforge.plan.v1` and a command-specific payload schema.
+Saved operation plans use `imp.plan.v1` and a command-specific payload schema.
 
 | Operation | Result or payload schema |
 |---|---|
 | Repository status | `imp.status.v1` |
 | Feature start plan | `imp.start-plan.v1` |
-| Commit plan | `imp.commit-plan.v1` |
+| Commit plan | `imp.commit-plan.v2` |
 | Integration plan | `imp.done-plan.v1` |
 | Human review receipt | `imp.review.v1` |
-| Source-release plan | `imp.ship-plan.v1` |
-| Source-release receipt | `imp.release.v1` |
+| Guard grant | `imp.guard.v1` |
+| Guard list | `imp.guards.v1` |
+| Guard revocation | `imp.guard-revoke.v1` |
+| Source-release plan | `imp.ship-plan.v2` |
+| Source-release receipt | `imp.release.v1` envelope with `imp.source-release.v2` persisted data |
 
 Automation must capture the returned `plan_id`, then apply that exact plan with `--apply <plan-id> --yes`. It must not parse human output or read Imp’s internal state files.
 
