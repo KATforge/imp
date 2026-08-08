@@ -17,7 +17,7 @@ class TestV2Surface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "use", "status", "commit", "review", "changelog", "guard", "ship", "worktree" ]:
+      for command in [ "start", "use", "status", "commit", "review", "changelog", "ship", "worktree" ]:
          assert command in result.output
       for removed in [ "amend", "bisect", "fleet", "release", "revert", "tidy", "undo" ]:
          assert f"│ {removed} " not in result.output
@@ -55,6 +55,50 @@ class TestV2Surface:
       monkeypatch.setattr (sys, "argv", [ "imp", "doctor" ])
 
       assert main_mod.run () == 3
+
+
+class TestErrorBoundary:
+
+   def _boom (self, standalone_mode):
+      raise RuntimeError ("exploded")
+
+   def test_uncaught_exception_emits_versioned_error_envelope (self, monkeypatch, capsys):
+      monkeypatch.setattr (main_mod, "app", self._boom)
+      monkeypatch.setattr (sys, "argv", [ "imp", "--json", "status" ])
+      monkeypatch.delenv ("IMP_DEBUG", raising=False)
+
+      code = main_mod.run ()
+      value = json.loads (capsys.readouterr ().out)
+
+      assert code == 1
+      assert value ["schema"] == "imp.error.v1"
+      assert value ["command"] == "imp status"
+      assert value ["ok"] is False
+      assert value ["error"] == { "message": "exploded", "type": "RuntimeError" }
+
+   def test_uncaught_exception_prints_concise_line_without_json (self, monkeypatch, capsys):
+      monkeypatch.setattr (main_mod, "app", self._boom)
+      monkeypatch.setattr (sys, "argv", [ "imp", "status" ])
+      monkeypatch.delenv ("IMP_DEBUG", raising=False)
+      monkeypatch.setattr (runtime, "options", runtime.Options ())
+
+      code = main_mod.run ()
+      captured = capsys.readouterr ()
+
+      assert code == 1
+      assert "exploded" in captured.out
+      assert "Traceback" not in captured.out + captured.err
+
+   def test_debug_variable_prints_the_raw_traceback (self, monkeypatch, capsys):
+      monkeypatch.setattr (main_mod, "app", self._boom)
+      monkeypatch.setattr (sys, "argv", [ "imp", "status" ])
+      monkeypatch.setenv ("IMP_DEBUG", "1")
+      monkeypatch.setattr (runtime, "options", runtime.Options ())
+
+      code = main_mod.run ()
+
+      assert code == 1
+      assert "Traceback" in capsys.readouterr ().err
 
 
 class TestV2Automation:

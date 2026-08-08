@@ -10,7 +10,8 @@ import typer
 
 from imp_git import ai, config, console, git, identity, repo, result, runtime
 
-_CODEX_EVENTS = { "permissionRequest", "preToolUse", "sessionEnd", "sessionStart" }
+_CODEX_EVENTS = { "preToolUse" }
+_CLAUDE_EVENTS = [ "PreToolUse" ]
 
 
 def _check (name: str, cmd: str, url: str, required: bool = True) -> bool:
@@ -121,6 +122,36 @@ def _codex_guard (cwd: Path) -> tuple [bool, str]:
 
    return False, "unavailable"
 
+
+def _claude_events (settings: Path) -> dict [str, bool]:
+   """Report guard registration per hook event from parsed Claude settings."""
+
+   try:
+      value = json.loads (settings.read_text ())
+   except (FileNotFoundError, json.JSONDecodeError, OSError):
+      value = {}
+   hooks = value.get ("hooks", {}) if isinstance (value, dict) else {}
+   events = {}
+   for event in _CLAUDE_EVENTS:
+      groups = hooks.get (event, []) if isinstance (hooks, dict) else []
+      events [event] = any (
+         "imp/agents/agent_guard.py" in str (entry.get ("command", ""))
+         for group in groups if isinstance (group, dict)
+         for entry in group.get ("hooks", []) if isinstance (entry, dict)
+      ) if isinstance (groups, list) else False
+   return events
+
+
+def _guard_drift (install: Path) -> str:
+   """Compare the deployed guard against the packaged adapter source."""
+
+   deployed = install / "agent_guard.py"
+   packaged = Path (__file__).resolve ().parents [3] / "adapters" / "agent_guard.py"
+   if not deployed.is_file () or not packaged.is_file ():
+      return "unknown"
+   return "in-sync" if deployed.read_bytes () == packaged.read_bytes () else "modified"
+
+
 def _agent_report () -> dict:
    install = Path.home () / ".config" / "imp" / "agents"
    metadata_path = install / "adapter.json"
@@ -128,18 +159,23 @@ def _agent_report () -> dict:
       metadata = json.loads (metadata_path.read_text ())
    except (FileNotFoundError, json.JSONDecodeError, OSError):
       metadata = {}
+   installed = bool (metadata.get ("version")) and (install / "agent_guard.py").is_file ()
    providers = []
    for name, settings, skill in [
       ("claude", Path.home () / ".claude" / "settings.json", Path.home () / ".claude" / "skills"),
       ("codex", Path.home () / ".codex" / "hooks.json", Path.home () / ".codex" / "skills"),
    ]:
-      try:
-         text = settings.read_text ()
-      except OSError:
-         text = ""
-      hook = "imp/agents/agent_guard.py" in text
+      if name == "claude":
+         events = _claude_events (settings)
+         hook = all (events.values ())
+      else:
+         try:
+            text = settings.read_text ()
+         except OSError:
+            text = ""
+         hook = "imp/agents/agent_guard.py" in text
+         events = {}
       workflow = (skill / "imp-development" / "SKILL.md").is_file ()
-      installed = bool (metadata.get ("version")) and (install / "agent_guard.py").is_file ()
       guards = hook and installed
       trust = "not-required"
       if name == "codex" and guards:
@@ -149,7 +185,9 @@ def _agent_report () -> dict:
          "automatic_bootstrap": guards,
          "context_injection": guards,
          "effective_enforcement": "guarded" if guards else "guided" if workflow else "none",
+         "events": events,
          "guards": guards,
+         "hook_mechanism": True,
          "hook_trust": trust,
          "hooks": hook,
          "installed": installed,
@@ -158,10 +196,34 @@ def _agent_report () -> dict:
          "skill": workflow,
          "version": metadata.get ("version"),
       })
+   providers.append ({
+      "actor": identity.resource ("actor", "gemini", "session"),
+      "automatic_bootstrap": False,
+      "context_injection": False,
+      "effective_enforcement": "none",
+      "events": {},
+      "guards": False,
+      "hook_mechanism": False,
+      "hook_trust": "not-configured",
+      "hooks": False,
+      "installed": installed,
+      "provider": "gemini",
+      "sandbox": False,
+      "skill": False,
+      "version": metadata.get ("version"),
+   })
    levels = { "none": 0, "guided": 1, "guarded": 2, "sandboxed": 3 }
    configured = str (repo.get ("agent:enforcement", "guarded")) if git.is_repo () else "guarded"
-   ok = all (levels.get (value ["effective_enforcement"], 0) >= levels.get (configured, 2) for value in providers)
-   return { "configured_enforcement": configured, "ok": ok, "providers": providers }
+   ok = all (
+      levels.get (value ["effective_enforcement"], 0) >= levels.get (configured, 2)
+      for value in providers if value ["hook_mechanism"]
+   )
+   return {
+      "configured_enforcement": configured,
+      "guard_drift": _guard_drift (install),
+      "ok": ok,
+      "providers": providers,
+   }
 
 
 def doctor (
@@ -202,6 +264,11 @@ def doctor (
          for value in data ["providers"]:
             if value ["hook_trust"] == "review-required":
                console.hint ("Codex: run /hooks and trust the Imp hooks")
+            missing = [ event for event, present in value ["events"].items () if not present ]
+            if missing:
+               console.warn (f"{value ['provider']}: guard hook missing events: {', '.join (missing)}")
+         if data ["guard_drift"] == "modified":
+            console.warn ("Deployed agent guard differs from the packaged adapter; rerun adapters/install.py")
       if not data ["ok"]:
          raise typer.Exit (1)
       return data

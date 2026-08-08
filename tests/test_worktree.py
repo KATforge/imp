@@ -1,7 +1,12 @@
+import json
+import socket
+import subprocess
+import sys
+
 import pytest
 import typer
 
-from imp_git import git
+from imp_git import features, git, plans, state
 from imp_git.commands import worktree as worktree_cmd
 from tests.conftest import commit_file, git_run
 
@@ -201,3 +206,103 @@ class TestFetchRemoteRefspec:
       origin_master_after = git.rev_parse ("origin/master")
 
       assert origin_master_after == origin_master_before
+
+
+class TestPruneReconciliation:
+
+   def test_orphaned_managed_worktree_is_reported_then_removed (self, repo_with_origin, tmp_path):
+      orphan = tmp_path / "orphan-wt"
+      git_run (repo_with_origin, "worktree", "add", "-b", "feature/orphan", str (orphan), "origin/master")
+
+      report = worktree_cmd.prune ()
+      assert [ value ["branch"] for value in report ["orphans"] ] == [ "feature/orphan" ]
+      assert orphan.exists ()
+
+      removed = worktree_cmd.prune (remove_orphans=True)
+      assert removed ["removed"]
+      assert not orphan.exists ()
+      assert "feature/orphan" not in git.branches_local ()
+
+   def test_orphaned_managed_worktree_can_be_adopted (self, repo_with_origin, tmp_path):
+      orphan = tmp_path / "adopt-wt"
+      git_run (repo_with_origin, "worktree", "add", "-b", "feature/adopt-me", str (orphan), "origin/master")
+
+      report = worktree_cmd.prune (adopt=True, actor_id="actor:human:test")
+
+      assert report ["adopted"] == [ "feature:adopt-me" ]
+      feature = features.find ("adopt-me")
+      assert feature is not None
+      assert feature ["worktree_state"] == "live"
+
+   def test_stale_ready_start_plan_is_marked_failed (self, repo_with_origin, tmp_path):
+      plan = features.plan_start (
+         "ghost",
+         actor_id="actor:human:test",
+         path=str (tmp_path / "ghost-wt"),
+      )
+      payload = plan ["payload"]
+      git_run (
+         repo_with_origin,
+         "worktree", "add", "-b", str (payload ["branch"]), str (payload ["path"]), str (payload ["base:oid"]),
+      )
+
+      worktree_cmd.prune (remove_orphans=True)
+
+      assert plans.load (plan ["plan_id"]) ["state"] == "failed"
+
+
+class TestUnmanagedRemove:
+
+   def test_remove_unmanaged_worktree_and_branch (self, repo_with_origin, tmp_path):
+      target = tmp_path / "scratch-wt"
+      worktree_cmd.add (name="scratch", path=str (target), unmanaged=True, yes=True)
+      assert target.exists ()
+
+      data = worktree_cmd.remove (name="scratch", unmanaged=True, delete_branch=True, yes=True)
+
+      assert data ["unmanaged"] is True
+      assert not target.exists ()
+      assert "scratch" not in git.branches_local ()
+
+   def test_unmanaged_remove_refuses_managed_worktrees (self, repo_with_origin, tmp_path, mock_spin):
+      worktree_cmd.add (
+         name="managed-one",
+         path=str (tmp_path / "managed-wt"),
+         yes=True,
+         actor_id="actor:human:test",
+      )
+
+      with pytest.raises (typer.Exit):
+         worktree_cmd.remove (name="managed-one", unmanaged=True, yes=True)
+
+
+class TestLockScoping:
+
+   def test_worktree_remove_ignores_the_global_features_lock (self, repo_with_origin, tmp_path, mock_spin):
+      worktree_cmd.add (
+         name="scoped",
+         path=str (tmp_path / "scoped-wt"),
+         yes=True,
+         actor_id="actor:human:test",
+      )
+      feature = features.find ("scoped")
+      child = subprocess.Popen ([ sys.executable, "-c", "import time; time.sleep(60)" ])
+      path = state.root () / "locks" / "features.json"
+      try:
+         path.parent.mkdir (parents=True, exist_ok=True)
+         path.write_text (json.dumps ({
+            "schema": "imp.lock.v1",
+            "name": "features",
+            "pid": child.pid,
+            "host": socket.gethostname (),
+            "started_at": state.now (),
+         }, indent=3, sort_keys=True) + "\n")
+
+         plan = features.plan_remove (feature, actor_id="actor:human:test")
+         data = features.apply_remove (plan, "actor:human:test")
+
+         assert data ["feature_id"] == feature ["feature_id"]
+      finally:
+         child.kill ()
+         child.wait ()
+         path.unlink (missing_ok=True)

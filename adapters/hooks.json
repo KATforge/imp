@@ -1,7 +1,7 @@
 {
-   "description": "Imp and Temper development guard",
+   "description": "Imp advisory git reminder",
    "hooks": {
-      "PermissionRequest": [
+      "PreToolUse": [
          {
             "matcher": "Bash",
             "hooks": [
@@ -9,44 +9,7 @@
                   "type": "command",
                   "command": "python3 IMP_AGENT_GUARD PROVIDER",
                   "timeout": 30,
-                  "statusMessage": "Recording approved Imp guard request"
-               }
-            ]
-         }
-      ],
-      "PreToolUse": [
-         {
-            "matcher": "Bash|Edit|Write|apply_patch",
-            "hooks": [
-               {
-                  "type": "command",
-                  "command": "python3 IMP_AGENT_GUARD PROVIDER",
-                  "timeout": 30,
-                  "statusMessage": "Checking Imp source policy"
-               }
-            ]
-         }
-      ],
-      "SessionEnd": [
-         {
-            "hooks": [
-               {
-                  "type": "command",
-                  "command": "python3 IMP_AGENT_GUARD PROVIDER",
-                  "timeout": 3
-               }
-            ]
-         }
-      ],
-      "SessionStart": [
-         {
-            "matcher": "startup|resume|clear|compact",
-            "hooks": [
-               {
-                  "type": "command",
-                  "command": "python3 IMP_AGENT_GUARD PROVIDER",
-                  "timeout": 20,
-                  "statusMessage": "Discovering Imp source context"
+                  "statusMessage": "Checking for raw git usage"
                }
             ]
          }

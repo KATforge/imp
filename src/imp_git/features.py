@@ -149,10 +149,14 @@ def _primary_path () -> str:
    return str (Path (entries [0].get ("worktree", git.repo_root ())).resolve ())
 
 
-def _default_path (name: str) -> Path:
+def _managed_root () -> Path:
    configured = str (repo.get ("worktree:root", "")) or config.get ("worktree:root")
    base = Path (configured).expanduser () if configured else Path.home () / ".worktrees"
-   return base / git.repo_name () / identity.slug (name)
+   return base / git.repo_name ()
+
+
+def _default_path (name: str) -> Path:
+   return _managed_root () / identity.slug (name)
 
 
 def _remote_oid (trunk: str) -> str:
@@ -357,20 +361,29 @@ def _setup (feature: dict [str, Any], commands: list [dict [str, Any]]):
       subprocess.run (entry ["run"], cwd=str (feature ["path"]), check=True)
 
 
+def _discard_start (path: str, branch: str, feature_id: str):
+   if Path (path).exists ():
+      git.worktree_remove (path, force=True)
+   if git.ref_exists (branch):
+      git.delete_branch (branch, force=True)
+   _path (feature_id).unlink (missing_ok=True)
+   _claim_path (feature_id).unlink (missing_ok=True)
+
+
 def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
    """Apply one exact feature-start plan and return the feature record."""
 
    if plan.get ("state") != "ready":
       raise state.StateError (f"Plan is {plan.get ('state')}, not ready")
+   base_ref = str (plan.get ("payload", {}).get ("base:ref", ""))
+   if base_ref.startswith ("origin/"):
+      target = str (plan ["payload"] ["target"])
+      git.fetch (remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}")
    with state.lock ("features"):
       descriptor = _validate_start (plan)
-      base_ref = str (descriptor ["base:ref"])
-      if base_ref.startswith ("origin/"):
-         target = str (descriptor ["target"])
-         git.fetch (remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}")
-         if git.rev_parse (base_ref) != descriptor ["base:oid"]:
-            plans.mark (plan, "stale", stale_at=state.now ())
-            raise state.StateError ("Remote trunk moved after the feature plan")
+      if base_ref.startswith ("origin/") and git.rev_parse (base_ref) != descriptor ["base:oid"]:
+         plans.mark (plan, "stale", stale_at=state.now ())
+         raise state.StateError ("Remote trunk moved after the feature plan")
       path = str (descriptor ["path"])
       branch = str (descriptor ["branch"])
       feature_id = str (descriptor ["feature_id"])
@@ -393,24 +406,23 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
             "state": "active",
          }
          _share (record, list (descriptor ["share"]))
-         _setup (record, list (descriptor ["setup"]))
          state.atomic_write (_path (feature_id), record)
          claim_record = None
          if descriptor ["claim_writer"]:
             claim_record = _new_claim (feature_id, str (descriptor ["created_by"]))
             state.atomic_write (_claim_path (feature_id), claim_record)
       except Exception:
-         if Path (path).exists ():
-            git.worktree_remove (path, force=True)
-         if git.ref_exists (branch):
-            git.delete_branch (branch, force=True)
-         _path (feature_id).unlink (missing_ok=True)
-         _claim_path (feature_id).unlink (missing_ok=True)
+         _discard_start (path, branch, feature_id)
          raise
-      if descriptor ["use"]:
-         select (record)
-      plans.mark (plan, "applied", applied_at=state.now ())
-      return { **record, "claim": claim_record, "worktree_state": "live" }
+   try:
+      _setup (record, list (descriptor ["setup"]))
+   except Exception:
+      _discard_start (path, branch, feature_id)
+      raise
+   if descriptor ["use"]:
+      select (record)
+   plans.mark (plan, "applied", applied_at=state.now ())
+   return { **record, "claim": claim_record, "worktree_state": "live" }
 
 
 def claim (feature: dict [str, Any], actor_id: str, ttl: str = "") -> dict [str, Any]:
@@ -586,7 +598,7 @@ def apply_remove (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
    if not feature or _remove_fingerprint (feature) != plan.get ("fingerprint"):
       plans.mark (plan, "stale", stale_at=state.now ())
       raise state.StateError ("Worktree removal plan is stale")
-   with state.lock ("features"):
+   with state.lock (f"feature-{identity.key (str (feature ['feature_id']))}"):
       git.worktree_remove (str (feature ["path"]))
       release (feature, actor_id)
       if payload ["delete_branch"] and not git.delete_branch (str (feature ["branch"])):
@@ -636,3 +648,98 @@ def complete (
       select (None)
 
    return record
+
+
+def orphans () -> list [dict [str, Any]]:
+   """List managed-prefix worktrees and branches that lack feature records."""
+
+   known = all ()
+   recorded_paths = { str (Path (str (feature ["path"])).resolve ()) for feature in known }
+   recorded_branches = { str (feature ["branch"]) for feature in known }
+   prefix = str (repo.get ("branch:prefix", "feature/"))
+   root = _managed_root ().resolve ()
+   entries = git.worktrees ()
+   primary = str (Path (entries [0].get ("worktree", "")).resolve ()) if entries else ""
+   values = []
+   seen_branches = set ()
+   for entry in entries:
+      path = str (Path (entry.get ("worktree", "")).resolve ())
+      branch = str (entry.get ("branch", "")).removeprefix ("refs/heads/")
+      seen_branches.add (branch)
+      if path == primary or path in recorded_paths:
+         continue
+      if not branch.startswith (prefix) and not Path (path).is_relative_to (root):
+         continue
+      values.append ({ "branch": branch, "kind": "worktree", "path": path })
+   for branch in git.branches_local ():
+      if not branch.startswith (prefix) or branch in recorded_branches or branch in seen_branches:
+         continue
+      values.append ({ "branch": branch, "kind": "branch", "path": "" })
+   return values
+
+
+def adopt (orphan: dict [str, Any], actor_id: str) -> dict [str, Any]:
+   """Create a feature record for one orphaned managed worktree."""
+
+   if orphan ["kind"] != "worktree":
+      raise state.StateError (f"Only orphaned worktrees can be adopted: {orphan ['branch']}")
+   branch = str (orphan ["branch"])
+   prefix = str (repo.get ("branch:prefix", "feature/"))
+   name = identity.slug (branch.removeprefix (prefix) or branch)
+   feature_id = identity.resource ("feature", name)
+   trunk = str (repo.get ("done:target", "")) or git.base_branch ()
+   base_ref = f"origin/{trunk}" if git.remote_exists () else trunk
+   with state.lock ("features"):
+      if find (name) or find (feature_id):
+         raise state.StateError (f"Feature already exists: {name}")
+      base_oid = git.rev_parse (branch)
+      if git.ref_exists (trunk) or git.ref_exists (base_ref):
+         merged = git.capture ("merge-base", branch, base_ref if git.ref_exists (base_ref) else trunk).strip ()
+         base_oid = merged or base_oid
+      record = {
+         "schema": "imp.feature.v1",
+         "feature_id": feature_id,
+         "name": name,
+         "branch": branch,
+         "path": str (Path (str (orphan ["path"])).resolve ()),
+         "base:ref": base_ref,
+         "base:oid": base_oid,
+         "target": trunk,
+         "task": "adopted by imp worktree prune",
+         "created_by": actor_id,
+         "writers": [],
+         "created_at": state.now (),
+         "change_id": "",
+         "state": "active",
+      }
+      state.atomic_write (_path (feature_id), record)
+   return record
+
+
+def discard (orphan: dict [str, Any]):
+   """Remove one orphaned managed worktree and delete its merged branch."""
+
+   with state.lock ("features"):
+      path = str (orphan.get ("path", ""))
+      if path and Path (path).exists ():
+         if not git.clean_at (path):
+            raise state.StateError (f"Orphaned worktree has uncommitted changes: {path}")
+         git.worktree_remove (path, force=True)
+      branch = str (orphan ["branch"])
+      if branch and git.ref_exists (branch) and not git.delete_branch (branch):
+         raise state.StateError (f"Orphaned branch is not merged; resolve it explicitly: {branch}")
+
+
+def stale_start_plans () -> list [dict [str, Any]]:
+   """List ready feature-start plans whose reserved branch or path exists."""
+
+   values = []
+   for plan in plans.all ("start"):
+      if plan.get ("state") != "ready":
+         continue
+      payload = plan.get ("payload", {})
+      branch = str (payload.get ("branch", ""))
+      path = str (payload.get ("path", ""))
+      if (branch and git.ref_exists (branch)) or (path and Path (path).exists ()):
+         values.append (plan)
+   return values

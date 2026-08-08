@@ -175,15 +175,18 @@ def _show_remove (plan: dict):
 def remove (
    name: Annotated [str, typer.Argument (help="Managed feature name or ID")] = "",
    delete_branch: Annotated [bool, typer.Option ("--delete-branch", "-d", help="Delete a merged branch too")] = False,
+   unmanaged: Annotated [bool, typer.Option ("--unmanaged", help="Remove a worktree with no feature record")] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Persist without applying")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply a saved plan")] = "",
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
    actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
-   """Remove one clean managed worktree through an exact plan."""
+   """Remove one clean worktree. Managed worktrees go through an exact plan."""
 
    actor = identity.actor (actor_id)
    yes = yes or runtime.options.yes
+   if unmanaged:
+      return _remove_unmanaged (name, delete_branch, plan_only, apply, yes)
    try:
       if apply:
          plan = plans.resolve ("worktree-remove", "" if apply == "__pick__" else apply)
@@ -218,17 +221,95 @@ def remove (
    return data
 
 
+def _remove_unmanaged (name: str, delete_branch: bool, plan_only: bool, apply: str, yes: bool):
+   git.require ()
+   if plan_only or apply:
+      console.fatal ("Unmanaged worktrees do not support Imp plans")
+   if not name:
+      console.fatal ("Worktree path, branch, or directory name is required")
+   resolved = str (Path (name).expanduser ().resolve ())
+   entry = next (
+      (
+         value for value in git.worktrees ()
+         if str (Path (value.get ("worktree", "")).resolve ()) == resolved
+         or value.get ("branch", "").removeprefix ("refs/heads/") == name
+         or Path (value.get ("worktree", "")).name == name
+      ),
+      None,
+   )
+   if not entry:
+      console.fatal (f"No worktree for {name}")
+   path = str (Path (entry ["worktree"]).resolve ())
+   managed = { str (Path (str (feature ["path"])).resolve ()) for feature in features.all () }
+   if path in managed:
+      console.fatal ("Worktree is managed; run imp worktree remove without --unmanaged")
+   if not git.clean_at (path):
+      console.fatal (f"Worktree has uncommitted changes: {path}")
+   if runtime.options.no_input and not yes:
+      console.fatal ("Non-interactive worktree removal requires --yes")
+   if not yes and not console.confirm ("Remove this clean worktree?"):
+      raise typer.Exit (0)
+   branch = entry.get ("branch", "").removeprefix ("refs/heads/")
+   git.worktree_remove (path)
+   if delete_branch and branch and not git.delete_branch (branch):
+      console.fatal (f"Branch is not merged; resolve it explicitly: {branch}")
+   data = { "branch": branch, "path": path, "unmanaged": True }
+   if runtime.options.json:
+      result.emit ("imp.worktree.v1", "imp worktree remove", data, json_output=True)
+   else:
+      console.success (f"Removed {path}")
+   return data
+
+
 @worktree.command ("prune")
-def prune ():
-   """Prune stale Git entries and report retained missing feature records."""
+def prune (
+   adopt: Annotated [bool, typer.Option ("--adopt", help="Record orphaned managed worktrees as features")] = False,
+   remove_orphans: Annotated [bool, typer.Option ("--remove", help="Delete clean orphaned worktrees")] = False,
+   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
+):
+   """Prune stale Git entries and reconcile managed worktree records."""
 
    git.require ()
+   if adopt and remove_orphans:
+      console.fatal ("--adopt and --remove are mutually exclusive")
    git.worktree_prune ()
    missing = [feature for feature in features.all () if feature ["worktree_state"] == "missing"]
    for feature in missing:
       console.warn (f"Retained missing feature record: {feature ['name']}")
+   failed_plans = []
+   for plan in features.stale_start_plans ():
+      plans.mark (plan, "failed", failed_at=state.now ())
+      failed_plans.append (str (plan ["plan_id"]))
+      console.warn (f"Marked stale ready start plan failed: {plan ['plan_id']}")
+   found = features.orphans ()
+   adopted = []
+   removed = []
+   for orphan in found:
+      label = orphan ["path"] or orphan ["branch"]
+      if adopt and orphan ["kind"] == "worktree":
+         try:
+            adopted.append (str (features.adopt (orphan, identity.actor (actor_id)) ["feature_id"]))
+            console.success (f"Adopted orphaned worktree: {label}")
+         except state.StateError as error:
+            console.err (str (error))
+         continue
+      if remove_orphans:
+         try:
+            features.discard (orphan)
+            removed.append (label)
+            console.success (f"Removed orphaned {orphan ['kind']}: {label}")
+         except state.StateError as error:
+            console.err (str (error))
+         continue
+      console.warn (f"Orphaned managed {orphan ['kind']}: {label} (rerun with --adopt or --remove)")
    console.success ("Reconciled worktree records")
-   return { "missing_features": [feature ["feature_id"] for feature in missing] }
+   return {
+      "adopted": adopted,
+      "failed_plans": failed_plans,
+      "missing_features": [feature ["feature_id"] for feature in missing],
+      "orphans": found,
+      "removed": removed,
+   }
 
 
 def _feature (name: str) -> dict:

@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import tempfile
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -183,7 +184,7 @@ def _stale (record: dict [str, Any]) -> bool:
 
 
 @contextmanager
-def lock (name: str) -> Iterator [dict [str, Any]]:
+def lock (name: str, *, attempts: int = 5, delay: float = 0.05) -> Iterator [dict [str, Any]]:
    """Acquire one repository-local advisory lock for a bounded mutation."""
 
    path = root () / "locks" / f"{name}.json"
@@ -196,17 +197,24 @@ def lock (name: str) -> Iterator [dict [str, Any]]:
       "started_at": now (),
    }
 
-   for attempt in range (2):
+   for attempt in range (attempts):
       try:
          descriptor = os.open (path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
       except FileExistsError as error:
-         existing = read (path, "imp.lock.v1")
-         if attempt == 0 and _stale (existing):
-            path.unlink ()
+         try:
+            existing = read (path, "imp.lock.v1")
+         except StateError:
+            time.sleep (delay)
             continue
-         raise StateError (
-            f"Imp operation is locked by pid {existing.get ('pid')} on {existing.get ('host')}"
-         ) from error
+         if _stale (existing):
+            path.unlink (missing_ok=True)
+            continue
+         if attempt + 1 == attempts:
+            raise StateError (
+               f"Imp operation is locked by pid {existing.get ('pid')} on {existing.get ('host')}"
+            ) from error
+         time.sleep (delay * (2 ** attempt))
+         continue
 
       with os.fdopen (descriptor, "w") as stream:
          stream.write (json.dumps (record, indent=3, sort_keys=True) + "\n")

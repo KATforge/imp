@@ -36,8 +36,7 @@ def _merge (path: Path, provider: str):
    current = _read (path)
    incoming = _hooks (provider) ["hooks"]
    configured = current.setdefault ("hooks", {})
-   for event, groups in incoming.items ():
-      existing = configured.setdefault (event, [])
+   for event, existing in list (configured.items ()):
       existing [:] = [
          group for group in existing
          if not any (
@@ -45,7 +44,10 @@ def _merge (path: Path, provider: str):
             for marker in [ "katforge/agents/agent_guard.py", "imp/agents/agent_guard.py" ]
          )
       ]
-      existing.extend (groups)
+      if not existing:
+         del configured [event]
+   for event, groups in incoming.items ():
+      configured.setdefault (event, []).extend (groups)
    _write (path, current)
 
 
