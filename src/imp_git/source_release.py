@@ -107,6 +107,7 @@ def _source (
 def plan_ship (
    *,
    level: str = "patch",
+   prerelease: bool = False,
    set_version: str = "",
    source_plan_id: str = "",
    persist: bool = True,
@@ -119,7 +120,12 @@ def plan_ship (
       git.fetch (tags=True)
    source_oid, target_ref, public_target_oid, source_plan = _source (source_plan_id)
    current = _latest_version ()
-   new_version = set_version or version.bump (current, level)
+   base_version = set_version or version.bump (current, level)
+   if version.base_tuple (base_version) is None or "-" in base_version:
+      raise state.StateError (f"Release version must be X.Y.Z: {base_version}")
+   existing = git.rc_tags (base_version)
+   existing.extend (tag for tag in git.remote_tags () if tag.startswith (f"v{base_version}-rc."))
+   new_version = version.next_rc (base_version, existing) if prerelease else base_version
    tag = f"v{new_version}"
    if git.tag_exists (tag) or tag in git.remote_tags ():
       raise state.StateError (f"Release tag already exists: {tag}")
@@ -153,6 +159,7 @@ def plan_ship (
       "lockfile_hashes": lock_hashes,
       "manifest_versions": manifest_versions,
       "previous_tag": previous_tag,
+      "prerelease": prerelease,
       "public_target_oid": public_target_oid,
       "push": git.remote_exists (),
       "repository": git.repo_name (),
@@ -169,6 +176,7 @@ def plan_ship (
       "tag": tag,
       "target_ref": target_ref,
       "version": new_version,
+      "prerelease": prerelease,
    })
    return plans.create (
       "ship", new_version,
@@ -180,24 +188,27 @@ def plan_ship (
          *([ { "action": "github_release", "tag": tag } ] if payload ["github_release"] else []),
       ],
       fingerprint=plan_fingerprint,
-      payload_schema="imp.ship-plan.v1",
+      payload_schema="imp.ship-plan.v2",
       payload=payload,
       persist=persist,
    )
 
 
 def _validate (plan: dict [str, Any]) -> dict [str, Any]:
-   if plan.get ("payload_schema") != "imp.ship-plan.v1":
+   if plan.get ("payload_schema") != "imp.ship-plan.v2":
       raise state.StateError ("Unsupported source-release plan")
    if plan.get ("state") != "ready":
       raise state.StateError (f"Source-release plan is {plan.get ('state')}")
    payload = dict (plan ["payload"])
    if not git.ref_exists (payload ["commit_oid"]):
       raise state.StateError ("Planned source-release candidate is missing")
-   if git.rev_parse (payload ["target_ref"]) != payload ["source_oid"]:
+   target_oid = git.rev_parse (payload ["target_ref"])
+   if target_oid not in { payload ["source_oid"], payload ["commit_oid"] }:
       raise state.StateError ("Release target does not match the tested source candidate")
-   if git.tag_exists (payload ["tag"]) or payload ["tag"] in git.remote_tags ():
-      raise state.StateError (f"Release tag already exists: {payload ['tag']}")
+   if git.tag_exists (payload ["tag"]) and git.rev_parse (payload ["tag"]) != payload ["commit_oid"]:
+      raise state.StateError (f"Release tag points to another commit: {payload ['tag']}")
+   if target_oid == payload ["source_oid"] and payload ["tag"] in git.remote_tags ():
+      raise state.StateError (f"Release tag already exists remotely: {payload ['tag']}")
    if payload ["source_plan_id"]:
       source_plan = plans.load (payload ["source_plan_id"])
       if source_plan.get ("fingerprint") != payload ["source_plan_fingerprint"]:
@@ -233,13 +244,15 @@ def apply_ship (plan: dict [str, Any]) -> dict [str, Any]:
          for path in git.ref_worktrees (target_ref):
             if not git.clean_at (path):
                raise state.StateError (f"Release target worktree is dirty: {path}")
-         git.update_ref_checked (
-            f"refs/heads/{target_ref}", payload ["commit_oid"], payload ["source_oid"]
-         )
-         for path in git.ref_worktrees (target_ref):
-            git.reset_at (path, payload ["commit_oid"])
+         if git.rev_parse (target_ref) == payload ["source_oid"]:
+            git.update_ref_checked (
+               f"refs/heads/{target_ref}", payload ["commit_oid"], payload ["source_oid"]
+            )
+            for path in git.ref_worktrees (target_ref):
+               git.reset_at (path, payload ["commit_oid"])
          completed.append ("commit")
-         git.tag (payload ["tag"], payload ["commit_oid"])
+         if not git.tag_exists (payload ["tag"]):
+            git.tag (payload ["tag"], payload ["commit_oid"])
          completed.append ("tag")
          pushed_refs = []
          if payload ["push"]:
@@ -249,8 +262,19 @@ def apply_ship (plan: dict [str, Any]) -> dict [str, Any]:
             pushed_refs.append (f"refs/tags/{payload ['tag']}")
             completed.append ("push")
          release_url = ""
-         if payload ["github_release"] and gh.release_create (payload ["version"], payload ["changelog"]):
-            release_url = _repository_url (payload ["tag"])
+         if payload ["github_release"]:
+            existing = gh.release_view (payload ["tag"])
+            if existing and bool (existing.get ("isPrerelease")) != bool (payload ["prerelease"]):
+               raise state.StateError (f"GitHub release type does not match the plan for {payload ['tag']}")
+            if not existing:
+               created = gh.release_create (
+                  payload ["version"],
+                  payload ["changelog"],
+                  prerelease=bool (payload ["prerelease"]),
+               )
+               if not created:
+                  raise state.StateError (f"GitHub release creation failed for {payload ['tag']}")
+            release_url = str (existing.get ("url") or _repository_url (payload ["tag"]))
             completed.append ("github_release")
          receipt = {
             "source_release_id": identity.resource ("source-release", git.repo_name (), payload ["tag"]),
@@ -264,12 +288,14 @@ def apply_ship (plan: dict [str, Any]) -> dict [str, Any]:
             "manifest_versions": payload ["manifest_versions"],
             "updated_lockfiles": sorted (payload ["lockfile_hashes"]),
             "plan_id": plan ["plan_id"],
+            "prerelease": bool (payload ["prerelease"]),
          }
          state.atomic_write (
             state.root () / "releases" / f"{identity.key (receipt ['source_release_id'])}.json",
-            { "schema": "imp.source-release.v1", **receipt, "created_at": state.now () },
+            { "schema": "imp.source-release.v2", **receipt, "created_at": state.now () },
          )
          plans.mark (plan, "applied", applied_at=state.now ())
+         state.clear_recovery (str (plan ["plan_id"]))
          return receipt
    except Exception as error:
       _recovery (plan, completed, error)

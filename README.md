@@ -136,6 +136,8 @@ Committed policy lives in `.imp`:
 
 Setup commands are argv arrays. Shared paths must be explicitly allowed, ignored, untracked, and inside the primary repository.
 
+`imp ship --prerelease` creates the next `-rc.N` source release. Stable shipping omits that flag. Both modes update package versions, lockfiles, and the flat changelog before committing, tagging, pushing, and publishing the GitHub release.
+
 See the [Imp documentation](https://docs.katforge.com/packages/imp/) for the complete workflow.
 
 ## License

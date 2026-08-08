@@ -244,6 +244,70 @@ class TestDone:
 
 class TestSourceRelease:
 
+   def test_prerelease_is_exact_and_increments_candidates (self, repo, monkeypatch):
+      git.tag ("v1.2.3")
+      releases = []
+      monkeypatch.setattr (source_release.gh, "available", lambda: True)
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
+      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
+
+      first = source_release.plan_ship (level="patch", prerelease=True)
+
+      assert first ["payload_schema"] == "imp.ship-plan.v2"
+      assert first ["payload"] ["version"] == "1.2.4-rc.1"
+      assert first ["payload"] ["tag"] == "v1.2.4-rc.1"
+      assert first ["payload"] ["prerelease"] is True
+
+      first ["payload"] ["github_release"] = True
+      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
+      monkeypatch.setattr (
+         source_release.gh,
+         "release_create",
+         lambda version, notes, prerelease=False: releases.append ((version, prerelease)) or True,
+      )
+      receipt = source_release.apply_ship (first)
+
+      assert receipt ["prerelease"] is True
+      assert releases == [ ("1.2.4-rc.1", True) ]
+
+      second = source_release.plan_ship (level="patch", prerelease=True)
+
+      assert second ["payload"] ["version"] == "1.2.4-rc.2"
+
+   def test_stable_release_rejects_prerelease_version (self, repo):
+      with pytest.raises (state.StateError, match=r"must be X\.Y\.Z"):
+         source_release.plan_ship (set_version="1.2.3-rc.1")
+
+   def test_github_release_failure_is_not_reported_as_success (self, repo, monkeypatch):
+      plan = source_release.plan_ship (level="patch")
+      plan ["payload"] ["github_release"] = True
+      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
+      monkeypatch.setattr (source_release.gh, "release_create", lambda *_args, **_kwargs: False)
+
+      with pytest.raises (state.StateError, match="GitHub release creation failed"):
+         source_release.apply_ship (plan)
+
+   def test_github_release_failure_can_resume_the_same_plan (self, repo, monkeypatch):
+      plan = source_release.plan_ship (level="patch")
+      plan ["payload"] ["github_release"] = True
+      attempts = []
+
+      def create (*_args, **_kwargs):
+         attempts.append (True)
+         return len (attempts) > 1
+
+      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
+      monkeypatch.setattr (source_release.gh, "release_create", create)
+
+      with pytest.raises (state.StateError, match="GitHub release creation failed"):
+         source_release.apply_ship (plan)
+
+      receipt = source_release.apply_ship (plan)
+
+      assert receipt ["tag"] == "v0.0.1"
+      assert attempts == [ True, True ]
+      assert not list ((state.root () / "recovery").glob ("*.json"))
+
    def test_dirty_source_reports_exact_next_steps (self, repo):
       (repo / "file.txt").write_text ("changed\n")
 

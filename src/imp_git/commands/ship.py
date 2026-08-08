@@ -30,6 +30,7 @@ def _show (plan: dict):
       [
          [ "Version", str (payload ["version"]) ],
          [ "Tag", str (payload ["tag"]) ],
+         [ "Release", "prerelease" if payload ["prerelease"] else "stable" ],
          [ "Target", str (payload ["target_ref"]) ],
          [ "Candidate", str (payload ["commit_oid"]) [:12] ],
          [ "Manifests", str (len (payload ["manifest_versions"])) ],
@@ -56,13 +57,12 @@ def ship (
       bool,
       typer.Option ("--include-dirty", help="Commit dirty work with separate approval"),
    ] = False,
+   prerelease: Annotated [bool, typer.Option ("--prerelease", help="Publish the next release candidate")] = False,
    rc: Annotated [bool, typer.Option ("--rc", hidden=True)] = False,
-   stable: Annotated [bool, typer.Option ("--stable", hidden=True)] = False,
-   squash: Annotated [bool, typer.Option ("--squash", hidden=True)] = False,
 ):
    """Create an exact source release. It never builds or deploys."""
 
-   del rc, stable, squash
+   prerelease = prerelease or rc
    if include_dirty and not git.is_clean ():
       machine = json_output or runtime.options.json or runtime.options.no_input
       if machine or yes or runtime.options.yes:
@@ -74,7 +74,7 @@ def ship (
    dry_run = dry_run or runtime.options.dry_run
    try:
       plan = plans.resolve ("ship", "" if apply == "__pick__" else apply) if apply else source_release.plan_ship (
-         level=_level (patch, minor, major), set_version=set_version,
+         level=_level (patch, minor, major), prerelease=prerelease, set_version=set_version,
          source_plan_id=source_plan, persist=not dry_run,
       )
    except (state.StateError, ValueError) as error:
@@ -84,7 +84,7 @@ def ship (
       _show (plan)
    if plan_only or dry_run:
       if machine:
-         result.emit ("imp.ship-plan.v1", "imp ship", { "plan": plan }, json_output=True)
+         result.emit ("imp.ship-plan.v2", "imp ship", { "plan": plan }, json_output=True)
       return plan
    if runtime.options.no_input and not yes:
       console.fatal ("Non-interactive shipping requires --plan or --apply <plan-id> --yes")

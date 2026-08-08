@@ -94,6 +94,20 @@ def release_create (ver: str, notes: str, prerelease: bool = False) -> bool:
    except subprocess.CalledProcessError:
       return False
 
+
+def release_view (tag: str) -> dict:
+   try:
+      result = subprocess.run (
+         [ "gh", "release", "view", tag, "--json", "isPrerelease,url" ],
+         capture_output=True,
+         text=True,
+         check=True,
+         timeout=30,
+      )
+      return json.loads (result.stdout)
+   except (subprocess.CalledProcessError, json.JSONDecodeError, OSError):
+      return {}
+
 def release_delete (tag: str) -> bool:
    """Delete the GitHub release for a full tag name (e.g. "v2.3.1"). The
    underlying git tag is deleted separately; this only removes the release

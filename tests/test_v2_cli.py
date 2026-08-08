@@ -42,6 +42,14 @@ class TestV2Surface:
       assert "[FEATURE]" in result.output
       assert "--mark-reviewed" not in result.output
 
+   def test_ship_exposes_prerelease_without_legacy_release_flags (self):
+      result = runner.invoke (app, [ "ship", "--help" ])
+
+      assert result.exit_code == 0
+      assert "--prerelease" in result.output
+      assert "--stable" not in result.output
+      assert "--squash" not in result.output
+
    def test_entrypoint_preserves_native_exit_code (self, monkeypatch):
       monkeypatch.setattr (main_mod, "app", lambda standalone_mode: 3)
       monkeypatch.setattr (sys, "argv", [ "imp", "doctor" ])
