@@ -1,5 +1,7 @@
+import json
 import os
 import sys
+import traceback
 from pathlib import Path
 from typing import Annotated
 
@@ -143,6 +145,28 @@ def _optional_values (args: list [str]) -> list [str]:
    return values
 
 
+def _fail (error: Exception) -> int:
+   """Report one uncaught failure as a versioned envelope or concise line."""
+
+   if os.environ.get ("IMP_DEBUG"):
+      traceback.print_exc ()
+   subcommand = next ((value for value in sys.argv [1:] if not value.startswith ("-")), "")
+   if runtime.options.json or "--json" in sys.argv [1:]:
+      sys.stdout.write (json.dumps ({
+         "schema": "imp.error.v1",
+         "command": f"imp {subcommand}".strip (),
+         "ok": False,
+         "error": { "message": str (error), "type": type (error).__name__ },
+         "data": {},
+         "warnings": [],
+      }, indent=3, sort_keys=True) + "\n")
+      return 1
+
+   console.err (f"imp failed: {error}")
+   console.hint ("set IMP_DEBUG=1 for a full traceback")
+   return 1
+
+
 def run () -> int:
    """Run Imp, falling back to Git when native syntax does not match."""
 
@@ -161,6 +185,8 @@ def run () -> int:
       return error.exit_code
    except click.exceptions.Exit as error:
       return error.exit_code
+   except Exception as error:
+      return _fail (error)
 
    if isinstance (outcome, int):
       return outcome

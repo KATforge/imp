@@ -122,6 +122,12 @@ def branch () -> str:
    result = _run ("branch", "--show-current", check=False)
    return result.stdout.strip ()
 
+def branches_local () -> list [str]:
+   """Return local branch names without decoration."""
+
+   result = _run ("for-each-ref", "--format=%(refname:short)", "refs/heads", check=False)
+   return [line for line in result.stdout.splitlines () if line]
+
 def commit (msg: str, amend: bool = False, date: str = ""):
    args = [ "commit", "-m", msg ]
    if amend:
