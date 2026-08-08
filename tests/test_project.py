@@ -3,6 +3,7 @@ import json
 from typer.main import get_command
 from typer.testing import CliRunner
 
+from imp_git import identity
 from imp_git import repo as repo_mod
 from imp_git.main import app
 
@@ -28,6 +29,22 @@ class TestRepoConfig:
       assert repo_mod.load () == {}
 
 
+class TestIdentity:
+
+   def test_actor_uses_native_agent_session (self, monkeypatch):
+      monkeypatch.setattr (identity.config, "get", lambda _key: None)
+      monkeypatch.delenv ("IMP_ACTOR_ID", raising=False)
+      monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
+      monkeypatch.setenv ("CODEX_THREAD_ID", "Thread 123")
+
+      assert identity.actor () == "actor:codex:thread-123"
+
+      monkeypatch.delenv ("CODEX_THREAD_ID")
+      monkeypatch.setenv ("CLAUDE_SESSION_ID", "Session 456")
+
+      assert identity.actor () == "actor:claude:session-456"
+
+
 class TestCommandsRegistered:
 
    def _help (self, name):
@@ -49,3 +66,8 @@ class TestCommandsRegistered:
    def test_worktree (self):
       result = self._help ("worktree")
       assert result.exit_code == 0
+
+   def test_doctor_has_no_agent_adapter_options (self):
+      result = self._help ("doctor")
+      assert result.exit_code == 0
+      assert "--agents" not in self._options ("doctor")

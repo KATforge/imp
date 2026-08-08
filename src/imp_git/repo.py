@@ -19,7 +19,6 @@ _DEFAULTS = {
    "feature:required": False,
    "ignore:check": True,
    "review:required": False,
-   "agent:enforcement": "guarded",
    "worktree:root": "",
    "worktree:setup": [],
    "worktree:share": [],

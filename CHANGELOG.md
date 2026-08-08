@@ -12,24 +12,22 @@ All notable changes to this project will be documented in this file.
 - Added two-phase `imp start` with fresh remote-trunk validation, safe argv-only setup, and allowlisted ignored-file sharing
 - Added transactional `imp commit` planning with exact change coverage, same-file splitting, Conventional Commits, and unrelated index preservation
 - Added direct manual commits through `imp commit -m` plus local amend and fixup modes
-- Added styled worktree tables, machine-readable context, and a two-writer isolation proof suite
+- Added styled worktree tables and a two-writer isolation proof suite
 - Added immutable integration candidates, configured checks, exact human review receipts, and direct or pull-request completion
 - Added source-release candidates that update versions, lockfiles, and the flat changelog before exact publication
 - Added explicit stable and prerelease source releases with monotonic `-rc.N` versions and matching GitHub release types
-- Added guarded Codex and Claude adapters with automatic actor identity and ephemeral local instructions
-- Added human-approved, repository- and session-scoped direct-edit grants for guarded agents
-- Added the adapter-neutral versioned JSON protocol for Temper and other automation
+- Added a provider-neutral Agent Skills workflow for source development
+- Added the versioned JSON protocol for Temper and other automation
 - Changed the native CLI to the focused v2 workflow surface and pass every ordinary Git command through unchanged
 - Changed commit plan JSON to `imp.commit-plan.v2` and renamed diff units to changes
 - Changed source-release plans and receipts to versioned prerelease-aware formats
 - Changed repository policy to need no schema key
-- Changed new plan metadata and generated agent context to use Imp-owned names
+- Changed new plan metadata to use Imp-owned names
 - Changed prompts to fail closed when no terminal or explicit approval is available
 - Changed `imp push` to ordinary Git passthrough and prevented `imp ship` from silently committing dirty work
 - Fixed feature creation so branches cannot inherit the caller's feature branch or stale remote-trunk state
 - Fixed commit failures so the starting branch, index, worktree, and untracked content remain unchanged
 - Fixed commit plans changed during apply so they remain stale instead of being mislabeled failed
-- Fixed agent diagnostics so untrusted Codex hooks report `guided` until reviewed through `/hooks`
 - Fixed the installed entrypoint so native command failures preserve their exit code
 - Fixed reviewed integration candidates so `imp done` reuses the exact approved plan
 - Fixed review file extraction for complete feature diffs

@@ -40,7 +40,7 @@ def capture (
    check: bool = False,
    env: dict [str, str] | None = None,
 ) -> str:
-   """Run Git through the package adapter and return captured stdout."""
+   """Run Git through the package boundary and return captured stdout."""
 
    return _run (*args, check=check, env=env).stdout
 
@@ -54,10 +54,6 @@ def require ():
 
    if result.returncode != 0:
       console.fatal ("Not a git repository")
-
-def is_repo () -> bool:
-   result = _run ("rev-parse", "--git-dir", check=False)
-   return result.returncode == 0
 
 def remote_url (name: str = "origin") -> str:
    result = _run ("remote", "get-url", name, check=False)
@@ -327,7 +323,7 @@ def run_at (
    check: bool = True,
    env: dict [str, str] | None = None,
 ) -> subprocess.CompletedProcess [str]:
-   """Run Git in another worktree through Imp's Git adapter."""
+   """Run Git in another worktree through Imp's Git boundary."""
 
    return _run ("-C", path, *args, check=check, env=env)
 

@@ -17,11 +17,11 @@ class TestSurface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "use", "status", "commit", "review", "guard", "ship", "worktree" ]:
+      for command in [ "start", "use", "status", "commit", "review", "ship", "worktree" ]:
          assert command in result.output
       removed_commands = [
-         "amend", "bisect", "changelog", "fleet", "init", "release",
-         "resolve", "revert", "split", "tidy", "undo",
+         "amend", "bisect", "changelog", "context", "fleet", "guard",
+         "init", "release", "resolve", "revert", "split", "tidy", "undo",
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
@@ -46,11 +46,15 @@ class TestSurface:
       seen = []
       monkeypatch.setattr (main_mod.passthrough, "run", lambda args: seen.append (args) or 0)
 
-      for args in [ [ "init", "--bare" ], [ "resolve", "--ours" ], [ "split" ] ]:
+      commands = [
+         [ "context" ], [ "guard" ], [ "init", "--bare" ],
+         [ "resolve", "--ours" ], [ "split" ],
+      ]
+      for args in commands:
          result = runner.invoke (app, args)
          assert result.exit_code == 0
 
-      assert seen == [ [ "init", "--bare" ], [ "resolve", "--ours" ], [ "split" ] ]
+      assert seen == commands
 
    def test_bare_optional_values_open_the_native_picker (self):
       assert main_mod._optional_values ([ "commit", "--apply" ]) == [ "commit", "--apply=__pick__" ]

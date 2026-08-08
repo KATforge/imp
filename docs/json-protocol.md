@@ -41,9 +41,6 @@ Saved operation plans use `imp.plan.v1` and a command-specific payload schema.
 | Commit plan | `imp.commit-plan.v2` |
 | Integration plan | `imp.done-plan.v1` |
 | Human review receipt | `imp.review.v1` |
-| Guard grant | `imp.guard.v1` |
-| Guard list | `imp.guards.v1` |
-| Guard revocation | `imp.guard-revoke.v1` |
 | Source-release plan | `imp.ship-plan.v2` |
 | Source-release receipt | `imp.release.v1` envelope with `imp.source-release.v2` persisted data |
 | Command failure | `imp.error.v1` |

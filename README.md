@@ -19,9 +19,8 @@ imp config
 imp doctor
 ```
 
-Install the user-level agent adapters with `python adapters/install.py`.
-Codex requires one explicit `/hooks` review after each new or changed hook installation.
-Confirm effective enforcement with `imp doctor --agents`.
+Agent clients use the provider-neutral [Imp development skill](.agents/skills/imp-development/SKILL.md).
+Load or symlink that folder through the client's Agent Skills directory. Imp requires no hooks or adapters.
 
 ## Managed workflow
 
@@ -50,22 +49,7 @@ The plan creates no branch or worktree. Apply revalidates the exact base before 
 
 ## Direct editing
 
-Humans may use the current checkout directly. A guarded agent normally uses a managed worktree. When the user explicitly wants direct edits, the agent requests a temporary exception:
-
-```bash
-imp guard request direct-edit
-```
-
-The provider asks the user to approve one repository and session for 30 minutes. The exception permits source edits only. Raw Git, publication, cross-repository writes, and repository agent-instruction files remain blocked.
-
-Inspect or end access early:
-
-```bash
-imp guard status
-imp guard revoke
-```
-
-Session shutdown revokes the exception automatically.
+Humans and agents may use the current checkout for focused work when the user allows it. Use a managed worktree for parallel, large, risky, or clean-checkout work.
 
 Existing checkouts still support incremental Imp adoption:
 
@@ -90,9 +74,7 @@ Imp stores feature records, plans, claims, and active selection under the reposi
 
 Repositories need no `.imp` file for built-in policy. Imp creates local state when an operation needs it. Adding tracked policy remains an explicit source change.
 
-Agents normally receive `IMP_ACTOR_ID` from their user-level adapter. Humans do not need to type it.
-
-Outside Git, the adapter allows ordinary file edits without initializing Git or Imp.
+Imp resolves supported agent session identities from the environment. Other clients can set a stable `IMP_ACTOR_ID`.
 
 ## Automation
 
@@ -100,7 +82,6 @@ Outside Git, the adapter allows ordinary file edits without initializing Git or 
 imp --json --no-input commit --plan
 imp --json --no-input commit --apply plan:commit:payments:1 --yes
 imp active --path
-imp context payment-retries --json
 ```
 
 Persisted JSON and command results declare independent schemas. Saved plans bind exact Git and file fingerprints and become stale when their inputs change. See the [JSON protocol](docs/json-protocol.md).
@@ -116,7 +97,7 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `use`, `status`, `done`, `commit`, `review`, `ship`, `config`, `doctor`, `guard`, `active`, `context`, `worktree`, and `recover`.
+Native commands are `start`, `use`, `status`, `done`, `commit`, `review`, `ship`, `config`, `doctor`, `active`, `worktree`, and `recover`.
 
 ## Optional repository policy
 

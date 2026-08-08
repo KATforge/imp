@@ -6,7 +6,6 @@ import pytest
 
 from imp_git import ai, commit_plan, features, git, identity, state
 from imp_git import repo as repo_mod
-from imp_git.commands import context as context_cmd
 from tests.conftest import git_run
 
 
@@ -88,15 +87,6 @@ class TestFeatures:
          features.assert_write_access (intruder)
 
       features.assert_write_access (owner)
-
-      context = context_cmd.context (
-         feature=feature ["feature_id"],
-         json_output=False,
-         actor_id=owner,
-      )
-
-      assert context ["feature_id"] == feature ["feature_id"]
-      assert context ["claim"] ["held_by"] == owner
 
    def test_expired_claim_allows_a_new_writer (self, repo_with_origin, tmp_path):
       owner = _actor ("codex", "owner")
