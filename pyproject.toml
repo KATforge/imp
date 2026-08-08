@@ -63,6 +63,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/katforge/imp"
+Documentation = "https://docs.katforge.com/packages/imp/"
 Repository = "https://github.com/katforge/imp"
 Issues = "https://github.com/katforge/imp/issues"
 Changelog = "https://github.com/katforge/imp/blob/master/CHANGELOG.md"
