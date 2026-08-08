@@ -188,28 +188,28 @@ def split (file_diffs: str, num_files: int, branch: str = "", whisper: str = "")
       whisper,
    )
 
-def split_hunks (hunk_diffs: str, num_hunks: int, branch: str = "", whisper: str = "") -> str:
+def split_changes (change_diffs: str, num_changes: int, branch: str = "", whisper: str = "") -> str:
    return f"""\
-Group these changed hunks into logical commits. Each group is one commit.
+Group these change sections into logical commits. Each group is one commit.
 {_whisper (whisper)}\
 Format: type: message
 Types: {_TYPES_STR}
 {_ticket_rule (branch)}
 Rules:
 - Output a JSON array, no markdown fences, no explanation
-- Each element: {{"hunks": ["path#1", "path#2"], "message": "type: description"}}
+- Each element: {{"changes": ["path#1", "path#2"], "message": "type: description"}}
 - ALL LOWERCASE after the colon (except ticket IDs like IMP-123)
 - Imperative mood: "add" not "added", "fix" not "fixes"
 - Max 72 chars per message, no period at end
-- Every hunk MUST appear exactly once
-- There are {num_hunks} hunks; reference all {num_hunks}
+- Every change MUST appear exactly once
+- There are {num_changes} changes; reference all {num_changes}
 - Minimize groups while preserving logical changes
 - No Co-Authored-By or AI attribution
 
 Branch: {branch}
 
-Hunks:
-{hunk_diffs}
+Changes:
+{change_diffs}
 
 Output ONLY the JSON array:"""
 
@@ -461,11 +461,11 @@ Output ONLY the answer in markdown:"""
 
 def fixup_pick (staged: str, candidates: str) -> str:
    return f"""\
-Given a staged hunk and a list of recent commits, decide which commit the hunk
+Given a staged change and a list of recent commits, decide which commit the change
 most likely fixes up. Score 0-100 (100 = certain). If no commit is a clear
 target, return a low score.
 
-Staged hunk:
+Staged change:
 {staged}
 
 Recent commits (newest first, each as "<hash> <subject>" followed by its diff):

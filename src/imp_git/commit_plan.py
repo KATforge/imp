@@ -23,16 +23,16 @@ def _groups (
 ) -> list [dict [str, Any]]:
    diffs = patches.content (changes)
    branch = git.branch ()
-   hunk_ids = [change ["hunk_id"] for change in changes]
+   change_ids = [change ["id"] for change in changes]
    if single or len (changes) == 1:
       message = ai.commit_message (prompts.commit (diffs, branch, whisper))
       return [ {
          "message": message,
          "files": sorted ({ change ["path"] for change in changes }),
-         "hunks": hunk_ids,
+         "changes": change_ids,
       } ]
 
-   response = ai.strip_fences (ai.smart (prompts.split_hunks (diffs, len (changes), branch, whisper)))
+   response = ai.strip_fences (ai.smart (prompts.split_changes (diffs, len (changes), branch, whisper)))
    try:
       groups = json.loads (response)
    except json.JSONDecodeError as error:
@@ -42,29 +42,29 @@ def _groups (
 
    covered: list [str] = []
    normalized = []
-   by_id = { change ["hunk_id"]: change for change in changes }
+   by_id = { change ["id"]: change for change in changes }
    for group in groups:
       if not isinstance (group, dict):
          raise state.StateError ("AI commit groups must be objects")
       message = str (group.get ("message", ""))
-      hunks = group.get ("hunks", [])
+      selected = group.get ("changes", [])
       if not validate.commit (message, int (repo.get ("commit:max_subject", 72))):
          raise state.StateError (f"Invalid Conventional Commit message: {message}")
-      if not isinstance (hunks, list) or not all (isinstance (hunk, str) for hunk in hunks):
-         raise state.StateError ("AI commit groups require hunk lists")
-      if not hunks:
+      if not isinstance (selected, list) or not all (isinstance (change, str) for change in selected):
+         raise state.StateError ("AI commit groups require change lists")
+      if not selected:
          raise state.StateError ("AI commit groups cannot be empty")
-      covered.extend (hunks)
+      covered.extend (selected)
       normalized.append ({
          "message": message,
-         "files": sorted ({ by_id [hunk] ["path"] for hunk in hunks if hunk in by_id }),
-         "hunks": hunks,
+         "files": sorted ({ by_id [change] ["path"] for change in selected if change in by_id }),
+         "changes": selected,
       })
 
    if len (covered) != len (set (covered)):
       raise state.StateError ("AI assigned a path to more than one commit")
-   if set (covered) != set (hunk_ids):
-      raise state.StateError ("AI commit groups do not cover every selected hunk")
+   if set (covered) != set (change_ids):
+      raise state.StateError ("AI commit groups do not cover every selected change")
 
    return normalized
 
@@ -138,7 +138,7 @@ def create (
          "action": "commit",
          "message": group ["message"],
          "paths": group ["files"],
-         "hunks": group ["hunks"],
+         "changes": group ["changes"],
       }
       for group in groups
    ]
@@ -148,7 +148,7 @@ def create (
       scope={ "branch": git.branch (), "feature_id": payload ["feature_id"], "mode": mode },
       items=items,
       fingerprint=fingerprint.repository (),
-      payload_schema="imp.commit-plan.v1",
+      payload_schema="imp.commit-plan.v2",
       payload=payload,
       warnings=warnings,
       blockers=blockers,
@@ -161,8 +161,8 @@ def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
 
    if plan.get ("state") != "ready":
       raise state.StateError (f"Plan is {plan.get ('state')}, not ready")
-   if plan.get ("payload_schema") != "imp.commit-plan.v1":
-      raise state.StateError ("Unsupported commit plan payload")
+   if plan.get ("payload_schema") != "imp.commit-plan.v2":
+      raise state.StateError ("Commit plan uses an older format; create a new plan")
    if fingerprint.repository () != plan.get ("fingerprint"):
       plans.mark (plan, "stale", stale_at=state.now ())
       raise state.StateError ("Commit plan is stale because repository state changed")
@@ -195,7 +195,7 @@ def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
          else:
             git.index_read_empty (index)
          for group in payload ["groups"]:
-            patches.apply (index, list (payload ["changes"]), list (group ["hunks"]))
+            patches.apply (index, list (payload ["changes"]), list (group ["changes"]))
             tree = git.index_write_tree (index)
             head = git.commit_tree (tree, parent, str (group ["message"]))
             parent = head

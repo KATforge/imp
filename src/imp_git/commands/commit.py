@@ -121,7 +121,7 @@ def commit (
       _show (plan)
    if plan_only or dry_run or runtime.options.dry_run:
       if machine:
-         result.emit ("imp.commit-plan.v1", "imp commit", { "plan": plan }, json_output=True)
+         result.emit ("imp.commit-plan.v2", "imp commit", { "plan": plan }, json_output=True)
       return plan
    if plan.get ("state") != "ready":
       console.fatal ("Commit plan is blocked")

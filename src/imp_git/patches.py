@@ -34,14 +34,14 @@ def _parts (path: str, patch: str) -> list [dict [str, str]]:
       for line in lines
    )
    if len (starts) <= 1 or metadata:
-      return [ { "hunk_id": f"{path}#1", "path": path, "patch": patch } ]
+      return [ { "id": f"{path}#1", "path": path, "patch": patch } ]
 
    header = [line for line in lines [:starts [0]] if not line.startswith ("index ")]
    values = []
    for number, start in enumerate (starts, start=1):
       end = starts [number] if number < len (starts) else len (lines)
       values.append ({
-         "hunk_id": f"{path}#{number}",
+         "id": f"{path}#{number}",
          "path": path,
          "patch": "".join ([ *header, *lines [start:end] ]),
       })
@@ -50,7 +50,7 @@ def _parts (path: str, patch: str) -> list [dict [str, str]]:
 
 
 def changes (paths: list [str], mode: str) -> tuple [list [dict [str, str]], str]:
-   """Return every selected hunk and the exact desired tree."""
+   """Return every selected change section and the exact desired tree."""
 
    index = desired_index (paths, mode)
    try:
@@ -67,20 +67,20 @@ def changes (paths: list [str], mode: str) -> tuple [list [dict [str, str]], str
 
 
 def content (changes: list [dict [str, str]]) -> str:
-   """Render hunk identities and patches for the commit planner."""
+   """Render change identities and patches for the commit planner."""
 
    return "\n".join (
-      f"--- {change ['hunk_id']} ---\n{change ['patch']}"
+      f"--- {change ['id']} ---\n{change ['patch']}"
       for change in changes
    )
 
 
-def apply (index: Path, changes: list [dict [str, Any]], hunk_ids: list [str]):
-   """Apply selected planned hunks to one isolated index."""
+def apply (index: Path, changes: list [dict [str, Any]], change_ids: list [str]):
+   """Apply selected planned changes to one isolated index."""
 
-   by_id = { str (change ["hunk_id"]): str (change ["patch"]) for change in changes }
-   for hunk_id in hunk_ids:
-      patch = by_id.get (hunk_id)
+   by_id = { str (change ["id"]): str (change ["patch"]) for change in changes }
+   for change_id in change_ids:
+      patch = by_id.get (change_id)
       if patch is None:
-         raise state.StateError (f"Unknown planned hunk: {hunk_id}")
+         raise state.StateError (f"Unknown planned change: {change_id}")
       git.index_apply (index, patch)

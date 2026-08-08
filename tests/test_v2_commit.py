@@ -14,7 +14,7 @@ def _lines () -> str:
    return "".join (f"line {number}\n" for number in range (1, 16))
 
 
-def _prepare_hunks (repo):
+def _prepare_changes (repo):
    (repo / "file.txt").write_text (_lines ())
    git_run (repo, "add", "file.txt")
    git_run (repo, "commit", "-m", "test: add fixture lines")
@@ -39,19 +39,19 @@ class TestCommitPlans:
       assert git.capture ("show", "HEAD:file.txt").strip () == "first"
       assert git.is_clean ()
 
-   def test_plan_is_read_only_and_apply_splits_one_file_by_hunk (self, repo, monkeypatch):
-      _prepare_hunks (repo)
+   def test_plan_is_read_only_and_apply_splits_one_file_by_change (self, repo, monkeypatch):
+      _prepare_changes (repo)
       before = git.rev_parse ("HEAD")
       response = [
-         { "hunks": [ "file.txt#1" ], "message": "fix: update first value" },
-         { "hunks": [ "file.txt#2" ], "message": "feat: update second value" },
+         { "changes": [ "file.txt#1" ], "message": "fix: update first value" },
+         { "changes": [ "file.txt#2" ], "message": "feat: update second value" },
       ]
       monkeypatch.setattr (ai, "smart", lambda prompt: json.dumps (response))
 
       plan = commit_plan.create (actor_id=_actor (), all_changes=True)
 
       assert git.rev_parse ("HEAD") == before
-      assert [group ["hunks"] for group in plan ["payload"] ["groups"]] == [
+      assert [group ["changes"] for group in plan ["payload"] ["groups"]] == [
          [ "file.txt#1" ],
          [ "file.txt#2" ],
       ]
@@ -65,7 +65,7 @@ class TestCommitPlans:
       assert git.is_clean ()
 
    def test_staged_plan_preserves_unstaged_changes_in_same_file (self, repo, monkeypatch):
-      _prepare_hunks (repo)
+      _prepare_changes (repo)
       staged = _lines ().replace ("line 2\n", "line two\n")
       (repo / "file.txt").write_text (staged)
       git_run (repo, "add", "file.txt")
@@ -118,11 +118,22 @@ class TestCommitPlans:
 
       assert git.rev_parse ("HEAD") == before
 
+   def test_apply_rejects_older_commit_plan_names (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("planned\n")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
+      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
+      plan ["payload_schema"] = "imp.commit-plan.v1"
+
+      with pytest.raises (state.StateError, match="older format"):
+         commit_plan.apply (plan, _actor ())
+
+      assert git.commit_count () == 1
+
    def test_build_failure_leaves_head_index_and_worktree_unchanged (self, repo, monkeypatch):
-      _prepare_hunks (repo)
+      _prepare_changes (repo)
       response = [
-         { "hunks": [ "file.txt#1" ], "message": "fix: update first value" },
-         { "hunks": [ "file.txt#2" ], "message": "feat: update second value" },
+         { "changes": [ "file.txt#1" ], "message": "fix: update first value" },
+         { "changes": [ "file.txt#2" ], "message": "feat: update second value" },
       ]
       monkeypatch.setattr (ai, "smart", lambda prompt: json.dumps (response))
       plan = commit_plan.create (actor_id=_actor (), all_changes=True)

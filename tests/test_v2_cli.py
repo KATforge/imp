@@ -61,7 +61,7 @@ class TestV2Automation:
 
       assert result.exit_code == 0
       value = json.loads (result.stdout)
-      assert value ["schema"] == "imp.commit-plan.v1"
+      assert value ["schema"] == "imp.commit-plan.v2"
       assert value ["data"] ["plan"] ["state"] == "ready"
       assert git.commit_count () == 1
 

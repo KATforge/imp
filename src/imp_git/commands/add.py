@@ -10,12 +10,12 @@ def _plan (files: list [str], whisper: str) -> list [dict]:
 def add (
    paths: list [str] | None = typer.Argument (None, help="Paths to stage directly"),
    all: bool = typer.Option (False, "--all", "-A", help="Stage every change without AI grouping"),
-   patch: bool = typer.Option (False, "--patch", "-p", help="Use Git's interactive hunk selector"),
+   patch: bool = typer.Option (False, "--patch", "-p", help="Use Git's interactive change selector"),
    whisper: str = typer.Option ("", "--whisper", "-w", help="Hint to guide AI grouping"),
 ):
-   """Stage paths, hunks, or AI-proposed logical groups.
+   """Stage paths, selected changes, or AI-proposed logical groups.
 
-   Explicit paths stage directly. --patch opens Git's hunk selector. With no
+   Explicit paths stage directly. --patch opens Git's change selector. With no
    arguments, AI groups every changed file by intent and presents a checklist.
    """
 

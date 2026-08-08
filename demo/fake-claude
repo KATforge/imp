@@ -118,7 +118,7 @@ EOF
       ;;
 
    # ─── fixup pick ──────────────────────────────────────────────────────
-   *"decide which commit the hunk most likely fixes up"*)
+   *"decide which commit the change most likely fixes up"*)
       sha=$(printf "%s" "$prompt" | grep -oE '^[a-f0-9]{7,}' | head -1)
       sha=${sha:-abc1234}
       cat <<EOF

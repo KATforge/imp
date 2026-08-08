@@ -700,7 +700,7 @@ def index_apply (index: Path, patch: str):
       )
    except subprocess.CalledProcessError as error:
       detail = (error.stderr or error.stdout or "").strip ()
-      raise RuntimeError (f"Cannot apply planned hunk: {detail}") from error
+      raise RuntimeError (f"Cannot apply planned change: {detail}") from error
 
 def index_diff (index: Path, path: str = "") -> str:
    """Return the binary-safe HEAD diff represented by an isolated index."""
