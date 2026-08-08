@@ -33,9 +33,8 @@ cd "$(imp worktree path payment-retries)"
 imp commit --plan
 imp commit --apply --yes
 
-imp done --plan
 imp review
-imp done --apply --yes
+imp done
 
 imp use
 imp active --path
@@ -47,13 +46,30 @@ Omitting an existing feature opens a picker. Review asks whether to mark the exa
 
 The plan creates no branch or worktree. Apply revalidates the exact base before changing Git state.
 
-`imp commit` plans staged changes, or all dirty changes when nothing is staged. It can split separate hunks from the same file into different commits. Apply builds the complete commit chain off-ref and moves the branch only after every commit succeeds.
+`imp commit` plans staged changes, or all dirty changes when nothing is staged. It can split separate change sections from the same file into different commits. Apply builds the complete commit chain off-ref and moves the branch only after every commit succeeds.
 
 `imp split` is the exact alias for `imp commit --all`.
 
-## Direct adoption
+## Direct editing
 
-A managed worktree is optional unless repository policy sets `feature:required`.
+Humans may use the current checkout directly. A guarded agent normally uses a managed worktree. When the user explicitly wants direct edits, the agent requests a temporary exception:
+
+```bash
+imp guard request direct-edit
+```
+
+The provider asks the user to approve one repository and session for 30 minutes. The exception permits source edits only. Raw Git, publication, cross-repository writes, and repository agent-instruction files remain blocked.
+
+Inspect or end access early:
+
+```bash
+imp guard status
+imp guard revoke
+```
+
+Session shutdown revokes the exception automatically.
+
+Existing checkouts still support incremental Imp adoption:
 
 ```bash
 imp commit -m "fix(auth): preserve the refresh token"

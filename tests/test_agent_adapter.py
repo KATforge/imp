@@ -2,7 +2,10 @@ import importlib.util
 import json
 from pathlib import Path
 
+from typer.testing import CliRunner
+
 from imp_git.commands import doctor
+from imp_git.main import app
 
 
 def _guard ():
@@ -33,19 +36,20 @@ def test_repository_instruction_file_write_is_denied (tmp_path, monkeypatch):
    output = []
    monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
 
-   guard._pre_tool (
-      {
-         "hook_event_name": "PreToolUse",
-         "session_id": "thread-1",
-         "cwd": str (tmp_path),
-         "tool_name": "Write",
-         "tool_input": { "file_path": str (tmp_path / "AGENTS.md") },
-      },
-      "codex",
-   )
+   for name in [ "AGENTS.md", "CLAUDE.md", "CODEX.md", "GEMINI.md", ".cursorrules", "copilot-instructions.md" ]:
+      guard._pre_tool (
+         {
+            "hook_event_name": "PreToolUse",
+            "session_id": "thread-1",
+            "cwd": str (tmp_path),
+            "tool_name": "Write",
+            "tool_input": { "file_path": str (tmp_path / name) },
+         },
+         "codex",
+      )
 
-   assert output [0] [0] == "PreToolUse"
-   assert "forbidden" in output [0] [1] ["deny"]
+   assert len (output) == 6
+   assert all (event == "PreToolUse" and "forbidden" in values ["deny"] for event, values in output)
 
 
 def test_repository_instruction_file_read_is_allowed (tmp_path, monkeypatch):
@@ -84,6 +88,177 @@ def test_raw_git_write_is_denied_before_repository_discovery (tmp_path, monkeypa
    )
 
    assert "Raw `git reset` is blocked" in output [0] [1] ["deny"]
+
+
+def test_claude_guard_request_asks_for_human_approval (tmp_path, monkeypatch):
+   guard = _guard ()
+   output = []
+   prepared = []
+   (tmp_path / ".git").mkdir ()
+   monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
+   monkeypatch.setattr (guard, "_prepare_guard", lambda *args: prepared.append (args) or True)
+
+   guard._pre_tool (
+      {
+         "hook_event_name": "PreToolUse",
+         "session_id": "thread-1",
+         "cwd": str (tmp_path),
+         "tool_name": "Bash",
+         "tool_input": { "command": "imp guard request direct-edit" },
+      },
+      "claude",
+   )
+
+   assert prepared [0] [0] == tmp_path
+   assert output [0] [1] ["ask"].startswith ("Allow `actor:claude:thread-1`")
+
+
+def test_codex_guard_request_waits_for_provider_permission (tmp_path, monkeypatch):
+   guard = _guard ()
+   output = []
+   prepared = []
+   (tmp_path / ".git").mkdir ()
+   monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
+   monkeypatch.setattr (guard, "_prepare_guard", lambda *args: prepared.append (args) or True)
+
+   guard._pre_tool (
+      {
+         "hook_event_name": "PreToolUse",
+         "session_id": "thread-1",
+         "cwd": str (tmp_path),
+         "tool_name": "Bash",
+         "tool_input": { "command": "imp guard request direct-edit" },
+      },
+      "codex",
+   )
+
+   assert prepared == []
+   assert "requires explicit provider approval" in output [0] [1] ["context"]
+
+
+def test_permission_request_prepares_codex_grant (tmp_path, monkeypatch):
+   guard = _guard ()
+   prepared = []
+   (tmp_path / ".git").mkdir ()
+   monkeypatch.setattr (guard, "_prepare_guard", lambda *args: prepared.append (args) or True)
+
+   guard._permission_request (
+      {
+         "hook_event_name": "PermissionRequest",
+         "session_id": "thread-1",
+         "cwd": str (tmp_path),
+         "tool_name": "Bash",
+         "tool_input": { "command": "imp guard request direct-edit" },
+      },
+      "codex",
+   )
+
+   assert prepared [0] == (
+      tmp_path,
+      "actor:codex:thread-1",
+      "direct-edit",
+      "codex",
+      "thread-1",
+   )
+
+
+def test_direct_edit_grant_bypasses_only_worktree_requirement (tmp_path, monkeypatch):
+   guard = _guard ()
+   output = []
+   (tmp_path / ".git").mkdir ()
+   monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
+   monkeypatch.setattr (
+      guard,
+      "_grant",
+      lambda *args: { "expires_at": "2026-08-07T01:00:00Z" },
+   )
+   monkeypatch.setattr (guard, "_status", lambda path: (_ for _ in ()).throw (AssertionError (path)))
+
+   guard._pre_tool (
+      {
+         "hook_event_name": "PreToolUse",
+         "session_id": "thread-1",
+         "cwd": str (tmp_path),
+         "tool_name": "Write",
+         "tool_input": { "file_path": str (tmp_path / "source.py") },
+      },
+      "codex",
+   )
+
+   assert "Temporary direct-edit access is active" in output [0] [1] ["context"]
+
+
+def test_guard_request_rejects_actor_spoofing (tmp_path, monkeypatch):
+   guard = _guard ()
+   output = []
+   (tmp_path / ".git").mkdir ()
+   monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
+
+   guard._pre_tool (
+      {
+         "hook_event_name": "PreToolUse",
+         "session_id": "thread-1",
+         "cwd": str (tmp_path),
+         "tool_name": "Bash",
+         "tool_input": {
+            "command": "imp --actor-id actor:codex:other guard request direct-edit",
+         },
+      },
+      "codex",
+   )
+
+   assert "must use this session's actor" in output [0] [1] ["deny"]
+
+
+def test_internal_guard_commands_are_denied (tmp_path, monkeypatch):
+   guard = _guard ()
+   output = []
+   monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
+
+   guard._pre_tool (
+      {
+         "hook_event_name": "PreToolUse",
+         "session_id": "thread-1",
+         "cwd": str (tmp_path),
+         "tool_name": "Bash",
+         "tool_input": {
+            "command": "imp guard prepare direct-edit --provider codex --session-id thread-1",
+         },
+      },
+      "codex",
+   )
+
+   assert "reserved for the provider hook" in output [0] [1] ["deny"]
+
+
+def test_guard_request_write_and_session_cleanup_end_to_end (repo, monkeypatch, tmp_path):
+   guard = _guard ()
+   actor = "actor:codex:thread-1"
+   output = []
+   monkeypatch.setenv ("XDG_STATE_HOME", str (tmp_path / "state"))
+
+   assert guard._prepare_guard (repo, actor, "direct-edit", "codex", "thread-1") is True
+   approved = CliRunner ().invoke (
+      app,
+      [ "--actor-id", actor, "--json", "guard", "request", "direct-edit" ],
+   )
+   assert approved.exit_code == 0
+
+   monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
+   guard._pre_tool (
+      {
+         "hook_event_name": "PreToolUse",
+         "session_id": "thread-1",
+         "cwd": str (repo),
+         "tool_name": "Write",
+         "tool_input": { "file_path": str (repo / "source.py") },
+      },
+      "codex",
+   )
+   assert "Temporary direct-edit access is active" in output [0] [1] ["context"]
+
+   guard._session_end ({ "session_id": "thread-1" }, "codex")
+   assert guard._grant (repo, actor, "direct-edit") is None
 
 
 def test_non_repository_writes_are_allowed (tmp_path, monkeypatch):
@@ -177,15 +352,142 @@ def test_registered_temper_workspace_is_discovered (tmp_path, monkeypatch):
    assert guard._workspace (repository) == workspace.resolve ()
 
 
+def test_registered_temper_change_worktree_is_discovered (tmp_path, monkeypatch):
+   guard = _guard ()
+   config = tmp_path / "config"
+   state = tmp_path / "state"
+   workspace = tmp_path / "workspace"
+   worktree = tmp_path / "worktrees" / "api"
+   worktree.mkdir (parents=True)
+   registry = config / "temper" / "workspaces.json"
+   mapping = config / "temper" / "workspaces" / "demo" / "repositories.json"
+   change = state / "temper" / "workspaces" / "demo" / "changes" / "change--checkout.json"
+   mapping.parent.mkdir (parents=True)
+   change.parent.mkdir (parents=True)
+   registry.write_text (json.dumps ({ "workspaces": { "demo": str (workspace) } }))
+   mapping.write_text (json.dumps ({ "repositories": {} }))
+   change.write_text (json.dumps ({ "members": { "api": { "path": str (worktree) } } }))
+   monkeypatch.setenv ("XDG_CONFIG_HOME", str (config))
+   monkeypatch.setenv ("XDG_STATE_HOME", str (state))
+
+   assert guard._workspace (worktree) == workspace.resolve ()
+
+
+def test_session_start_repairs_temper_local_state (tmp_path, monkeypatch):
+   guard = _guard ()
+   output = []
+   calls = []
+   (tmp_path / "temper.yaml").write_text ("name: demo\n")
+   monkeypatch.setattr (guard, "_status", lambda _path: { "features": [] })
+   monkeypatch.setattr (guard, "_run", lambda *args: calls.append (args) or { "ok": True })
+   monkeypatch.setattr (guard, "_emit", lambda event, **values: output.append ((event, values)))
+
+   guard._session_start (
+      { "hook_event_name": "SessionStart", "session_id": "thread-1", "cwd": str (tmp_path) },
+      "codex",
+   )
+
+   assert ("temper", "--workspace", str (tmp_path), "--json", "status") in calls
+   assert "Temper workspace detected" in output [0] [1] ["context"]
+
+
+def test_guard_allows_coupled_repositories_in_one_temper_change (tmp_path, monkeypatch):
+   guard = _guard ()
+   context = tmp_path / "context.md"
+   context.write_text ("context")
+   written = []
+   monkeypatch.setattr (
+      guard,
+      "_read_state",
+      lambda *_args: {
+         "features": {
+            "feature:api": {
+               "change_id": "change:checkout",
+               "path": "/worktrees/api",
+            }
+         }
+      },
+   )
+   monkeypatch.setattr (
+      guard,
+      "_run",
+      lambda *_args: {
+         "data": {
+            "context": str (context),
+            "feature_id": "feature:web",
+            "path": "/worktrees/web",
+         }
+      },
+   )
+   monkeypatch.setattr (guard, "_write_state", lambda *_args: written.append (_args [-1]))
+
+   ok, _message = guard._attach (
+      "codex",
+      "thread-1",
+      "actor:codex:thread-1",
+      {
+         "change_id": "change:checkout",
+         "feature_id": "feature:web",
+         "path": "/worktrees/web",
+      },
+   )
+
+   assert ok is True
+   assert set (written [0] ["features"]) == { "feature:api", "feature:web" }
+
+
+def test_guard_rejects_uncoordinated_second_repository (tmp_path, monkeypatch):
+   guard = _guard ()
+   context = tmp_path / "context.md"
+   context.write_text ("context")
+   monkeypatch.setattr (
+      guard,
+      "_read_state",
+      lambda *_args: {
+         "features": {
+            "feature:api": {
+               "change_id": "",
+               "path": "/worktrees/api",
+            }
+         }
+      },
+   )
+   monkeypatch.setattr (
+      guard,
+      "_run",
+      lambda *_args: {
+         "data": {
+            "context": str (context),
+            "feature_id": "feature:web",
+            "path": "/worktrees/web",
+         }
+      },
+   )
+
+   ok, message = guard._attach (
+      "codex",
+      "thread-1",
+      "actor:codex:thread-1",
+      {
+         "change_id": "",
+         "feature_id": "feature:web",
+         "path": "/worktrees/web",
+      },
+   )
+
+   assert ok is False
+   assert "Temper change" in message
+
+
 def test_codex_guard_requires_all_enabled_trusted_hooks (monkeypatch):
    hooks = [
       {
-         "command": "python3 /home/test/.config/katforge/agents/agent_guard.py codex",
+         "command": "python3 /home/test/.config/imp/agents/agent_guard.py codex",
          "enabled": True,
          "eventName": event,
          "trustStatus": "trusted",
       }
-      for event in [ "preToolUse", "sessionEnd", "sessionStart" ]
+      for event in [ "permissionRequest", "preToolUse", "sessionEnd", "sessionStart" ]
    ]
    monkeypatch.setattr (doctor, "_codex_hooks", lambda cwd: hooks)
 

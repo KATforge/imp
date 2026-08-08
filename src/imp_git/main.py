@@ -15,6 +15,7 @@ from imp_git.commands.config import config_app
 from imp_git.commands.context import context
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
+from imp_git.commands.guard import guard
 from imp_git.commands.init import init
 from imp_git.commands.recover import recover
 from imp_git.commands.resolve import resolve
@@ -110,10 +111,11 @@ for _cmd in _commands:
    app.command () (_cmd)
 
 app.add_typer (config_app, name="config")
+app.add_typer (guard, name="guard")
 app.add_typer (worktree, name="worktree")
 
 _NATIVE = { command.name or command.callback.__name__ for command in app.registered_commands }
-_NATIVE.update ({ "config", "worktree" })
+_NATIVE.update ({ "config", "guard", "worktree" })
 
 
 def _native_request (args: list [str]) -> bool:

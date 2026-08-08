@@ -10,7 +10,7 @@ import typer
 
 from imp_git import ai, config, console, git, identity, repo, result, runtime
 
-_CODEX_EVENTS = { "preToolUse", "sessionEnd", "sessionStart" }
+_CODEX_EVENTS = { "permissionRequest", "preToolUse", "sessionEnd", "sessionStart" }
 
 
 def _check (name: str, cmd: str, url: str, required: bool = True) -> bool:
@@ -102,7 +102,7 @@ def _codex_hooks (cwd: Path) -> list [dict]:
 
    return [
       hook for hook in data [0].get ("hooks", [])
-      if "katforge/agents/agent_guard.py" in str (hook.get ("command", ""))
+      if "imp/agents/agent_guard.py" in str (hook.get ("command", ""))
    ]
 
 
@@ -122,7 +122,7 @@ def _codex_guard (cwd: Path) -> tuple [bool, str]:
    return False, "unavailable"
 
 def _agent_report () -> dict:
-   install = Path.home () / ".config" / "katforge" / "agents"
+   install = Path.home () / ".config" / "imp" / "agents"
    metadata_path = install / "adapter.json"
    try:
       metadata = json.loads (metadata_path.read_text ())
@@ -137,8 +137,8 @@ def _agent_report () -> dict:
          text = settings.read_text ()
       except OSError:
          text = ""
-      hook = "katforge/agents/agent_guard.py" in text
-      workflow = (skill / "katforge-development" / "SKILL.md").is_file ()
+      hook = "imp/agents/agent_guard.py" in text
+      workflow = (skill / "imp-development" / "SKILL.md").is_file ()
       installed = bool (metadata.get ("version")) and (install / "agent_guard.py").is_file ()
       guards = hook and installed
       trust = "not-required"
@@ -201,7 +201,7 @@ def doctor (
          console.muted (f"Required: {data ['configured_enforcement']}")
          for value in data ["providers"]:
             if value ["hook_trust"] == "review-required":
-               console.hint ("Codex: run /hooks and trust the KATforge hooks")
+               console.hint ("Codex: run /hooks and trust the Imp hooks")
       if not data ["ok"]:
          raise typer.Exit (1)
       return data

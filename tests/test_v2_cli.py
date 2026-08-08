@@ -17,7 +17,7 @@ class TestV2Surface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "use", "status", "commit", "review", "changelog", "ship", "worktree" ]:
+      for command in [ "start", "use", "status", "commit", "review", "changelog", "guard", "ship", "worktree" ]:
          assert command in result.output
       for removed in [ "amend", "bisect", "fleet", "release", "revert", "tidy", "undo" ]:
          assert f"│ {removed} " not in result.output

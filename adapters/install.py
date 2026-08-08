@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 SOURCE = Path (__file__).resolve ().parent
-INSTALL = Path.home () / ".config" / "katforge" / "agents"
+INSTALL = Path.home () / ".config" / "imp" / "agents"
 
 
 def _read (path: Path) -> dict [str, Any]:
@@ -28,7 +28,7 @@ def _write (path: Path, value: dict [str, Any]):
 def _hooks (provider: str) -> dict [str, Any]:
    value = _read (SOURCE / "hooks.json")
    guard = shlex.quote (str (INSTALL / "agent_guard.py"))
-   encoded = json.dumps (value).replace ("KATFORGE_AGENT_GUARD", guard).replace ("PROVIDER", provider)
+   encoded = json.dumps (value).replace ("IMP_AGENT_GUARD", guard).replace ("PROVIDER", provider)
    return json.loads (encoded)
 
 
@@ -40,7 +40,10 @@ def _merge (path: Path, provider: str):
       existing = configured.setdefault (event, [])
       existing [:] = [
          group for group in existing
-         if "katforge/agents/agent_guard.py" not in json.dumps (group)
+         if not any (
+            marker in json.dumps (group)
+            for marker in [ "katforge/agents/agent_guard.py", "imp/agents/agent_guard.py" ]
+         )
       ]
       existing.extend (groups)
    _write (path, current)
@@ -50,8 +53,11 @@ def main ():
    INSTALL.mkdir (parents=True, exist_ok=True)
    shutil.copy2 (SOURCE / "agent_guard.py", INSTALL / "agent_guard.py")
    shutil.copy2 (SOURCE / "adapter.json", INSTALL / "adapter.json")
-   skill = SOURCE / "skills" / "katforge-development"
+   skill = SOURCE / "skills" / "imp-development"
    for root in [ Path.home () / ".codex" / "skills", Path.home () / ".claude" / "skills" ]:
+      legacy = root / "katforge-development"
+      if legacy.exists ():
+         shutil.rmtree (legacy)
       target = root / skill.name
       if target.exists ():
          shutil.rmtree (target)
@@ -59,8 +65,8 @@ def main ():
       shutil.copytree (skill, target)
    _merge (Path.home () / ".codex" / "hooks.json", "codex")
    _merge (Path.home () / ".claude" / "settings.json", "claude")
-   print (f"Installed KATforge agent adapters in {INSTALL}")
-   print ("Codex: run /hooks once and trust the KATforge hooks")
+   print (f"Installed Imp agent adapters in {INSTALL}")
+   print ("Codex: run /hooks once and trust the Imp hooks")
 
 
 if __name__ == "__main__":

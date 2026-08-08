@@ -15,7 +15,7 @@ def _resolve (name: str) -> dict:
 def _markdown (data: dict) -> str:
    checks = data ["checks"]
    lines = [
-      "# KATforge Workstream",
+      "# Imp Workstream",
       "",
       f"- Feature: `{data ['feature_id']}`",
       f"- Actor: `{data ['actor_id']}`",

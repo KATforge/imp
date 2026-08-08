@@ -1,0 +1,4 @@
+interface:
+  display_name: "Imp Development"
+  short_description: "Safe Imp and Temper development workflow"
+  default_prompt: "Use $imp-development to make this change safely."
