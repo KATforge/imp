@@ -32,6 +32,8 @@ All notable changes to this project will be documented in this file.
 - Fixed the installed entrypoint so native command failures preserve their exit code
 - Fixed reviewed integration candidates so `imp done` reuses the exact approved plan
 - Fixed review file extraction for complete feature diffs
+- Fixed review so `-C` selects its managed feature instead of opening an unrelated feature picker
+- Changed interactive review to open the exact commit workflow before inspecting a dirty feature
 - Fixed commit planner budgets to reuse spare capacity while preserving the exact prompt limit
 - Fixed source releases so GitHub publication failures produce recovery records instead of false success
 - Fixed interrupted integration and source-release plans so their recorded recovery commands can resume safely

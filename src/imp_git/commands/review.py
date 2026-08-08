@@ -1,3 +1,4 @@
+import os
 import shlex
 from pathlib import Path, PurePosixPath
 from typing import Annotated
@@ -9,6 +10,13 @@ from imp_git import ai, console, features, git, identity, integration, prompts, 
 _FIX = "Fix recommendations with smart AI"
 _MARK = "Mark this exact candidate reviewed"
 _LEAVE = "Leave unmarked"
+
+_DIRTY_AUTOMATION = """Dirty feature requires a separately approved commit plan.
+
+Next:
+  imp -C {path} commit --all --plan
+  imp -C {path} commit --apply <plan-id> --yes
+  imp -C {path} review {feature_id}"""
 
 
 def _direct_review (last: int, whisper: str):
@@ -31,6 +39,13 @@ def _feature (value: str) -> dict | None:
       return None
    current = features.current ()
    labels = [ features.label (candidate) for candidate in candidates ]
+   if current:
+      selected = next ((
+         candidate for candidate in candidates
+         if candidate ["feature_id"] == current ["feature_id"]
+      ), None)
+      if selected:
+         return selected
    if not current:
       direct = "current checkout · direct"
       if runtime.options.json or runtime.options.no_input:
@@ -38,6 +53,34 @@ def _feature (value: str) -> dict | None:
       selected = console.choose ("Select source to review", [ *labels, direct ])
       return None if selected == direct else candidates [labels.index (selected)]
    return features.pick ("Select feature to review", candidates)
+
+
+def _commit_dirty (feature: dict, actor_id: str, machine: bool):
+   path = str (feature ["path"])
+   if git.clean_at (path):
+      return
+   if machine or runtime.options.no_input or runtime.options.yes:
+      raise state.StateError (_DIRTY_AUTOMATION.format (
+         path=shlex.quote (path),
+         feature_id=feature ["feature_id"],
+      ))
+
+   from imp_git.commands.commit import commit
+
+   claim = feature.get ("claim") or {}
+   preserve_claim = claim.get ("held_by") == actor_id
+   features.claim (feature, actor_id)
+   previous = Path.cwd ()
+   console.muted ("Feature is dirty; preparing an exact commit plan before review")
+   try:
+      os.chdir (path)
+      commit (all=True, actor_id=actor_id)
+   finally:
+      os.chdir (previous)
+      if not preserve_claim:
+         features.release (feature, actor_id)
+   if not git.clean_at (path):
+      raise state.StateError ("Review requires a committed feature candidate")
 
 
 def _patch_paths (patch: str) -> list [str]:
@@ -221,9 +264,10 @@ def _managed_review (
       raise state.StateError ("--fix requires smart AI review")
    if fix and mark_reviewed:
       raise state.StateError ("--fix and review approval are mutually exclusive")
+   machine = json_output or runtime.options.json
+   _commit_dirty (feature, actor_id, machine)
    plan, patch, files = _plan (feature, actor_id)
    payload = plan ["payload"]
-   machine = json_output or runtime.options.json
    dirty = bool (git.capture ("-C", str (feature ["path"]), "status", "--porcelain=v1"))
    if not machine:
       _show (feature, payload, patch, len (files), dirty)

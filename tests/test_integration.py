@@ -191,6 +191,48 @@ class TestIntegration:
       assert "+checkout" in value ["diff"]
       assert value ["files"] == [ "checkout.txt" ]
 
+   def test_review_uses_the_current_managed_worktree (self, repo, tmp_path, monkeypatch):
+      feature = _feature (repo, tmp_path)
+      monkeypatch.chdir (feature ["path"])
+      monkeypatch.setattr (
+         console,
+         "choose",
+         lambda *_args: pytest.fail ("current worktree should not open the feature picker"),
+      )
+
+      value = review_cmd.review (no_ai=True, json_output=True, actor_id=ACTOR)
+
+      assert value ["feature_id"] == feature ["feature_id"]
+
+   def test_dirty_review_commits_after_exact_approval (self, repo, tmp_path, monkeypatch):
+      feature = _feature (repo, tmp_path)
+      path = Path (feature ["path"])
+      (path / "dirty.txt").write_text ("dirty\n")
+      monkeypatch.setattr (ai, "fast", lambda _prompt: "fix: commit review candidate")
+      monkeypatch.setattr (console, "confirm", lambda message: message.startswith ("Create "))
+
+      value = review_cmd.review (feature ["feature_id"], no_ai=True, actor_id=ACTOR)
+
+      assert git.clean_at (str (path))
+      assert git.capture ("-C", str (path), "log", "-1", "--format=%s").strip () == (
+         "fix: commit review candidate"
+      )
+      assert value ["receipt"] is None
+
+   def test_dirty_review_never_commits_without_exact_approval (self, repo, tmp_path, monkeypatch):
+      feature = _feature (repo, tmp_path)
+      path = Path (feature ["path"])
+      before = git.capture ("-C", str (path), "rev-parse", "HEAD").strip ()
+      (path / "dirty.txt").write_text ("dirty\n")
+      monkeypatch.setattr (ai, "fast", lambda _prompt: "fix: commit review candidate")
+      monkeypatch.setattr (console, "confirm", lambda _message: False)
+
+      with pytest.raises (typer.Exit):
+         review_cmd.review (feature ["feature_id"], no_ai=True, actor_id=ACTOR)
+
+      assert git.capture ("-C", str (path), "rev-parse", "HEAD").strip () == before
+      assert not git.clean_at (str (path))
+
    def test_human_review_prompts_to_mark_the_exact_candidate (self, repo, tmp_path, monkeypatch):
       feature = _feature (repo, tmp_path)
       prompts = []
