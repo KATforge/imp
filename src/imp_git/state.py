@@ -152,6 +152,21 @@ def read (
    raise StateError (f"Unsupported schema in {path}: {actual}")
 
 
+def clear_recovery (plan_id: str):
+   """Remove recovery records resolved by a successful plan retry."""
+
+   directory = root () / "recovery"
+   if not directory.is_dir ():
+      return
+   for path in directory.glob ("*.json"):
+      try:
+         value = read (path)
+      except StateError:
+         continue
+      if value.get ("plan_id") == plan_id:
+         path.unlink ()
+
+
 def _process_exists (pid: int) -> bool:
    try:
       os.kill (pid, 0)

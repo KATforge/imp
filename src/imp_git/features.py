@@ -387,6 +387,7 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
             "target": descriptor ["target"],
             "task": descriptor ["task"],
             "created_by": descriptor ["created_by"],
+            "writers": [ descriptor ["created_by"] ] if descriptor ["claim_writer"] else [],
             "created_at": state.now (),
             "change_id": descriptor ["change_id"],
             "state": "active",
@@ -418,22 +419,35 @@ def claim (feature: dict [str, Any], actor_id: str, ttl: str = "") -> dict [str,
    feature_id = str (feature ["feature_id"])
    with state.lock (identity.key (feature_id)):
       existing = _read_claim (feature_id)
+      if existing and _is_expired (existing):
+         existing = None
       if existing:
          held_by = existing.get ("held_by")
          if held_by != actor_id:
-            qualifier = "stale" if _is_expired (existing) else "active"
             raise state.StateError (
-               f"Feature has a {qualifier} claim held by {held_by} until {existing.get ('expires_at')}"
+               f"Feature has an active claim held by {held_by} until {existing.get ('expires_at')}"
             )
          existing ["renewed_at"] = state.now ()
          existing ["expires_at"] = _expires_at (ttl)
          state.atomic_write (_claim_path (feature_id), existing)
+         _record_writer (feature, actor_id)
          return existing
       value = _new_claim (feature_id, actor_id)
       if ttl:
          value ["expires_at"] = _expires_at (ttl)
       state.atomic_write (_claim_path (feature_id), value)
+      _record_writer (feature, actor_id)
       return value
+
+
+def _record_writer (feature: dict [str, Any], actor_id: str):
+   writers = list (feature.get ("writers", []))
+   if actor_id in writers:
+      return
+   writers.append (actor_id)
+   record = { key: value for key, value in feature.items () if key not in { "claim", "worktree_state" } }
+   record ["writers"] = writers
+   state.atomic_write (_path (str (feature ["feature_id"])), record)
 
 
 def release (feature: dict [str, Any], actor_id: str):
@@ -616,7 +630,7 @@ def complete (
       git.worktree_remove (str (feature ["path"]))
    _claim_path (feature_id).unlink (missing_ok=True)
    if git.ref_exists (str (feature ["branch"])):
-      if not git.delete_branch (str (feature ["branch"])):
+      if not git.delete_branch (str (feature ["branch"]), force=True):
          raise state.StateError (f"Could not delete integrated branch {feature ['branch']}")
    if selection ().get ("feature_id") == feature_id:
       select (None)

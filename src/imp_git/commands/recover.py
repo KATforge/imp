@@ -28,9 +28,14 @@ def recover (
       console.muted ("No interrupted Imp operations")
       return data
    console.table (
-      [ "State", "Operation", "Started" ],
+      [ "Command", "Plan", "Error", "Next" ],
       [
-         [ str (record.get ("state")), str (record.get ("operation")), str (record.get ("started_at")) ]
+         [
+            str (record.get ("command", "")),
+            str (record.get ("plan_id", "")),
+            str (record.get ("error", "")),
+            str (record.get ("next", "")),
+         ]
          for record in records
       ],
    )

@@ -98,6 +98,20 @@ class TestManagedFeatures:
       assert context ["feature_id"] == feature ["feature_id"]
       assert context ["claim"] ["held_by"] == owner
 
+   def test_expired_claim_allows_a_new_writer (self, repo_with_origin, tmp_path):
+      owner = _actor ("codex", "owner")
+      intruder = _actor ("claude", "intruder")
+      _plan, feature = _start ("claimed", owner, tmp_path / "claimed")
+      claim_path = features._claim_path (feature ["feature_id"])
+      record = state.read (claim_path, "imp.claim.v1")
+      record ["expires_at"] = "2000-01-01T00:00:00Z"
+      state.atomic_write (claim_path, record)
+
+      claim = features.claim (feature, intruder)
+
+      assert claim ["held_by"] == intruder
+      assert intruder in features.find (feature ["feature_id"]) ["writers"]
+
    def test_active_selection_switches_without_checkout (self, repo_with_origin, tmp_path):
       original_branch = git.branch ()
       _plan, first = _start ("payments", _actor ("human", "anders"), tmp_path / "payments")

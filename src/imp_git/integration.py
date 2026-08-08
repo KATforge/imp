@@ -147,6 +147,17 @@ def _state_fingerprint (payload: dict [str, Any]) -> str:
    return fingerprint.values (value)
 
 
+def _review_required (feature: dict [str, Any]) -> bool:
+   writers = feature.get ("writers")
+   if writers is None:
+      creator = str (feature.get ("created_by", ""))
+      writers = [] if creator.startswith ("actor:temper:") else [ creator ]
+   return bool (repo.get ("review:required", False)) or any (
+      writer and not str (writer).startswith ("actor:human:")
+      for writer in writers
+   )
+
+
 def plan_done (
    feature: dict [str, Any],
    *,
@@ -174,7 +185,7 @@ def plan_done (
    configured = [] if skip_checks else _checks ()
    check_results = run_checks (candidate_oid, configured)
    blockers = [f"Check failed: {value ['name']}" for value in check_results if value ["exit_code"]]
-   if repo.get ("review:required", False):
+   if _review_required (feature):
       blockers.append ("Human review required")
    payload = {
       "actor_id": actor_id,
@@ -320,9 +331,29 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
    feature = features.find (str (payload ["feature_id"]))
    if not feature:
       raise state.StateError ("Integration feature is missing")
+   direct_receipt = {
+      "candidate_oid": payload ["candidate_oid"],
+      "feature_id": feature ["feature_id"],
+      "mode": "direct",
+      "plan_id": plan ["plan_id"],
+      "pushed": bool (payload ["push"]),
+      "target": payload ["target_ref"],
+   }
    completed = []
    try:
       with state.lock (f"done-{identity.slug (str (payload ['target_ref']))}"):
+         target_oid = git.rev_parse (str (payload ["target_ref"]))
+         finished = (
+            not payload ["pr"]
+            and feature.get ("state") == "completed"
+            and target_oid == payload ["candidate_oid"]
+            and not Path (str (feature ["path"])).exists ()
+            and not git.ref_exists (str (feature ["branch"]))
+         )
+         if finished:
+            plans.mark (plan, "applied", applied_at=state.now ())
+            state.clear_recovery (str (plan ["plan_id"]))
+            return direct_receipt
          if not git.clean_at (str (feature ["path"])):
             raise state.StateError ("Feature worktree became dirty")
          for path in git.ref_worktrees (str (payload ["target_ref"])):
@@ -333,9 +364,11 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
          if git.remote_exists () and payload ["remote_target_oid"]:
             target = str (payload ["target_ref"])
             git.fetch (remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}")
-            if git.rev_parse (f"origin/{target}") != payload ["remote_target_oid"]:
+            if git.rev_parse (f"origin/{target}") not in {
+               payload ["remote_target_oid"], payload ["candidate_oid"],
+            }:
                raise state.StateError ("Remote target moved after integration planning")
-         if git.rev_parse (str (payload ["target_ref"])) != payload ["local_target_oid"]:
+         if target_oid not in { payload ["local_target_oid"], payload ["candidate_oid"] }:
             raise state.StateError ("Local target moved after integration planning")
          if _state_fingerprint (payload) != payload ["state_fingerprint"]:
             raise state.StateError ("Integration candidate became stale")
@@ -346,7 +379,7 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
          ]
          if failed:
             raise state.StateError (f"Integration check failed: {failed [0]['name']}")
-         if repo.get ("review:required", False) and not review_current (plan):
+         if _review_required (feature) and not review_current (plan):
             raise state.StateError (f"Current human review required; run imp review {feature ['name']}")
 
          if payload ["pr"]:
@@ -362,12 +395,14 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
             features.complete (feature, actor_id, keep=True, state_name="awaiting-merge")
             completed.extend ([ "push", "pull_request" ])
             plans.mark (plan, "applied", applied_at=state.now ())
+            state.clear_recovery (str (plan ["plan_id"]))
             return { "feature_id": feature ["feature_id"], "mode": "pr", "plan_id": plan ["plan_id"], "url": url }
 
          ref = f"refs/heads/{payload ['target_ref']}"
-         git.update_ref_checked (ref, payload ["candidate_oid"], payload ["local_target_oid"])
-         for path in git.ref_worktrees (str (payload ["target_ref"])):
-            git.reset_at (path, str (payload ["candidate_oid"]))
+         if target_oid == payload ["local_target_oid"]:
+            git.update_ref_checked (ref, payload ["candidate_oid"], payload ["local_target_oid"])
+            for path in git.ref_worktrees (str (payload ["target_ref"])):
+               git.reset_at (path, str (payload ["candidate_oid"]))
          completed.append ("integrate")
          if payload ["push"]:
             git.push (ref=str (payload ["target_ref"]))
@@ -375,14 +410,8 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
          features.complete (feature, actor_id, keep=bool (payload ["keep"]))
          completed.append ("cleanup")
          plans.mark (plan, "applied", applied_at=state.now ())
-         return {
-            "candidate_oid": payload ["candidate_oid"],
-            "feature_id": feature ["feature_id"],
-            "mode": "direct",
-            "plan_id": plan ["plan_id"],
-            "pushed": bool (payload ["push"]),
-            "target": payload ["target_ref"],
-         }
+         state.clear_recovery (str (plan ["plan_id"]))
+         return direct_receipt
    except Exception as error:
       _record_recovery (plan, error, completed)
       raise

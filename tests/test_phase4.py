@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 from imp_git import console, features, git, identity, integration, plans, runtime, source_release, state
-from imp_git import repo as repo_mod
 from imp_git.commands import commit as commit_cmd
 from imp_git.commands import review as review_cmd
 from imp_git.commands import ship as ship_cmd
@@ -123,14 +122,36 @@ class TestDone:
 
       assert features.find (feature ["feature_id"]) ["state"] == "active"
 
-   def test_required_review_is_exact_and_human_only (self, repo, tmp_path, monkeypatch):
+   def test_push_failure_can_resume_the_same_plan (self, repo_with_origin, tmp_path, monkeypatch):
+      feature = _feature (repo_with_origin, tmp_path)
+      plan = integration.plan_done (feature, actor_id=ACTOR, push=True)
+      candidate = plan ["payload"] ["candidate_oid"]
+      original = git.push
+      attempts = []
+
+      def push (*args, **kwargs):
+         attempts.append (True)
+         if len (attempts) == 1:
+            raise state.StateError ("network unavailable")
+         return original (*args, **kwargs)
+
+      monkeypatch.setattr (integration.git, "push", push)
+
+      with pytest.raises (state.StateError, match="network unavailable"):
+         integration.apply_done (plan, ACTOR)
+
+      receipt = integration.apply_done (plan, ACTOR)
+
+      assert receipt ["candidate_oid"] == candidate
+      assert git.rev_parse (f"origin/{plan ['payload']['target_ref']}") == candidate
+      assert attempts == [ True, True ]
+      assert not list ((state.root () / "recovery").glob ("*.json"))
+
+   def test_agent_work_requires_exact_human_review (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)
-      original = repo_mod.get
-      monkeypatch.setattr (
-         integration.repo,
-         "get",
-         lambda key, default=None: True if key == "review:required" else original (key, default),
-      )
+      features.release (feature, ACTOR)
+      features.claim (feature, identity.resource ("actor", "codex", "session-1"))
+      feature = features.find (feature ["feature_id"])
       plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
 
       assert plan ["state"] == "blocked"
