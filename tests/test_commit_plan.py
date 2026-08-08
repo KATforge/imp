@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from imp_git import ai, commit_plan, git, identity, plans, state
+from imp_git import ai, commit_plan, git, identity, plans, prompts, state
 from tests.conftest import commit_count, git_run
 
 
@@ -67,14 +67,28 @@ class TestPlans:
    def test_planner_bounds_large_changes_without_dropping_sections (self, repo, monkeypatch):
       (repo / "large-a.txt").write_text ("a" * 200_000)
       (repo / "large-b.txt").write_text ("b" * 200_000)
-      prompts = []
-      monkeypatch.setattr (ai, "fast", lambda prompt: prompts.append (prompt) or "chore: add large fixtures")
+      captured = []
+      monkeypatch.setattr (ai, "fast", lambda prompt: captured.append (prompt) or "chore: add large fixtures")
 
       commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
 
-      assert "large-a.txt#1" in prompts [0]
-      assert "large-b.txt#1" in prompts [0]
-      assert len (prompts [0]) < ai.MAX_DIFF_CHARS + 5_000
+      assert "large-a.txt#1" in captured [0]
+      assert "large-b.txt#1" in captured [0]
+      assert len (captured [0]) <= ai.MAX_DIFF_CHARS + len (prompts.commit ("", git.branch ()))
+
+   def test_planner_reallocates_unused_budget_to_larger_changes (self):
+      changes = [
+         { "id": "large.txt#1", "patch": "x" * 50_000 + "END", "path": "large.txt" },
+         *[
+            { "id": f"small-{index}.txt#1", "patch": "small", "path": f"small-{index}.txt" }
+            for index in range (9)
+         ],
+      ]
+
+      value = commit_plan._diffs (changes)
+
+      assert "END" in value
+      assert len (value) <= ai.MAX_DIFF_CHARS
 
    def test_staged_plan_preserves_unstaged_changes_in_same_file (self, repo, monkeypatch):
       _prepare_changes (repo)

@@ -16,18 +16,50 @@ def _scope (all_changes: bool, staged: bool) -> tuple [str, list [str]]:
    return "staged", staged_paths
 
 
+def _allocate (sizes: list [int], budget: int) -> list [int]:
+   """Preserve small inputs and divide the remaining budget across large ones."""
+
+   limits = [0] * len (sizes)
+   remaining = set (range (len (sizes)))
+   available = max (0, budget)
+   while remaining:
+      share = available // len (remaining)
+      complete = {index for index in remaining if sizes [index] <= share}
+      if not complete:
+         for offset, index in enumerate (sorted (remaining)):
+            limits [index] = share + (1 if offset < available % len (remaining) else 0)
+         break
+      for index in complete:
+         limits [index] = sizes [index]
+         available -= sizes [index]
+      remaining -= complete
+   return limits
+
+
+def _diffs (changes: list [dict [str, str]]) -> str:
+   headers = [f"--- {change ['id']} ---\n" for change in changes]
+   overhead = sum (len (header) for header in headers) + max (0, len (headers) - 1)
+   if len (headers) > ai.MAX_DIFF_LINES or overhead > ai.MAX_DIFF_CHARS:
+      raise state.StateError ("Too many change sections for one commit plan")
+   line_budget = max (0, ai.MAX_DIFF_LINES - len (headers))
+   line_limits = _allocate ([len (change ["patch"].splitlines ()) for change in changes], line_budget)
+   bodies = [
+      "\n".join (change ["patch"].splitlines () [:limit])
+      for change, limit in zip (changes, line_limits, strict=True)
+   ]
+   char_limits = _allocate ([len (body) for body in bodies], ai.MAX_DIFF_CHARS - overhead)
+   return "\n".join (
+      f"{header}{body [:limit]}"
+      for header, body, limit in zip (headers, bodies, char_limits, strict=True)
+   )
+
+
 def _groups (
    changes: list [dict [str, str]],
    whisper: str,
    single: bool,
 ) -> list [dict [str, Any]]:
-   count = len (changes)
-   max_lines = max (1, ai.MAX_DIFF_LINES // count)
-   max_chars = max (1, ai.MAX_DIFF_CHARS // count)
-   diffs = "\n".join (
-      f"--- {change ['id']} ---\n{ai.truncate (change ['patch'], max_lines, max_chars)}"
-      for change in changes
-   )
+   diffs = _diffs (changes)
    branch = git.branch ()
    change_ids = [change ["id"] for change in changes]
    if single or len (changes) == 1:
