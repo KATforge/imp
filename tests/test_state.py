@@ -1,0 +1,65 @@
+from pathlib import Path
+
+import pytest
+
+from imp_git import repo as repo_mod
+from imp_git import state
+
+
+def _upgrade (value):
+   return { **value, "schema": "imp.fixture.v1", "value": value.get ("old_value") }
+
+
+class TestMigration:
+
+   def test_v0_migrates_atomically_and_keeps_one_backup (self, repo):
+      path = state.root () / "fixtures" / "example.json"
+      state.atomic_write (path, { "old_value": "kept", "unknown": True })
+
+      value = state.read (path, "imp.fixture.v1", { "v0": _upgrade })
+
+      assert value ["value"] == "kept"
+      assert value ["unknown"] is True
+      assert len (list ((state.root () / "backups").glob ("fixtures--example--*.json"))) == 1
+
+      assert state.read (path, "imp.fixture.v1") == value
+      assert list ((state.root () / "backups").glob ("fixtures--example--*.json")) == []
+
+   def test_migration_is_idempotent (self, repo):
+      path = state.root () / "fixtures" / "example.json"
+      state.atomic_write (path, { "old_value": "kept" })
+
+      first = state.read (path, "imp.fixture.v1", { "v0": _upgrade })
+      second = state.read (path, "imp.fixture.v1", { "v0": _upgrade })
+
+      assert first == second
+
+   def test_failed_migration_preserves_source (self, repo):
+      path = state.root () / "fixtures" / "example.json"
+      original = { "old_value": "kept" }
+      state.atomic_write (path, original)
+
+      def fail (value):
+         raise RuntimeError ("broken fixture")
+
+      with pytest.raises (RuntimeError, match="broken fixture"):
+         state.read (path, "imp.fixture.v1", { "v0": fail })
+
+      assert state.read (path) == original
+
+   def test_unknown_newer_schema_requests_update (self, repo):
+      path = Path (state.root (), "fixtures", "example.json")
+      state.atomic_write (path, { "schema": "imp.fixture.v2" })
+
+      with pytest.raises (state.StateError, match="update Imp"):
+         state.read (path, "imp.fixture.v1")
+
+
+class TestRepositoryConfig:
+
+   def test_committed_policy_needs_no_schema (self, repo):
+      path = repo / ".imp"
+      path.write_text ('{"feature:required": false}\n')
+      repo_mod.load.cache_clear ()
+
+      assert repo_mod.load () == { "feature:required": False }

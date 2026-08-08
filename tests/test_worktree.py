@@ -2,12 +2,12 @@ import pytest
 import typer
 
 from imp_git import git
-from imp_git.commands import worktree as worktree_cmd
+from imp_git.commands import start as start_cmd
 from tests.conftest import commit_file, git_run
 
 
-class TestWorktreeAddSafeBase:
-   """`imp worktree add` MUST root the new branch at origin/<trunk>, never at HEAD.
+class TestStartSafeBase:
+   """`imp start` MUST root the new branch at origin/<trunk>, never at HEAD.
 
    Regression: KAT-35 + KAT-36 — both Maiev instances had `imp worktree create`
    inherit the host worktree's HEAD (a feature branch) instead of master. KAT-36
@@ -22,11 +22,10 @@ class TestWorktreeAddSafeBase:
 
       assert git.branch () == "feat/wip"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-thing",
          base="",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -55,11 +54,10 @@ class TestWorktreeAddSafeBase:
 
       monkeypatch.setattr (git, "fetch", spy_fetch)
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-fetched",
          base="",
          path=str (tmp_path / "fetched-wt"),
-         no_fetch=False,
          yes=True,
       )
 
@@ -69,34 +67,16 @@ class TestWorktreeAddSafeBase:
          for _args, kwargs in fetched
       ), f"expected fetch(origin, master); got {fetched}"
 
-   def test_no_fetch_skips_network (self, repo_with_origin, tmp_path, mock_spin, monkeypatch):
-      """--no-fetch trusts the local origin/master ref, skips the fetch call."""
-
-      fetched = []
-      monkeypatch.setattr (git, "fetch", lambda *a, **k: fetched.append ((a, k)))
-
-      worktree_cmd.add (
-         name="KAT-99-cached",
-         base="",
-         path=str (tmp_path / "cached-wt"),
-         no_fetch=True,
-         unmanaged=True,
-         yes=True,
-      )
-
-      assert fetched == []
-
    def test_explicit_base_uses_that_ref (self, repo_with_origin, tmp_path, mock_spin):
       """--base <ref> roots at that ref exactly, regardless of HEAD or origin."""
 
       target_sha = git.rev_parse ("feat/wip")
       wt_path = tmp_path / "explicit-wt"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-explicit",
          base="feat/wip",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -108,11 +88,10 @@ class TestWorktreeAddSafeBase:
       fetched = []
       monkeypatch.setattr (git, "fetch", lambda *a, **k: fetched.append ((a, k)))
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-explicit-no-fetch",
          base="feat/wip",
          path=str (tmp_path / "explicit-no-fetch-wt"),
-         no_fetch=False,
          yes=True,
       )
 
@@ -128,11 +107,10 @@ class TestWorktreeAddSafeBase:
 
       wt_path = tmp_path / "main-wt"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-main-base",
          base="",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -141,7 +119,7 @@ class TestWorktreeAddSafeBase:
    def test_falls_back_to_local_trunk_when_no_remote (self, repo, tmp_path, mock_spin):
       """No remote configured: fall back to local trunk branch, never HEAD."""
 
-      git.checkout ("feat/local-wip", create=True)
+      git_run (repo, "checkout", "-b", "feat/local-wip")
       commit_file (repo, "wip.txt", "wip\n", "feat: wip")
 
       assert git.branch () == "feat/local-wip"
@@ -151,11 +129,10 @@ class TestWorktreeAddSafeBase:
 
       wt_path = tmp_path / "no-remote-wt"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-no-remote",
          base="",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -173,11 +150,10 @@ class TestWorktreeAddSafeBase:
       monkeypatch.chdir (work)
 
       with pytest.raises (typer.Exit):
-         worktree_cmd.add (
+         start_cmd.start (
             name="KAT-99-doomed",
             base="",
             path=str (tmp_path / "doomed-wt"),
-            no_fetch=False,
             yes=True,
          )
 

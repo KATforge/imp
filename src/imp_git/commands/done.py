@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, features, identity, integration, plans, result, runtime, state
+from imp_git import approval, console, features, identity, integration, plans, runtime, state
 
 
 def _feature (value: str) -> dict:
@@ -67,26 +67,18 @@ def done (
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
 
-   machine = json_output or runtime.options.json
-   if not machine:
-      _show (plan)
-   if plan_only or dry_run:
-      if machine:
-         result.emit ("imp.done-plan.v1", "imp done", { "plan": plan }, json_output=True)
-      return plan
-   if plan.get ("state") != "ready":
-      console.fatal ("Integration plan is blocked")
-   if runtime.options.no_input and not yes:
-      console.fatal ("Non-interactive completion requires --plan or --apply <plan-id> --yes")
-   if not yes and not console.confirm ("Apply this exact integration plan?"):
-      console.muted ("Cancelled")
-      raise typer.Exit (0)
-   try:
-      data = integration.apply_done (plan, actor)
-   except state.StateError as error:
-      console.fatal (str (error))
-   if machine:
-      result.emit ("imp.done.v1", "imp done", data, json_output=True)
-   else:
-      console.success ("Feature completed")
-   return data
+   return approval.run (
+      plan,
+      command="imp done",
+      noun="completion",
+      confirm="Apply this exact integration plan?",
+      plan_schema="imp.done-plan.v1",
+      result_schema="imp.done.v1",
+      apply=lambda value: integration.apply_done (value, actor),
+      show=_show,
+      success=lambda data: console.success ("Feature completed"),
+      plan_only=plan_only,
+      dry_run=dry_run,
+      yes=yes,
+      json_output=json_output,
+   )

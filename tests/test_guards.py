@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from typer.testing import CliRunner
 
-from imp_git import guards, runtime
+from imp_git import guards
 from imp_git.main import app
 
 runner = CliRunner ()
@@ -22,7 +22,6 @@ def test_grant_requires_provider_request (repo, monkeypatch, tmp_path):
 
 
 def test_request_creates_scoped_grant_and_revoke_removes_it (repo, monkeypatch, tmp_path):
-   runtime.reset ()
    monkeypatch.setenv ("XDG_STATE_HOME", str (tmp_path / "state"))
    actor = "actor:codex:thread-1"
    guards.prepare (str (repo), actor, "direct-edit", provider="codex", session_id="thread-1")
@@ -49,7 +48,6 @@ def test_request_creates_scoped_grant_and_revoke_removes_it (repo, monkeypatch, 
 
 
 def test_request_can_resolve_the_unique_pending_session (repo, monkeypatch, tmp_path):
-   runtime.reset ()
    monkeypatch.setenv ("XDG_STATE_HOME", str (tmp_path / "state"))
    monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)
    actor = "actor:codex:thread-1"

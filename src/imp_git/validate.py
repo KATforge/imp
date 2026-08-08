@@ -1,5 +1,4 @@
 import re
-from collections import Counter
 
 COMMIT_TYPES = (
    "feat", "fix", "refactor", "build", "chore",
@@ -73,13 +72,6 @@ def publishable (text: str) -> bool:
    """Whether text omits AI attribution and private actor IDs."""
    return not _provenance (text)
 
-def adds_provenance (before: str, after: str) -> bool:
-   """Whether an edit introduces AI attribution or a private actor ID."""
-   old = Counter (_provenance (before))
-   new = Counter (_provenance (after))
-
-   return bool (new - old)
-
 def commit (msg: str, max_subject: int = 72) -> bool:
    subject = msg.split ("\n", 1) [0]
 
@@ -96,6 +88,3 @@ def commit (msg: str, max_subject: int = 72) -> bool:
    if desc.endswith ("."):
       return False
    return not (desc [0].isupper () and not _TICKET_RE.match (desc))
-
-def branch (name: str) -> bool:
-   return bool (_BRANCH_RE.match (name))

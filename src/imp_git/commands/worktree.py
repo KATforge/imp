@@ -12,100 +12,11 @@ worktree = typer.Typer (
 )
 
 
-def _show_start (plan: dict):
-   payload = plan ["payload"]
-   console.table (
-      [ "Field", "Value" ],
-      [
-         [ "Feature", str (payload ["name"]) ],
-         [ "Branch", str (payload ["branch"]) ],
-         [ "Base", f"{payload ['base:ref']} ({str (payload ['base:oid']) [:10]})" ],
-         [ "Path", str (payload ["path"]) ],
-      ],
-   )
-
-
-@worktree.command ("add")
-def add (
-   name: Annotated [str, typer.Argument (help="Readable feature name")] = "",
-   base: Annotated [str, typer.Option ("--base", "--from", "-b", help="Explicit base ref")] = "",
-   path: Annotated [str, typer.Option ("--path", "-p", help="Explicit worktree path")] = "",
-   no_fetch: Annotated [bool, typer.Option ("--no-fetch", help="Use the cached remote-trunk ref")] = False,
-   unmanaged: Annotated [bool, typer.Option ("--unmanaged", help="Do not create an Imp feature record")] = False,
-   plan_only: Annotated [bool, typer.Option ("--plan", help="Persist without applying")] = False,
-   apply: Annotated [str, typer.Option ("--apply", help="Apply a saved plan")] = "",
-   yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
-):
-   """Create a worktree. Managed feature state is the default."""
-
-   git.require ()
-   yes = yes or runtime.options.yes
-   if not apply and not name:
-      console.fatal ("Feature name is required")
-   if no_fetch and not unmanaged:
-      console.fatal ("--no-fetch requires --unmanaged; managed features always verify remote trunk")
-   if unmanaged:
-      if plan_only or apply:
-         console.fatal ("Unmanaged worktrees do not support Imp plans")
-      start_ref = base
-      if not start_ref:
-         trunk = git.base_branch ()
-         start_ref = f"origin/{trunk}" if git.remote_exists () else trunk
-         if git.remote_exists () and not no_fetch:
-            git.fetch (remote="origin", refspec=f"+refs/heads/{trunk}:refs/remotes/origin/{trunk}")
-      target = Path (path).expanduser ().resolve () if path else Path.home () / ".worktrees" / git.repo_name () / name
-      if target.exists ():
-         console.fatal (f"Path already exists: {target}")
-      git.worktree_add (str (target), name, start_ref)
-      data = { "branch": name, "path": str (target), "unmanaged": True }
-      if json_output or runtime.options.json:
-         result.emit ("imp.worktree.v1", "imp worktree add", data, json_output=True)
-      else:
-         console.success (f"Worktree ready: {target}")
-      return data
-
-   try:
-      if apply:
-         plan = plans.resolve ("start", "" if apply == "__pick__" else apply)
-      else:
-         plan = features.plan_start (
-            name,
-            actor_id=identity.actor (actor_id),
-            base=base,
-            path=path,
-            persist=not runtime.options.dry_run,
-         )
-   except (state.StateError, ValueError) as error:
-      console.fatal (str (error))
-   machine = json_output or runtime.options.json
-   if not machine:
-      _show_start (plan)
-   if plan_only or runtime.options.dry_run:
-      if machine:
-         result.emit ("imp.worktree-plan.v1", "imp worktree add", { "plan": plan }, json_output=True)
-      return plan
-   if runtime.options.no_input and not yes:
-      console.fatal ("Non-interactive worktree creation requires --plan or --apply <plan-id> --yes")
-   if not yes and not console.confirm ("Create this worktree?"):
-      raise typer.Exit (0)
-   try:
-      feature = features.apply_start (plan)
-   except state.StateError as error:
-      console.fatal (str (error))
-   if machine:
-      result.emit ("imp.worktree.v1", "imp worktree add", { "feature": feature }, json_output=True)
-   else:
-      console.success (f"Worktree ready: {feature ['path']}")
-   return feature
-
-
 @worktree.command ("list")
 def list_ (
    json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
 ):
-   """List managed and unmanaged worktrees."""
+   """List repository worktrees and their managed feature state."""
 
    git.require ()
    selected = features.selection ()
@@ -208,8 +119,7 @@ def remove (
       console.fatal ("Worktree removal plan is blocked")
    if runtime.options.no_input and not yes:
       console.fatal ("Non-interactive worktree removal requires --apply <plan-id> --yes")
-   if not yes and not console.confirm ("Remove this clean worktree?"):
-      raise typer.Exit (0)
+   console.confirm_or_exit ("Remove this clean worktree?", yes)
    try:
       data = features.apply_remove (plan, actor)
    except state.StateError as error:
@@ -253,17 +163,6 @@ def claim_ (
       console.fatal (str (error))
    console.success (f"Claimed {feature ['name']} until {value ['expires_at']}")
    return value
-
-
-@worktree.command ("renew")
-def renew (
-   name: Annotated [str, typer.Argument (help="Feature name or ID")] = "",
-   ttl: Annotated [str, typer.Option ("--ttl", help="Claim duration, such as 2h")] = "",
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
-):
-   """Renew the caller's existing writer claim."""
-
-   return claim_ (name, ttl, actor_id)
 
 
 @worktree.command ("release")

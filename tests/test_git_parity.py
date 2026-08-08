@@ -3,7 +3,7 @@ from typer.testing import CliRunner
 from imp_git import git
 from imp_git import main as main_mod
 from imp_git.main import app
-from tests.conftest import commit_file
+from tests.conftest import commit_file, git_run
 
 runner = CliRunner ()
 
@@ -94,7 +94,7 @@ class TestMutation:
    def test_cherry_pick_applies_commit (self, repo):
       commit_file (repo, "picked.txt", "picked\n", "feat: add picked file")
       ref = git.rev_parse ("HEAD")
-      git.reset ("HEAD~1", hard=True)
+      git_run (repo, "reset", "--hard", "HEAD~1")
 
       result = runner.invoke (app, [ "cherry-pick", ref ])
 

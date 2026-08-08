@@ -1,22 +1,10 @@
-import os
-from pathlib import Path
-
 import pytest
 import typer
 
-from imp_git import ai, console, gh, git
-from imp_git.commands import branch as branch_cmd
+from imp_git import ai, console, git
 from imp_git.commands import commit as commit_cmd
-from imp_git.commands import init as init_cmd
-from imp_git.commands import merge as merge_cmd
-from imp_git.commands import pr as pr_cmd
-from imp_git.commands import push as push_mod
 from imp_git.commands import review as review_cmd
-from imp_git.commands import setup as setup_cmd
-from imp_git.commands import stash as stash_cmd
-from imp_git.commands import tag as tag_cmd
-from imp_git.commands import update as update_cmd
-from tests.conftest import commit_file, git_run, last_commit_subject
+from tests.conftest import commit_count, commit_file, git_run, last_commit_subject
 
 
 class TestCommitCommand:
@@ -28,7 +16,7 @@ class TestCommitCommand:
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
 
-      commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
+      commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
 
       assert last_commit_subject (repo) == "feat: add login"
 
@@ -38,7 +26,7 @@ class TestCommitCommand:
 
       (repo / "new.txt").write_text ("new file\n")
 
-      commit_cmd.commit (all=True, exclude=None, yes=False, push=False, whisper="")
+      commit_cmd.commit (all=True, exclude=None, yes=False, whisper="")
 
       assert last_commit_subject (repo) == "feat: add feature"
 
@@ -50,51 +38,13 @@ class TestCommitCommand:
       git_run (repo, "add", ".")
 
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
+         commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
 
-      assert git.commit_count () == 1
+      assert commit_count (repo) == 1
 
    def test_commit_nothing_staged (self, repo, monkeypatch):
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
-
-   def test_commit_rejects_push (self, repo, monkeypatch):
-      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", ".")
-
-      with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, yes=False, push=True, whisper="")
-
-   def test_commit_push_skipped_on_cancel (self, repo, monkeypatch):
-      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-      monkeypatch.setattr (console, "confirm", lambda text: False)
-
-      pushed = []
-      monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
-
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", ".")
-
-      with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, yes=False, push=True, whisper="")
-
-      assert len (pushed) == 0
-
-   def test_commit_no_push_by_default (self, repo, monkeypatch):
-      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
-      monkeypatch.setattr (console, "confirm", lambda text: True)
-
-      pushed = []
-      monkeypatch.setattr (push_mod, "do_push", lambda: pushed.append (True))
-
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", ".")
-
-      commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
-
-      assert len (pushed) == 0
+         commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
 
    def test_commit_retries_on_invalid_ai (self, repo, monkeypatch):
       calls = []
@@ -106,42 +56,15 @@ class TestCommitCommand:
          return "fix: resolve bug"
 
       monkeypatch.setattr (ai, "fast", mock_fast)
-      monkeypatch.setattr (console, "review", lambda text: "Yes")
       monkeypatch.setattr (console, "confirm", lambda text: True)
 
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
 
-      commit_cmd.commit (all=False, exclude=None, yes=False, push=False, whisper="")
+      commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
 
       assert last_commit_subject (repo) == "fix: resolve bug"
       assert len (calls) == 2
-
-
-class TestBranchCommand:
-
-   def test_creates_branch (self, repo, monkeypatch):
-      monkeypatch.setattr (ai, "fast", lambda prompt: "feat/user-auth")
-      monkeypatch.setattr (console, "confirm", lambda msg: True)
-
-      branch_cmd._create ("add user authentication")
-
-      assert git.branch () == "feat/user-auth"
-
-   def test_create_cancelled (self, repo, monkeypatch):
-      monkeypatch.setattr (ai, "fast", lambda prompt: "feat/user-auth")
-      monkeypatch.setattr (console, "confirm", lambda msg: False)
-
-      with pytest.raises (typer.Exit):
-         branch_cmd._create ("add user authentication")
-
-      assert git.branch () == "main"
-
-   def test_rejects_invalid_name (self, repo, monkeypatch):
-      monkeypatch.setattr (ai, "fast", lambda prompt: "invalid branch name!")
-
-      with pytest.raises (typer.Exit):
-         branch_cmd._create ("something")
 
 
 class TestReviewCommand:
@@ -213,462 +136,3 @@ class TestStatusParsing:
          if "spaced" in path:
             found = True
       assert found, "File with leading spaces not found in status"
-
-
-class TestInitCommand:
-
-   @pytest.fixture
-   def bare_dir (self, tmp_path):
-      old_cwd = Path.cwd ()
-      os.chdir (tmp_path)
-      yield tmp_path
-      os.chdir (old_cwd)
-
-   def test_initializes_repo_and_remote (self, bare_dir, monkeypatch, mock_spin):
-      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "node_modules\n.env\n")
-
-      (bare_dir / "package.json").write_text ("{}\n")
-
-      init_cmd.init (url="https://github.com/test/repo.git")
-
-      assert (bare_dir / ".git").is_dir ()
-      result = git_run (bare_dir, "remote", "get-url", "origin")
-      assert result.stdout.strip () == "https://github.com/test/repo.git"
-      assert (bare_dir / ".gitignore").exists ()
-      contents = (bare_dir / ".gitignore").read_text ()
-      assert "node_modules" in contents
-
-   def test_skips_init_if_already_repo (self, repo, monkeypatch, mock_spin):
-      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: ".env\n")
-
-      init_cmd.init (url="https://github.com/test/repo.git")
-
-      result = git_run (repo, "remote", "get-url", "origin")
-      assert result.stdout.strip () == "https://github.com/test/repo.git"
-
-   def test_merges_existing_gitignore (self, bare_dir, monkeypatch, mock_spin):
-      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "dist\n")
-
-      (bare_dir / ".gitignore").write_text ("node_modules\n")
-      (bare_dir / "index.js").write_text ("//\n")
-
-      init_cmd.init (url="https://github.com/test/repo.git")
-
-      contents = (bare_dir / ".gitignore").read_text ()
-      assert "node_modules" in contents
-      assert "dist" in contents
-
-   def test_no_gitignore_changes_when_none_needed (self, bare_dir, monkeypatch, mock_spin):
-      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "NONE")
-
-      (bare_dir / "file.txt").write_text ("hello\n")
-
-      init_cmd.init (url="https://github.com/test/repo.git")
-
-      assert not (bare_dir / ".gitignore").exists ()
-
-   def test_init_without_url (self, bare_dir, monkeypatch, mock_spin):
-      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "NONE")
-
-      init_cmd.init (url="")
-
-      assert (bare_dir / ".git").is_dir ()
-      result = git_run (bare_dir, "remote")
-      assert result.stdout.strip () == ""
-
-   def test_rejects_attributed_gitignore (self, bare_dir, monkeypatch, mock_spin):
-      monkeypatch.setattr (ai, "fast", lambda prompt, spin=True: "Generated with Claude Code")
-      (bare_dir / "package.json").write_text ("{}\n")
-
-      with pytest.raises (typer.Exit):
-         init_cmd.init (url="")
-
-      assert not (bare_dir / ".gitignore").exists ()
-
-
-class TestStashCommand:
-
-   def test_rejects_attributed_title (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("changed\n")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "Generated with Claude Code")
-
-      with pytest.raises (typer.Exit):
-         stash_cmd._push ()
-
-      assert git.stash_list_raw () == []
-
-
-class TestSetupCommand:
-
-   def test_url_arg_redirects_to_init (self, repo):
-      with pytest.raises (typer.Exit):
-         setup_cmd.setup (arg="git@github.com:test/repo.git")
-
-      assert "imp init" in console.last_error ()
-
-   def test_writes_imp_file (self, repo, monkeypatch):
-      monkeypatch.setattr (console, "prompt", lambda label, placeholder="": "")
-      monkeypatch.setattr (console, "check", lambda title, options, selected=None: [ "chore", "release", "merge" ])
-
-      setup_cmd.setup (arg="")
-
-      assert (repo / ".imp").is_file ()
-      import json
-      cfg = json.loads ((repo / ".imp").read_text ())
-      assert cfg ["changelog:skip"] == [ "chore", "release", "merge" ]
-      assert "docs:path" not in cfg
-
-
-class TestMergeCommand:
-
-   def _branch_with_commit (self, repo, name, path, content, msg):
-      git_run (repo, "checkout", "-b", name)
-      commit_file (repo, path, content, msg)
-      git_run (repo, "checkout", "main")
-
-   def test_clean_merge_creates_merge_commit (self, repo):
-      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
-
-      merge_cmd.merge (
-         source="feature",
-         yes=True,
-         no_ff=True,
-         whisper="",
-         favor_ours=False,
-         favor_theirs=False,
-         auto=False,
-      )
-
-      assert (repo / "new.txt").exists ()
-      assert last_commit_subject (repo).startswith ("Merge branch 'feature'")
-
-   def test_ff_merge_does_not_create_commit (self, repo):
-      before = git.commit_count ()
-      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
-
-      merge_cmd.merge (
-         source="feature",
-         yes=True,
-         no_ff=False,
-         whisper="",
-         favor_ours=False,
-         favor_theirs=False,
-         auto=False,
-      )
-
-      assert last_commit_subject (repo) == "add new"
-      assert git.commit_count () == before + 1
-
-   def test_rejects_self_merge (self, repo):
-      with pytest.raises (typer.Exit):
-         merge_cmd.merge (
-            source="main",
-            yes=True,
-            no_ff=True,
-            whisper="",
-            favor_ours=False,
-            favor_theirs=False,
-            auto=False,
-         )
-
-   def test_rejects_missing_branch (self, repo):
-      with pytest.raises (typer.Exit):
-         merge_cmd.merge (
-            source="ghost",
-            yes=True,
-            no_ff=True,
-            whisper="",
-            favor_ours=False,
-            favor_theirs=False,
-            auto=False,
-         )
-
-   def test_rejects_dirty_tree (self, repo):
-      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
-      (repo / "file.txt").write_text ("dirty\n")
-
-      with pytest.raises (typer.Exit):
-         merge_cmd.merge (
-            source="feature",
-            yes=True,
-            no_ff=True,
-            whisper="",
-            favor_ours=False,
-            favor_theirs=False,
-            auto=False,
-         )
-
-   def test_cancelled_aborts (self, repo, monkeypatch):
-      self._branch_with_commit (repo, "feature", "new.txt", "hello\n", "add new")
-      monkeypatch.setattr (console, "confirm", lambda msg: False)
-
-      with pytest.raises (typer.Exit):
-         merge_cmd.merge (
-            source="feature",
-            yes=False,
-            no_ff=True,
-            whisper="",
-            favor_ours=False,
-            favor_theirs=False,
-            auto=False,
-         )
-
-      assert not (repo / "new.txt").exists ()
-
-   def test_resolves_conflict_via_ai (self, repo, monkeypatch):
-      git_run (repo, "checkout", "-b", "feature")
-      commit_file (repo, "file.txt", "feature side\n", "feature change")
-      git_run (repo, "checkout", "main")
-      commit_file (repo, "file.txt", "main side\n", "main change")
-
-      monkeypatch.setattr (ai, "smart", lambda prompt: "resolved content\n")
-
-      merge_cmd.merge (
-         source="feature",
-         yes=True,
-         no_ff=True,
-         whisper="",
-         favor_ours=False,
-         favor_theirs=False,
-         auto=True,
-      )
-
-      assert (repo / "file.txt").read_text () == "resolved content"
-      assert last_commit_subject (repo).startswith ("Merge branch 'feature'")
-      assert not git.merge_in_progress ()
-
-
-class TestTagCommand:
-
-   def _tag_args (self, **overrides):
-      defaults = dict (patch=False, minor=False, major=False, yes=True, no_push=True)
-      defaults.update (overrides)
-      return defaults
-
-   def _seed (self, repo, tag_name=None, message="feat: add thing"):
-      """Commit a change so release_scope has something to work with."""
-      if tag_name:
-         git_run (repo, "tag", tag_name)
-      commit_file (repo, "feature.txt", "x\n", message)
-
-   def test_bumps_patch_and_writes_changelog (self, repo):
-      self._seed (repo, "v0.1.0", "feat: add login")
-
-      tag_cmd.tag (** self._tag_args (patch=True))
-
-      assert git.tag_exists ("v0.1.1")
-      changelog = (repo / "CHANGELOG.md").read_text ()
-      assert "## [0.1.1]" in changelog
-      assert "- Added login" in changelog
-      assert last_commit_subject (repo) == "chore: release v0.1.1"
-
-   def test_bumps_minor_resets_patch (self, repo):
-      self._seed (repo, "v0.1.5")
-
-      tag_cmd.tag (** self._tag_args (minor=True))
-
-      assert git.tag_exists ("v0.2.0")
-
-   def test_bumps_major_resets_lower (self, repo):
-      self._seed (repo, "v1.2.3")
-
-      tag_cmd.tag (** self._tag_args (major=True))
-
-      assert git.tag_exists ("v2.0.0")
-
-   def test_first_tag_from_zero (self, repo):
-      tag_cmd.tag (** self._tag_args (patch=True))
-
-      assert git.tag_exists ("v0.0.1")
-
-   def test_uses_highest_stable_tag (self, repo):
-      git_run (repo, "tag", "v0.1.0")
-      commit_file (repo, "a.txt", "a", "a")
-      git_run (repo, "tag", "v0.2.0")
-      commit_file (repo, "b.txt", "b", "b")
-      git_run (repo, "tag", "v0.1.5")  # lexically lower, but irrelevant
-
-      tag_cmd.tag (** self._tag_args (patch=True))
-
-      assert git.tag_exists ("v0.2.1")
-
-   def test_appends_to_existing_changelog (self, repo):
-      (repo / "CHANGELOG.md").write_text (
-         "# Changelog\n\n## [0.1.0] - 2024-01-01\n\n### Added\n- Original\n"
-      )
-      git_run (repo, "add", "CHANGELOG.md")
-      git_run (repo, "commit", "-m", "docs: seed changelog")
-      self._seed (repo, "v0.1.0", "fix: a bug")
-
-      tag_cmd.tag (** self._tag_args (patch=True))
-
-      content = (repo / "CHANGELOG.md").read_text ()
-      assert "## [0.1.1]" in content
-      assert "## [0.1.0]" in content
-      assert content.index ("[0.1.1]") < content.index ("[0.1.0]")
-
-   def test_rejects_multiple_levels (self, repo):
-      with pytest.raises (typer.Exit):
-         tag_cmd.tag (** self._tag_args (patch=True, minor=True))
-
-   def test_rejects_existing_tag (self, repo, monkeypatch):
-      self._seed (repo, "v0.1.1")
-      monkeypatch.setattr (tag_cmd, "current_version", lambda: "0.1.0")
-
-      with pytest.raises (typer.Exit):
-         tag_cmd.tag (** self._tag_args (patch=True))
-
-   def test_rejects_dirty_tree (self, repo):
-      git_run (repo, "tag", "v0.1.0")
-      (repo / "dirty.txt").write_text ("uncommitted\n")
-
-      with pytest.raises (typer.Exit):
-         tag_cmd.tag (** self._tag_args (patch=True))
-
-      assert not git.tag_exists ("v0.1.1")
-
-   def test_interactive_choice (self, repo, monkeypatch):
-      self._seed (repo, "v0.1.0")
-      monkeypatch.setattr (console, "choose", lambda title, opts: "minor")
-
-      tag_cmd.tag (** self._tag_args (yes=True))
-
-      assert git.tag_exists ("v0.2.0")
-
-   def test_cancelled (self, repo, monkeypatch):
-      self._seed (repo, "v0.1.0")
-      monkeypatch.setattr (console, "confirm", lambda msg: False)
-
-      with pytest.raises (typer.Exit):
-         tag_cmd.tag (** self._tag_args (patch=True, yes=False))
-
-      assert not git.tag_exists ("v0.1.1")
-      assert not (repo / "CHANGELOG.md").exists ()
-
-
-class TestPrCommand:
-
-   def _mock_gh (self, monkeypatch, captured):
-      monkeypatch.setattr (gh, "require", lambda: None)
-      monkeypatch.setattr (
-         gh, "pr_create",
-         lambda title, body, base, head: captured.update (base=base, head=head) or "https://example.com/pr/1",
-      )
-
-   def test_missing_base_fails_clearly (self, repo, monkeypatch, mock_spin):
-      self._mock_gh (monkeypatch, {})
-      git_run (repo, "checkout", "-b", "SPK-1-feature")
-      git_run (repo, "branch", "-D", "main")
-
-      with pytest.raises (typer.Exit):
-         pr_cmd.pr (yes=True, whisper="", into="", update=False)
-
-      assert "not found" in console.last_error ()
-
-   def test_into_targets_branch (self, repo, monkeypatch, mock_spin):
-      captured = {}
-      self._mock_gh (monkeypatch, captured)
-      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: "TITLE: add thing\n\nDESCRIPTION:\nbody")
-      monkeypatch.setattr (git, "push", lambda *args, **kwargs: None)
-      monkeypatch.setattr (git, "has_upstream", lambda: True)
-
-      git_run (repo, "branch", "develop")
-      git_run (repo, "checkout", "-b", "SPK-1-feature")
-      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
-
-      pr_cmd.pr (yes=True, whisper="", into="develop", update=False)
-
-      assert captured ["base"] == "develop"
-      assert captured ["head"] == "SPK-1-feature"
-
-   def test_no_commits_names_base (self, repo, monkeypatch, mock_spin):
-      self._mock_gh (monkeypatch, {})
-      git_run (repo, "checkout", "-b", "SPK-1-feature")
-
-      with pytest.raises (typer.Exit):
-         pr_cmd.pr (yes=True, whisper="", into="main", update=False)
-
-      assert "aren't on main" in console.last_error ()
-
-   def test_update_edits_existing_pr (self, repo, monkeypatch, mock_spin):
-      captured = {}
-      monkeypatch.setattr (gh, "require", lambda: None)
-      monkeypatch.setattr (
-         gh,
-         "pr_view",
-         lambda head: { "number": 7, "state": "OPEN", "url": "https://example.com/pr/7" },
-      )
-      monkeypatch.setattr (
-         gh, "pr_edit",
-         lambda number, title, body: captured.update (number=number, title=title, body=body) or "https://example.com/pr/7",
-      )
-      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: "TITLE: add thing\n\nDESCRIPTION:\nbody")
-      monkeypatch.setattr (git, "has_upstream", lambda: True)
-
-      git_run (repo, "checkout", "-b", "SPK-1-feature")
-      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
-
-      pr_cmd.pr (yes=True, whisper="", into="main", update=True)
-
-      assert captured ["number"] == 7
-      assert captured ["title"] == "add thing"
-      assert captured ["body"] == "body"
-
-   def test_update_requires_open_pr (self, repo, monkeypatch, mock_spin):
-      monkeypatch.setattr (gh, "require", lambda: None)
-      monkeypatch.setattr (gh, "pr_view", lambda head: { "number": 7, "state": "MERGED", "url": "" })
-
-      git_run (repo, "checkout", "-b", "SPK-1-feature")
-      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
-
-      with pytest.raises (typer.Exit):
-         pr_cmd.pr (yes=True, whisper="", into="main", update=True)
-
-      assert "No open PR" in console.last_error ()
-
-   def test_rejects_ai_attribution_before_publish (self, repo, monkeypatch, mock_spin):
-      captured = {}
-      self._mock_gh (monkeypatch, captured)
-      monkeypatch.setattr (
-         ai,
-         "smart",
-         lambda prompt, spin=True: "TITLE: add thing\n\nDESCRIPTION:\nGenerated with Claude Code",
-      )
-      monkeypatch.setattr (git, "has_upstream", lambda: True)
-
-      git_run (repo, "checkout", "-b", "SPK-1-feature")
-      commit_file (repo, "feature.txt", "work\n", "feat: add thing")
-
-      with pytest.raises (typer.Exit):
-         pr_cmd.pr (yes=True, whisper="", into="main", update=False)
-
-      assert captured == {}
-      assert "must not include AI attribution" in console.last_error ()
-
-
-class TestUpdateHelpers:
-
-   def test_source_repo_editable (self):
-      info = { "url": "file:///home/x/imp", "dir_info": { "editable": True } }
-      assert update_cmd._source_repo (info) == "/home/x/imp"
-
-   def test_source_repo_non_editable (self):
-      assert update_cmd._source_repo ({ "url": "file:///x", "dir_info": {} }) == ""
-
-   def test_source_repo_empty (self):
-      assert update_cmd._source_repo ({}) == ""
-
-   def test_source_repo_remote_url (self):
-      info = { "url": "https://github.com/x/imp", "dir_info": { "editable": True } }
-      assert update_cmd._source_repo (info) == ""
-
-   def test_vcs_target_git (self):
-      info = { "url": "https://github.com/KATforge/imp", "vcs_info": { "vcs": "git", "commit_id": "abc" } }
-      assert update_cmd._vcs_target (info) == "git+https://github.com/KATforge/imp"
-
-   def test_vcs_target_pinned_revision (self):
-      info = { "url": "https://github.com/KATforge/imp", "vcs_info": { "vcs": "git", "requested_revision": "master" } }
-      assert update_cmd._vcs_target (info) == "git+https://github.com/KATforge/imp@master"
-
-   def test_vcs_target_absent (self):
-      assert update_cmd._vcs_target ({}) == ""

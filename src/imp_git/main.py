@@ -9,19 +9,15 @@ from typer.core import TyperGroup
 
 from imp_git import __version__, console, passthrough, runtime
 from imp_git.commands.active import active
-from imp_git.commands.changelog import changelog
 from imp_git.commands.commit import commit
 from imp_git.commands.config import config_app
 from imp_git.commands.context import context
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
 from imp_git.commands.guard import guard
-from imp_git.commands.init import init
 from imp_git.commands.recover import recover
-from imp_git.commands.resolve import resolve
 from imp_git.commands.review import review
 from imp_git.commands.ship import ship
-from imp_git.commands.split import split
 from imp_git.commands.start import start
 from imp_git.commands.status import status
 from imp_git.commands.use import use
@@ -66,6 +62,7 @@ def _version (value: bool):
 
 @app.callback ()
 def main (
+   ctx: typer.Context,
    version: bool | None = typer.Option (
       None,
       "--version", "-v",
@@ -82,7 +79,7 @@ def main (
    ascii_output: Annotated [bool, typer.Option ("--ascii", help="Use plain ASCII output")] = False,
    no_color: Annotated [bool, typer.Option ("--no-color", help="Disable terminal color")] = False,
 ):
-   """[green]imp[/green] — AI-powered git workflow"""
+   """[green]imp[/green] — safe Git workstreams for people and agents"""
 
    if repo_path:
       target = Path (repo_path).expanduser ().resolve ()
@@ -93,6 +90,7 @@ def main (
    runtime.configure (
       actor_id=actor_id,
       ascii=ascii_output,
+      command=ctx.invoked_subcommand or "",
       dry_run=dry_run,
       json=json_output,
       no_input=no_input,
@@ -103,8 +101,8 @@ def main (
    console.out.no_color = no_color
 
 _commands = [
-   active, changelog, commit, context, doctor, done, init, recover, resolve,
-   review, ship, split, start, status, use,
+   active, commit, context, doctor, done, recover,
+   review, ship, start, status, use,
 ]
 
 for _cmd in _commands:

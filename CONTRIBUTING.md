@@ -17,39 +17,39 @@ imp doctor    # verify install + AI connection
 ## Test
 
 ```bash
-pytest        # full suite
-pytest tests/test_release.py -v
+uv run pytest
+uv run pytest tests/test_integration.py -v
 ```
 
 ## Lint
 
 ```bash
-ruff check src tests
-ruff format --check src tests   # style is intentionally non-PEP8, see pyproject.toml
+uv run ruff check .
 ```
 
-The formatter is **not** auto-run. Style rules in `pyproject.toml` reflect deliberate divergence (3-space indent, spaces inside brackets, `match` over `elif`). Don't reformat existing code on a whim.
+The project intentionally uses 3-space indentation and spaces inside brackets. Do not run Ruff's formatter.
 
 ## Project shape
 
 ```
 src/imp_git/
-   ai.py          # provider dispatch (claude CLI, ollama HTTP)
-   git.py         # subprocess wrapper, one fluent function per git verb
-   prompts.py     # all AI prompts in one place (SSOT)
-   config.py      # ~/.config/imp/config.json + env overrides
-   console.py     # rich-based output, spinner, prompts
-   workflow.py    # shared command primitives (review_commit)
-   commands/      # one file per `imp <command>`
+   commands/        # CLI boundary
+   features.py      # worktrees, claims, and active source
+   commit_plan.py   # exact logical commit plans
+   integration.py   # review and completion candidates
+   source_release.py # exact source releases
+   plans.py         # immutable plan records
+   state.py         # common-directory state and locks
+   git.py           # narrow Git subprocess boundary
 ```
 
 ## Conventions
 
 - Conventional Commits enforced by `imp commit` and the validator
-- One word per fluent segment (`git.diff()`, not `git.getDiff()`)
+- Keep the Git boundary narrow (`git.diff()`, not `git.getDiff()`)
 - Snake_case for response/config fields
 - Add a test for any bug fix; integration tests preferred over mocks for git operations
 
 ## PR
 
-Open a PR against `master`. `imp pr` works for this.
+Open a PR against `master`. `imp done --pr` works for a managed feature.
