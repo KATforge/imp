@@ -68,6 +68,12 @@ class TestSurface:
       assert "--fix" in result.output
       assert "--mark-reviewed" not in result.output
 
+   def test_done_exposes_explicit_approval_override (self):
+      result = runner.invoke (app, [ "done", "--help" ])
+
+      assert result.exit_code == 0
+      assert "--approve" in result.output
+
    def test_ship_exposes_prerelease_without_legacy_release_flags (self):
       result = runner.invoke (app, [ "ship", "--help" ])
 

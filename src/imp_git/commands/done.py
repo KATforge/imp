@@ -38,6 +38,10 @@ def done (
    push: Annotated [bool, typer.Option ("--push", help="Push the integrated target")] = False,
    keep: Annotated [bool, typer.Option ("--keep", help="Keep the feature worktree and branch")] = False,
    skip_checks: Annotated [bool, typer.Option ("--skip-checks", help="Explicitly bypass checks")] = False,
+   approve: Annotated [
+      bool,
+      typer.Option ("--approve", help="Approve the exact candidate without review"),
+   ] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact candidate only")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved plan")] = "",
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
@@ -50,6 +54,8 @@ def done (
    actor = identity.actor (actor_id)
    yes = yes or runtime.options.yes
    dry_run = dry_run or runtime.options.dry_run
+   if approve and dry_run:
+      console.fatal ("--approve cannot be combined with --dry-run")
    try:
       if apply:
          plan = plans.resolve ("done", "" if apply == "__pick__" else apply)
@@ -64,6 +70,9 @@ def done (
             selected, actor_id=actor, into=into, keep=keep, pr=pr,
             push=push, skip_checks=skip_checks, strategy=strategy, persist=not dry_run,
          )
+      if approve:
+         integration.approve (plan, actor)
+         plan = plans.load (str (plan ["plan_id"]))
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
 

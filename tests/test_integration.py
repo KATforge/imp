@@ -6,6 +6,7 @@ import typer
 
 from imp_git import ai, console, features, git, identity, integration, plans, runtime, source_release, state
 from imp_git.commands import commit as commit_cmd
+from imp_git.commands import done as done_cmd
 from imp_git.commands import review as review_cmd
 from imp_git.commands import ship as ship_cmd
 from tests.conftest import commit_file, git_run
@@ -173,9 +174,40 @@ class TestIntegration:
       reviewed = plans.load (plan ["plan_id"])
 
       assert receipt ["candidate_oid"] == plan ["payload"] ["candidate_oid"]
+      assert receipt ["decision"] == "reviewed"
       assert reviewed ["state"] == "ready"
-      assert integration.review_current (reviewed)
+      assert reviewed ["reviewed_at"] == receipt ["reviewed_at"]
+      assert integration.approval_current (reviewed)
       assert integration.reusable_plan (feature) ["plan_id"] == plan ["plan_id"]
+
+   def test_human_can_explicitly_approve_without_review (self, repo, tmp_path):
+      feature = _feature (repo, tmp_path)
+      features.release (feature, ACTOR)
+      features.claim (feature, identity.resource ("actor", "codex", "session-1"))
+
+      plan = done_cmd.done (
+         feature ["feature_id"],
+         approve=True,
+         plan_only=True,
+         actor_id=ACTOR,
+      )
+      receipt = integration.approval_receipt (feature ["feature_id"])
+
+      assert plan ["state"] == "ready"
+      assert receipt ["decision"] == "approved_without_review"
+      assert "reviewed_at" not in receipt
+      assert integration.approval_current (plan)
+
+   def test_agent_cannot_use_explicit_approval_override (self, repo, tmp_path):
+      feature = _feature (repo, tmp_path)
+
+      with pytest.raises (typer.Exit):
+         done_cmd.done (
+            feature ["feature_id"],
+            approve=True,
+            plan_only=True,
+            actor_id=identity.resource ("actor", "codex", "session-1"),
+         )
 
    def test_machine_review_includes_the_complete_diff (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)

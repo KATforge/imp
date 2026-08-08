@@ -7,6 +7,11 @@ from typing import Any
 
 from imp_git import features, fingerprint, gh, git, identity, plans, repo, state, validate
 
+_HUMAN_APPROVAL_BLOCKERS = {
+   "Human review required",
+   "Human review or explicit approval required",
+}
+
 
 def _checks () -> list [dict [str, Any]]:
    values = repo.get ("check:commands", []) or []
@@ -147,7 +152,7 @@ def _state_fingerprint (payload: dict [str, Any]) -> str:
    return fingerprint.values (value)
 
 
-def _review_required (feature: dict [str, Any]) -> bool:
+def _approval_required (feature: dict [str, Any]) -> bool:
    writers = feature.get ("writers")
    if writers is None:
       creator = str (feature.get ("created_by", ""))
@@ -185,8 +190,8 @@ def plan_done (
    configured = [] if skip_checks else _checks ()
    check_results = run_checks (candidate_oid, configured)
    blockers = [f"Check failed: {value ['name']}" for value in check_results if value ["exit_code"]]
-   if _review_required (feature):
-      blockers.append ("Human review required")
+   if _approval_required (feature):
+      blockers.append ("Human review or explicit approval required")
    payload = {
       "actor_id": actor_id,
       "candidate_oid": candidate_oid,
@@ -250,20 +255,24 @@ def reusable_plan (feature: dict [str, Any]) -> dict [str, Any] | None:
    return plan if _state_fingerprint (payload) == payload.get ("state_fingerprint") else None
 
 
-def review_path (feature_id: str) -> Path:
+def _approval_path (feature_id: str) -> Path:
    return state.root () / "reviews" / f"{identity.key (feature_id)}.json"
 
 
-def review_receipt (feature_id: str) -> dict [str, Any] | None:
-   path = review_path (feature_id)
+def approval_receipt (feature_id: str) -> dict [str, Any] | None:
+   """Return the current human acknowledgement for one feature."""
+
+   path = _approval_path (feature_id)
    if not path.exists ():
       return None
    return state.read (path, "imp.review.v1")
 
 
-def review_current (plan: dict [str, Any]) -> bool:
+def approval_current (plan: dict [str, Any]) -> bool:
+   """Return whether a human acknowledged this exact candidate."""
+
    payload = plan ["payload"]
-   receipt = review_receipt (str (payload ["feature_id"]))
+   receipt = approval_receipt (str (payload ["feature_id"]))
    return bool (
       receipt
       and receipt.get ("plan_id") == plan ["plan_id"]
@@ -274,6 +283,49 @@ def review_current (plan: dict [str, Any]) -> bool:
    )
 
 
+def _acknowledge (
+   plan: dict [str, Any],
+   actor_id: str,
+   *,
+   decision: str,
+   files: list [str],
+   findings: dict [str, int],
+) -> dict [str, Any]:
+   if not actor_id.startswith ("actor:human:"):
+      raise state.StateError ("Only a human actor can acknowledge a candidate")
+   payload = plan ["payload"]
+   if _state_fingerprint (payload) != payload ["state_fingerprint"]:
+      raise state.StateError ("Integration candidate became stale")
+   acknowledged_at = state.now ()
+   receipt = {
+      "schema": "imp.review.v1",
+      "acknowledged_by": actor_id,
+      "acknowledged_at": acknowledged_at,
+      "candidate_oid": payload ["candidate_oid"],
+      "commits": _commits (payload ["target_oid"], payload ["candidate_oid"]),
+      "decision": decision,
+      "feature_id": payload ["feature_id"],
+      "files": files,
+      "findings": findings,
+      "plan_id": plan ["plan_id"],
+      "state_fingerprint": payload ["state_fingerprint"],
+      "target_oid": payload ["target_oid"],
+      "target_ref": payload ["target_ref"],
+   }
+   decision_at = "reviewed_at" if decision == "reviewed" else "approved_at"
+   receipt [decision_at] = acknowledged_at
+   state.atomic_write (_approval_path (str (payload ["feature_id"])), receipt)
+   blockers = [value for value in plan.get ("blockers", []) if value not in _HUMAN_APPROVAL_BLOCKERS]
+   plans.mark (
+      plan,
+      "blocked" if blockers else "ready",
+      blockers=blockers,
+      acknowledged_at=acknowledged_at,
+      **{ decision_at: acknowledged_at },
+   )
+   return receipt
+
+
 def mark_reviewed (
    plan: dict [str, Any],
    actor_id: str,
@@ -281,29 +333,25 @@ def mark_reviewed (
    files: list [str],
    findings: dict [str, int],
 ) -> dict [str, Any]:
-   if not actor_id.startswith ("actor:human:"):
-      raise state.StateError ("Only a human actor can mark a candidate reviewed")
-   payload = plan ["payload"]
-   if _state_fingerprint (payload) != payload ["state_fingerprint"]:
-      raise state.StateError ("Integration candidate became stale")
-   receipt = {
-      "schema": "imp.review.v1",
-      "acknowledged_by": actor_id,
-      "candidate_oid": payload ["candidate_oid"],
-      "commits": _commits (payload ["target_oid"], payload ["candidate_oid"]),
-      "feature_id": payload ["feature_id"],
-      "files": files,
-      "findings": findings,
-      "plan_id": plan ["plan_id"],
-      "reviewed_at": state.now (),
-      "state_fingerprint": payload ["state_fingerprint"],
-      "target_oid": payload ["target_oid"],
-      "target_ref": payload ["target_ref"],
-   }
-   state.atomic_write (review_path (str (payload ["feature_id"])), receipt)
-   blockers = [value for value in plan.get ("blockers", []) if value != "Human review required"]
-   plans.mark (plan, "blocked" if blockers else "ready", blockers=blockers, reviewed_at=state.now ())
-   return receipt
+   return _acknowledge (
+      plan,
+      actor_id,
+      decision="reviewed",
+      files=files,
+      findings=findings,
+   )
+
+
+def approve (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
+   """Explicitly approve an exact candidate without recording a review."""
+
+   return _acknowledge (
+      plan,
+      actor_id,
+      decision="approved_without_review",
+      files=[],
+      findings={ "blocker": 0, "warning": 0, "note": 0 },
+   )
 
 
 def _record_recovery (plan: dict [str, Any], error: Exception, completed: list [str]) -> dict [str, Any]:
@@ -389,8 +437,11 @@ def _validate_candidate (
    ]
    if failed:
       raise state.StateError (f"Integration check failed: {failed [0]['name']}")
-   if _review_required (feature) and not review_current (plan):
-      raise state.StateError (f"Current human review required; run imp review {feature ['name']}")
+   if _approval_required (feature) and not approval_current (plan):
+      raise state.StateError (
+         f"Current human review or explicit approval required; "
+         f"run imp review {feature ['name']} or imp done {feature ['name']} --approve"
+      )
 
 
 def _apply_pr (
