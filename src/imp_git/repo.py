@@ -52,8 +52,8 @@ def load () -> dict:
 
    if not isinstance (data, dict):
       return {}
-   schema = str (data.get ("schema") or "v0")
-   if schema not in { "v0", "imp.config.v1" }:
+   schema = data.pop ("schema", None)
+   if schema not in { None, "imp.config.v1" }:
       from imp_git import state
       raise state.StateError (f"Unsupported repository configuration {schema}; update Imp")
    return data
@@ -69,7 +69,7 @@ def exists () -> bool:
 
 def save (cfg: dict):
    p = path ()
-   cfg = { **cfg, "schema": "imp.config.v1" }
+   cfg = { key: value for key, value in cfg.items () if key != "schema" }
    temporary = p.with_name (f".{p.name}.{os.getpid ()}.tmp")
    try:
       with temporary.open ("w") as stream:

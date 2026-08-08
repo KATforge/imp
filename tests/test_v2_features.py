@@ -131,7 +131,6 @@ class TestManagedFeatures:
       (repo_with_origin / ".gitignore").write_text (".env.local\n")
       (repo_with_origin / ".env.local").write_text ("TOKEN=local\n")
       (repo_with_origin / ".imp").write_text (json.dumps ({
-         "schema": "imp.config.v1",
          "worktree:setup": [
             { "name": "marker", "run": [ sys.executable, "-c", "open('setup.ok', 'w').write('ok')" ] },
          ],

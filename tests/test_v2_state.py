@@ -2,9 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from imp_git import identity, state
 from imp_git import repo as repo_mod
-from imp_git.commands import config as config_cmd
+from imp_git import state
 
 
 def _upgrade (value):
@@ -56,20 +55,11 @@ class TestStateMigration:
          state.read (path, "imp.fixture.v1")
 
 
-class TestRepositoryConfigMigration:
+class TestRepositoryConfig:
 
-   def test_committed_policy_requires_an_explicit_plan (self, repo):
+   def test_committed_policy_needs_no_schema (self, repo):
       path = repo / ".imp"
       path.write_text ('{"feature:required": false}\n')
       repo_mod.load.cache_clear ()
-      actor_id = identity.resource ("actor", "human", "anders")
 
-      plan = config_cmd._migration_plan (actor_id, persist=True)
-
-      assert "schema" not in repo_mod.load ()
-      assert plan ["payload"] ["policy"] ["schema"] == "imp.config.v1"
-
-      result = config_cmd._apply_migration (plan, actor_id)
-
-      assert result ["schema"] == "imp.config.v1"
-      assert repo_mod.load () ["schema"] == "imp.config.v1"
+      assert repo_mod.load () == { "feature:required": False }

@@ -91,6 +91,8 @@ IMP_ACTOR_ID=actor:claude:profile imp start profile --yes
 
 Imp stores feature records, plans, claims, and active selection under the repository's common Git directory. Nothing is written to project-level agent instruction files.
 
+Repositories need no `.imp` file for built-in policy. Imp creates local state when an operation needs it. Adding tracked policy remains an explicit source change.
+
 Agents normally receive `IMP_ACTOR_ID` from their user-level adapter. Humans do not need to type it.
 
 Outside Git, the adapter allows ordinary file edits without initializing Git or Imp.
@@ -117,16 +119,18 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `use`, `status`, `done`, `commit`, `review`, `resolve`, `changelog`, `ship`, `init`, `config`, `doctor`, `active`, `context`, `worktree`, `recover`, and the `split` compatibility alias.
+Native commands are `start`, `use`, `status`, `done`, `commit`, `review`, `resolve`, `changelog`, `ship`, `init`, `config`, `doctor`, `guard`, `active`, `context`, `worktree`, `recover`, and the `split` compatibility alias.
 
-## Repository policy
+## Optional repository policy
 
-Committed policy lives in `.imp`:
+Project overrides live in `.imp`:
 
 ```json
 {
-   "schema": "imp.config.v1",
    "feature:required": false,
+   "check:commands": [
+      { "name": "test", "run": ["uv", "run", "pytest"] }
+   ],
    "worktree:setup": [
       { "name": "dependencies", "run": ["uv", "sync"] }
    ],
