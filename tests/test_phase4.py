@@ -188,6 +188,7 @@ class TestDone:
 
       assert "checkout.txt" in value ["diff"]
       assert "+checkout" in value ["diff"]
+      assert value ["files"] == [ "checkout.txt" ]
 
    def test_human_review_prompts_to_mark_the_exact_candidate (self, repo, tmp_path, monkeypatch):
       feature = _feature (repo, tmp_path)

@@ -58,7 +58,7 @@ def _patch (feature: dict, plan: dict) -> tuple [str, list [str]]:
       parts.append ("".join (f"+{line}" for line in text.splitlines (keepends=True)))
    patch = "\n".join (part.rstrip () for part in parts if part).rstrip () + "\n"
    files = sorted ({
-      line [6:].split (" b/", 1) [0]
+      line.removeprefix ("diff --git a/").split (" b/", 1) [0]
       for line in patch.splitlines ()
       if line.startswith ("diff --git a/")
    })
