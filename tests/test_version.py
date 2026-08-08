@@ -3,13 +3,8 @@ import pytest
 from imp_git.version import (
    bump,
    changelog_from_commits,
-   normalize,
    normalize_line,
-   read_manifest_version,
    sync_manifests,
-   tidy_changelog,
-   write_package_version,
-   write_pyproject_version,
 )
 
 
@@ -81,94 +76,6 @@ class TestNormalizeLine:
       assert normalize_line (raw) == ""
 
 
-class TestNormalize:
-
-   def test_squeezes_every_bullet (self):
-      entry = (
-         "### Added\n"
-         "- Added a new OAuth login flow (AuthController.php) so users can sign in\n"
-         "\n"
-         "### Fixed\n"
-         "- fix: resolve the crash on empty config.\n"
-      )
-      assert normalize (entry) == (
-         "### Added\n"
-         "- Added a new OAuth login flow\n"
-         "\n"
-         "### Fixed\n"
-         "- Resolve the crash on empty config"
-      )
-
-   def test_drops_stray_prose (self):
-      entry = "Here is the changelog:\n\n### Added\n- Add oauth login"
-      assert normalize (entry) == "### Added\n- Add oauth login"
-
-   def test_drops_duplicates_the_squeeze_creates (self):
-      entry = "### Added\n- Add oauth login (initial)\n- Add oauth login (polish)"
-      assert normalize (entry) == "### Added\n- Add oauth login"
-
-   def test_drops_a_heading_left_empty (self):
-      entry = "### Added\n- Add oauth login\n\n### Fixed\n"
-      assert normalize (entry) == "### Added\n- Add oauth login"
-
-   def test_empty (self):
-      assert normalize ("") == ""
-
-
-CHANGELOG_MESSY = """\
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-## [0.0.2] - 2026-07-01
-
-### Added
-- Added: a new OAuth login flow (AuthController.php) so users can sign in.
-
-### Fixed
-
-## [Unreleased]
-
-## [0.0.1] - 2026-06-01
-
-### Changed
-- Sync
-"""
-
-CHANGELOG_TIDY = """\
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-## [0.0.2] - 2026-07-01
-
-### Added
-- A new OAuth login flow
-
-## [0.0.1] - 2026-06-01
-
-### Changed
-- Sync
-"""
-
-
-class TestTidyChangelog:
-
-   def test_tidies_a_messy_file (self):
-      assert tidy_changelog (CHANGELOG_MESSY) == CHANGELOG_TIDY
-
-   def test_is_idempotent (self):
-      assert tidy_changelog (CHANGELOG_TIDY) == CHANGELOG_TIDY
-
-   def test_keeps_a_released_version_with_nothing_left (self):
-      text = "# Changelog\n\n## [0.0.1] - 2026-06-01\n"
-      assert tidy_changelog (text) == text
-
-   def test_keeps_an_unreleased_section_that_has_bullets (self):
-      text = "# Changelog\n\n## [Unreleased]\n\n### Added\n- Add oauth login\n"
-      assert tidy_changelog (text) == text
-
-
 class TestChangelogFromCommits:
 
    def test_feat (self):
@@ -214,67 +121,6 @@ PYPROJECT = '[project]\nname = "demo"\nversion = "1.0.0"\n\n[tool.ruff]\ntarget-
 PYPROJECT_DYNAMIC = '[project]\nname = "demo"\ndynamic = ["version"]\n\n[tool.hatch.version]\nsource = "vcs"\n'
 
 
-class TestWritePackageVersion:
-
-   def test_rewrites_top_level_only (self, tmp_path):
-      path = tmp_path / "package.json"
-      path.write_text (PACKAGE_JSON)
-
-      assert write_package_version (path, "2.0.0")
-      text = path.read_text ()
-      assert '"version": "2.0.0"' in text
-      assert '"version": "9.9.9"' in text
-
-   def test_missing_file (self, tmp_path):
-      assert not write_package_version (tmp_path / "package.json", "2.0.0")
-
-   def test_no_version_field (self, tmp_path):
-      path = tmp_path / "package.json"
-      path.write_text ('{ "name": "demo" }\n')
-      assert not write_package_version (path, "2.0.0")
-
-   def test_same_version_no_op (self, tmp_path):
-      path = tmp_path / "package.json"
-      path.write_text (PACKAGE_JSON)
-      assert not write_package_version (path, "1.0.0")
-
-
-class TestWritePyprojectVersion:
-
-   def test_rewrites_project_version (self, tmp_path):
-      path = tmp_path / "pyproject.toml"
-      path.write_text (PYPROJECT)
-
-      assert write_pyproject_version (path, "0.0.12")
-      text = path.read_text ()
-      assert 'version = "0.0.12"' in text
-      assert 'target-version = "py310"' in text
-
-   def test_dynamic_version_no_op (self, tmp_path):
-      path = tmp_path / "pyproject.toml"
-      path.write_text (PYPROJECT_DYNAMIC)
-      assert not write_pyproject_version (path, "0.0.12")
-
-
-class TestReadManifestVersion:
-
-   def test_package_json (self, tmp_path):
-      path = tmp_path / "package.json"
-      path.write_text (PACKAGE_JSON)
-      assert read_manifest_version (path) == "1.0.0"
-
-   def test_pyproject (self, tmp_path):
-      path = tmp_path / "pyproject.toml"
-      path.write_text (PYPROJECT)
-      assert read_manifest_version (path) == "1.0.0"
-
-   def test_absent (self, tmp_path):
-      assert read_manifest_version (tmp_path / "package.json") is None
-      path = tmp_path / "pyproject.toml"
-      path.write_text (PYPROJECT_DYNAMIC)
-      assert read_manifest_version (path) is None
-
-
 class TestSyncManifests:
 
    def test_syncs_all_present (self, tmp_path):
@@ -285,13 +131,13 @@ class TestSyncManifests:
       changed = sync_manifests (tmp_path, "3.1.4")
 
       assert sorted (p.name for p in changed) == [ "package.json", "pyproject.toml" ]
-      assert read_manifest_version (tmp_path / "package.json") == "3.1.4"
-      assert read_manifest_version (tmp_path / "cli" / "pyproject.toml") == "3.1.4"
+      assert '"version": "3.1.4"' in (tmp_path / "package.json").read_text ()
+      assert 'version = "3.1.4"' in (tmp_path / "cli" / "pyproject.toml").read_text ()
 
    def test_rc_version (self, tmp_path):
       (tmp_path / "package.json").write_text (PACKAGE_JSON)
       sync_manifests (tmp_path, "0.1.0-rc.2")
-      assert read_manifest_version (tmp_path / "package.json") == "0.1.0-rc.2"
+      assert '"version": "0.1.0-rc.2"' in (tmp_path / "package.json").read_text ()
 
    def test_empty_repo (self, tmp_path):
       assert sync_manifests (tmp_path, "1.0.0") == []

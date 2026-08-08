@@ -7,12 +7,13 @@ import pytest
 import typer
 
 from imp_git import features, git, plans, state
+from imp_git.commands import start as start_cmd
 from imp_git.commands import worktree as worktree_cmd
 from tests.conftest import commit_file, git_run
 
 
-class TestWorktreeAddSafeBase:
-   """`imp worktree add` MUST root the new branch at origin/<trunk>, never at HEAD.
+class TestStartSafeBase:
+   """`imp start` MUST root the new branch at origin/<trunk>, never at HEAD.
 
    Regression: KAT-35 + KAT-36 — both Maiev instances had `imp worktree create`
    inherit the host worktree's HEAD (a feature branch) instead of master. KAT-36
@@ -27,11 +28,10 @@ class TestWorktreeAddSafeBase:
 
       assert git.branch () == "feat/wip"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-thing",
          base="",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -60,11 +60,10 @@ class TestWorktreeAddSafeBase:
 
       monkeypatch.setattr (git, "fetch", spy_fetch)
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-fetched",
          base="",
          path=str (tmp_path / "fetched-wt"),
-         no_fetch=False,
          yes=True,
       )
 
@@ -74,34 +73,16 @@ class TestWorktreeAddSafeBase:
          for _args, kwargs in fetched
       ), f"expected fetch(origin, master); got {fetched}"
 
-   def test_no_fetch_skips_network (self, repo_with_origin, tmp_path, mock_spin, monkeypatch):
-      """--no-fetch trusts the local origin/master ref, skips the fetch call."""
-
-      fetched = []
-      monkeypatch.setattr (git, "fetch", lambda *a, **k: fetched.append ((a, k)))
-
-      worktree_cmd.add (
-         name="KAT-99-cached",
-         base="",
-         path=str (tmp_path / "cached-wt"),
-         no_fetch=True,
-         unmanaged=True,
-         yes=True,
-      )
-
-      assert fetched == []
-
    def test_explicit_base_uses_that_ref (self, repo_with_origin, tmp_path, mock_spin):
       """--base <ref> roots at that ref exactly, regardless of HEAD or origin."""
 
       target_sha = git.rev_parse ("feat/wip")
       wt_path = tmp_path / "explicit-wt"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-explicit",
          base="feat/wip",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -113,11 +94,10 @@ class TestWorktreeAddSafeBase:
       fetched = []
       monkeypatch.setattr (git, "fetch", lambda *a, **k: fetched.append ((a, k)))
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-explicit-no-fetch",
          base="feat/wip",
          path=str (tmp_path / "explicit-no-fetch-wt"),
-         no_fetch=False,
          yes=True,
       )
 
@@ -133,11 +113,10 @@ class TestWorktreeAddSafeBase:
 
       wt_path = tmp_path / "main-wt"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-main-base",
          base="",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -146,7 +125,7 @@ class TestWorktreeAddSafeBase:
    def test_falls_back_to_local_trunk_when_no_remote (self, repo, tmp_path, mock_spin):
       """No remote configured: fall back to local trunk branch, never HEAD."""
 
-      git.checkout ("feat/local-wip", create=True)
+      git_run (repo, "checkout", "-b", "feat/local-wip")
       commit_file (repo, "wip.txt", "wip\n", "feat: wip")
 
       assert git.branch () == "feat/local-wip"
@@ -156,11 +135,10 @@ class TestWorktreeAddSafeBase:
 
       wt_path = tmp_path / "no-remote-wt"
 
-      worktree_cmd.add (
+      start_cmd.start (
          name="KAT-99-no-remote",
          base="",
          path=str (wt_path),
-         no_fetch=False,
          yes=True,
       )
 
@@ -178,11 +156,10 @@ class TestWorktreeAddSafeBase:
       monkeypatch.chdir (work)
 
       with pytest.raises (typer.Exit):
-         worktree_cmd.add (
+         start_cmd.start (
             name="KAT-99-doomed",
             base="",
             path=str (tmp_path / "doomed-wt"),
-            no_fetch=False,
             yes=True,
          )
 
@@ -255,7 +232,7 @@ class TestUnmanagedRemove:
 
    def test_remove_unmanaged_worktree_and_branch (self, repo_with_origin, tmp_path):
       target = tmp_path / "scratch-wt"
-      worktree_cmd.add (name="scratch", path=str (target), unmanaged=True, yes=True)
+      git_run (repo_with_origin, "worktree", "add", "-b", "scratch", str (target), "origin/master")
       assert target.exists ()
 
       data = worktree_cmd.remove (name="scratch", unmanaged=True, delete_branch=True, yes=True)
@@ -265,7 +242,7 @@ class TestUnmanagedRemove:
       assert "scratch" not in git.branches_local ()
 
    def test_unmanaged_remove_refuses_managed_worktrees (self, repo_with_origin, tmp_path, mock_spin):
-      worktree_cmd.add (
+      start_cmd.start (
          name="managed-one",
          path=str (tmp_path / "managed-wt"),
          yes=True,
@@ -279,7 +256,7 @@ class TestUnmanagedRemove:
 class TestLockScoping:
 
    def test_worktree_remove_ignores_the_global_features_lock (self, repo_with_origin, tmp_path, mock_spin):
-      worktree_cmd.add (
+      start_cmd.start (
          name="scoped",
          path=str (tmp_path / "scoped-wt"),
          yes=True,

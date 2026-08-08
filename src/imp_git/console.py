@@ -1,9 +1,5 @@
-import os
-import subprocess
 import sys
-import tempfile
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, NoReturn, TypeVar
 
 import questionary
@@ -16,7 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.theme import Theme as RichTheme
 
-from imp_git import runtime
+from imp_git import result, runtime
 from imp_git.theme import theme
 
 T = TypeVar ("T")
@@ -78,11 +74,7 @@ def table (headers: list [str], rows: list [list [str]], *, right: set [int] | N
 def success (msg: str):
    out.print (f"[success]✓[/success] {msg}")
 
-_last_error: str = ""
-
 def err (msg: str):
-   global _last_error
-   _last_error = msg
    out.print (Panel (
       msg,
       border_style=theme.error,
@@ -90,15 +82,12 @@ def err (msg: str):
       title_align="left",
    ))
 
-def last_error () -> str:
-   return _last_error
-
-def clear_error ():
-   global _last_error
-   _last_error = ""
-
 def fatal (msg: str) -> NoReturn:
-   err (msg)
+   if runtime.options.json:
+      command = f"imp {runtime.options.command}".strip ()
+      result.emit ("imp.error.v1", command, { "message": msg }, ok=False, json_output=True)
+   else:
+      err (msg)
    raise typer.Exit (1)
 
 def warn (msg: str):
@@ -114,19 +103,16 @@ def muted (msg: str):
 def md (text: str):
    out.print (Markdown (text.strip ()))
 
-def review (text: str) -> str:
-   panel = Panel (
-      text,
-      border_style=theme.accent,
-      padding=(1, 2),
-   )
-   out.print (panel)
-   out.print ()
-
-   return choose ("Use this message?", [ "Yes", "Edit", "No" ])
-
 def confirm (msg: str) -> bool:
    return choose (msg, [ "Yes", "No" ]) == "Yes"
+
+def confirm_or_exit (msg: str, yes: bool = False):
+   """Exit cleanly unless approval was given up front or at the prompt."""
+
+   if yes or confirm (msg):
+      return
+   muted ("Cancelled")
+   raise typer.Exit (0)
 
 def _noninteractive () -> bool:
    """Return whether prompting is unavailable."""
@@ -157,54 +143,6 @@ def choose (title: str, options: list [str]) -> str:
       return options [-1]
 
    return result
-
-def check (title: str, options: list [str], selected: list [str] | None = None) -> list [str]:
-   selected = selected or []
-
-   if _noninteractive ():
-      fatal (f"Cannot prompt for '{title}' without a terminal; pass an explicit option")
-
-   choices = [ questionary.Choice (o, checked=(o in selected)) for o in options ]
-
-   result = questionary.checkbox (
-      title,
-      choices=choices,
-      style=_pt_style,
-      qmark="▸",
-      pointer="▸",
-   ).ask ()
-
-   return result or []
-
-def prompt (label: str, placeholder: str = "") -> str:
-   if _noninteractive ():
-      fatal (f"Cannot prompt for '{label}' without a terminal; pass an explicit value")
-
-   result = questionary.text (
-      label,
-      default=placeholder,
-      style=_pt_style,
-      qmark="▸",
-   ).ask ()
-
-   return result or ""
-
-def edit (text: str) -> str:
-
-   editor = os.environ.get ("EDITOR", "vim")
-   with tempfile.NamedTemporaryFile (
-      mode="w",
-      suffix=".md",
-      delete=False,
-   ) as f:
-      f.write (text)
-      path = Path (f.name)
-
-   try:
-      subprocess.run ([ editor, str (path) ], check=True)
-      return path.read_text ()
-   finally:
-      path.unlink (missing_ok=True)
 
 def spin (title: str, fn: Callable [..., T], *args: Any, **kwargs: Any) -> T:
    with out.status (f"[accent]{title}[/accent]", spinner="dots"):

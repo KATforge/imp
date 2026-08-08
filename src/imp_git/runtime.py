@@ -7,6 +7,7 @@ class Options:
 
    actor_id: str = ""
    ascii: bool = False
+   command: str = ""
    dry_run: bool = False
    json: bool = False
    no_input: bool = False
@@ -29,6 +30,7 @@ def configure (
    *,
    actor_id: str = "",
    ascii: bool = False,
+   command: str = "",
    dry_run: bool = False,
    json: bool = False,
    no_input: bool = False,
@@ -42,6 +44,7 @@ def configure (
    options = Options (
       actor_id=actor_id,
       ascii=ascii,
+      command=command,
       dry_run=dry_run,
       json=json,
       no_input=no_input,

@@ -28,7 +28,6 @@ keywords = [
    "git-workflow",
    "github",
    "llm",
-   "merge-conflict",
    "ollama",
    "opencommit",
    "pull-request",
@@ -83,7 +82,6 @@ packages = ["src/imp_git"]
 [tool.hatch.build.targets.sdist]
 exclude = [
    "/.claude",
-   "/demo",
    "/dist",
 ]
 
@@ -112,9 +110,8 @@ select = [
    "RUF",    # ruff-specific
 ]
 ignore = [
-   "A001",   # variable shadows builtin (help command, intentional)
+   "A001",   # capability methods named all (intentional)
    "A002",   # argument shadows builtin (typer's `all` param, intentional)
-   "A004",   # import shadows builtin (help command, intentional)
    "B008",   # function call in default arg (typer convention)
    "E201",   # whitespace after '(' (intentional style)
    "E202",   # whitespace before ')' (intentional style)

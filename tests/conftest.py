@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from imp_git import ai, console
+from imp_git import ai, console, runtime
 
 
 def git_run (cwd, *args):
@@ -28,15 +28,23 @@ def last_commit_subject (repo):
    return result.stdout.strip ()
 
 
+def commit_count (repo):
+   result = git_run (repo, "rev-list", "--count", "HEAD")
+   return int (result.stdout.strip ())
+
+
 @pytest.fixture (autouse=True)
-def _clear_repo_cache ():
-   """repo.load() is process-cached; clear it around every test so a `.imp`
-   written by one test never leaks into another repo."""
+def _reset_process_state ():
+   """Prevent cached repository and invocation state from leaking between tests."""
    from imp_git import repo as repo_mod
 
    repo_mod.load.cache_clear ()
-   yield
-   repo_mod.load.cache_clear ()
+   runtime.reset ()
+   try:
+      yield
+   finally:
+      repo_mod.load.cache_clear ()
+      runtime.reset ()
 
 
 @pytest.fixture

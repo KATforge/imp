@@ -48,33 +48,15 @@ The plan creates no branch or worktree. Apply revalidates the exact base before 
 
 `imp commit` plans staged changes, or all dirty changes when nothing is staged. It can split separate change sections from the same file into different commits. Apply builds the complete commit chain off-ref and moves the branch only after every commit succeeds.
 
-`imp split` is the exact alias for `imp commit --all`.
-
 ## Direct editing
 
-Humans may use the current checkout directly. A guarded agent normally uses a managed worktree. When the user explicitly wants direct edits, the agent requests a temporary exception:
-
-```bash
-imp guard request direct-edit
-```
-
-The provider asks the user to approve one repository and session for 30 minutes. The exception permits source edits only. Raw Git, publication, cross-repository writes, and repository agent-instruction files remain blocked.
-
-Inspect or end access early:
-
-```bash
-imp guard status
-imp guard revoke
-```
-
-Session shutdown revokes the exception automatically.
+Humans and agents may use the current checkout directly for small, focused changes. The agent adapter is advisory: it detects raw Git and reminds the caller to use the equivalent Imp workflow. Use a managed feature worktree for concurrent, large, or risky changes.
 
 Existing checkouts still support incremental Imp adoption:
 
 ```bash
 imp commit -m "fix(auth): preserve the refresh token"
 imp commit
-imp split
 imp review
 ```
 
@@ -119,7 +101,7 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `use`, `status`, `done`, `commit`, `review`, `resolve`, `changelog`, `ship`, `init`, `config`, `doctor`, `guard`, `active`, `context`, `worktree`, `recover`, and the `split` compatibility alias.
+Native commands are `start`, `use`, `status`, `done`, `commit`, `review`, `ship`, `config`, `doctor`, `active`, `context`, `worktree`, and `recover`.
 
 ## Optional repository policy
 

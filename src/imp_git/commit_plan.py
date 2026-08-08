@@ -69,14 +69,6 @@ def _groups (
    return normalized
 
 
-def groups_for_paths (paths: list [str], *, staged: bool = False, whisper: str = "") -> list [dict [str, Any]]:
-   """Propose logical groups without creating a commit plan."""
-
-   mode = "staged" if staged else "all"
-   changes, _tree = patches.changes (paths, mode)
-   return _groups (changes, whisper, single=False)
-
-
 def create (
    *,
    actor_id: str,
@@ -156,9 +148,7 @@ def create (
    )
 
 
-def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
-   """Build every commit off-ref, then atomically move the current branch."""
-
+def _apply_payload (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
    if plan.get ("state") != "ready":
       raise state.StateError (f"Plan is {plan.get ('state')}, not ready")
    if plan.get ("payload_schema") != "imp.commit-plan.v2":
@@ -178,66 +168,82 @@ def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
    messages = (str (group.get ("message", "")) for group in payload ["groups"])
    if any (not validate.commit (message, max_subject) for message in messages):
       raise state.StateError ("Commit plan contains an invalid message")
-
    features.assert_write_access (actor_id)
-   index = state.temporary ("commit-index-")
+   return payload
+
+
+def _build_commits (payload: dict [str, Any], index) -> tuple [str, list [dict [str, Any]]]:
    commits = []
    head = str (payload ["head_oid"])
    parent = str (payload.get ("parent_oid", head))
-   branch_ref = str (payload ["branch_ref"])
-   updated_ref = False
+   if head:
+      git.index_read_tree (index, head)
+   else:
+      git.index_read_empty (index)
+   for group in payload ["groups"]:
+      patches.apply (index, list (payload ["changes"]), list (group ["changes"]))
+      tree = git.index_write_tree (index)
+      head = git.commit_tree (tree, parent, str (group ["message"]))
+      parent = head
+      commits.append ({ "oid": head, "message": group ["message"], "paths": group ["files"] })
+   if payload ["desired_tree"] != git.index_write_tree (index):
+      raise state.StateError ("Commit chain does not cover the exact selected tree")
+   return head, commits
+
+
+def _restore_ref (payload: dict [str, Any], head: str, backup, real_index):
+   previous = str (payload ["head_oid"])
+   try:
+      if previous:
+         git.update_ref_checked (str (payload ["branch_ref"]), previous, head)
+      else:
+         git.delete_ref_checked (str (payload ["branch_ref"]), head)
+   finally:
+      if backup.exists ():
+         backup.replace (real_index)
+
+
+def _move_ref (payload: dict [str, Any], head: str, backup):
+   real_index = git.index_path ()
+   if real_index.exists ():
+      shutil.copy2 (real_index, backup)
+   git.update_ref_checked (str (payload ["branch_ref"]), head, str (payload ["head_oid"]))
+   try:
+      git.reset_mixed (head)
+      for preserved in payload.get ("preserved_index", []):
+         entry = preserved.get ("entry")
+         git.index_set_current (str (preserved ["path"]), tuple (entry) if entry else None)
+   except Exception:
+      _restore_ref (payload, head, backup, real_index)
+      raise
+
+
+def _apply_commits (plan: dict [str, Any], payload: dict [str, Any]) -> list [dict [str, Any]]:
+   index = state.temporary ("commit-index-")
    backup = state.temporary ("real-index-")
+   try:
+      head, commits = _build_commits (payload, index)
+      if fingerprint.repository () != plan.get ("fingerprint"):
+         raise state.StateError ("Repository state changed while commits were prepared")
+      _move_ref (payload, head, backup)
+      return commits
+   except Exception as error:
+      if fingerprint.repository () != plan.get ("fingerprint"):
+         plans.mark (plan, "stale", stale_at=state.now ())
+      else:
+         plans.mark (plan, "failed", failed_at=state.now (), error=str (error))
+      raise
+   finally:
+      index.unlink (missing_ok=True)
+      backup.unlink (missing_ok=True)
 
+
+def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
+   """Build every commit off-ref, then atomically move the current branch."""
+
+   payload = _apply_payload (plan, actor_id)
    with state.lock (f"commit-{identity.slug (str (payload ['branch']))}"):
-      try:
-         if head:
-            git.index_read_tree (index, head)
-         else:
-            git.index_read_empty (index)
-         for group in payload ["groups"]:
-            patches.apply (index, list (payload ["changes"]), list (group ["changes"]))
-            tree = git.index_write_tree (index)
-            head = git.commit_tree (tree, parent, str (group ["message"]))
-            parent = head
-            commits.append ({ "oid": head, "message": group ["message"], "paths": group ["files"] })
-
-         if payload ["desired_tree"] != git.index_write_tree (index):
-            raise state.StateError ("Commit chain does not cover the exact selected tree")
-
-         if fingerprint.repository () != plan.get ("fingerprint"):
-            plans.mark (plan, "stale", stale_at=state.now ())
-            raise state.StateError ("Repository state changed while commits were prepared")
-
-         real_index = git.index_path ()
-         if real_index.exists ():
-            shutil.copy2 (real_index, backup)
-         git.update_ref_checked (branch_ref, head, str (payload ["head_oid"]))
-         updated_ref = True
-         try:
-            git.reset_mixed (head)
-            for preserved in payload.get ("preserved_index", []):
-               entry = preserved.get ("entry")
-               normalized = tuple (entry) if entry else None
-               git.index_set_current (str (preserved ["path"]), normalized)
-         except Exception:
-            try:
-               previous = str (payload ["head_oid"])
-               if previous:
-                  git.update_ref_checked (branch_ref, previous, head)
-               else:
-                  git.delete_ref_checked (branch_ref, head)
-            finally:
-               if backup.exists ():
-                  backup.replace (real_index)
-               updated_ref = False
-            raise
-      except Exception as error:
-         if not updated_ref:
-            plans.mark (plan, "failed", failed_at=state.now (), error=str (error))
-         raise
-      finally:
-         index.unlink (missing_ok=True)
-         backup.unlink (missing_ok=True)
+      commits = _apply_commits (plan, payload)
 
    plans.mark (plan, "applied", applied_at=state.now (), commit_oids=[commit ["oid"] for commit in commits])
    return {

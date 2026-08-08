@@ -4,11 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added `imp.error.v1` machine-readable failure envelopes under `--json`
+- Changed plan-driven commands to share one display, approval, and apply flow
+- Removed legacy commands, duplicate aliases, their exclusive code, tests, and 117 obsolete demo assets
 - Added versioned JSON results, immutable plans, exact repository fingerprints, common-directory locks, atomic state writes, and schema migrations
 - Added managed feature records, readable actor and feature IDs, exclusive writer claims, and active-source selection
 - Added two-phase `imp start` with fresh remote-trunk validation, safe argv-only setup, and allowlisted ignored-file sharing
 - Added transactional `imp commit` planning with exact change coverage, same-file splitting, Conventional Commits, and unrelated index preservation
-- Added direct manual commits through `imp commit -m`, local amend and fixup modes, and `imp split` as an exact `imp commit --all` alias
+- Added direct manual commits through `imp commit -m` plus local amend and fixup modes
 - Added styled worktree tables, machine-readable context, and a two-writer isolation proof suite
 - Added immutable integration candidates, configured checks, exact human review receipts, and direct or pull-request completion
 - Added source-release candidates that update versions, lockfiles, and the flat changelog before exact publication
@@ -25,6 +28,7 @@ All notable changes to this project will be documented in this file.
 - Changed `imp push` to ordinary Git passthrough and prevented `imp ship` from silently committing dirty work
 - Fixed feature creation so branches cannot inherit the caller's feature branch or stale remote-trunk state
 - Fixed commit failures so the starting branch, index, worktree, and untracked content remain unchanged
+- Fixed commit plans changed during apply so they remain stale instead of being mislabeled failed
 - Fixed agent diagnostics so untrusted Codex hooks report `guided` until reviewed through `/hooks`
 - Fixed the installed entrypoint so native command failures preserve their exit code
 - Fixed reviewed integration candidates so `imp done` reuses the exact approved plan
@@ -37,6 +41,7 @@ All notable changes to this project will be documented in this file.
 - Fixed isolated package installs by declaring the directly imported Click dependency
 - Fixed fresh installs by constraining Typer to the tested CLI-compatible release line
 - Fixed CLI registration tests so help rendering cannot hide option assertions
+- Fixed test isolation so invocation flags cannot leak between cases
 
 ## [0.0.68] - 2026-07-29
 

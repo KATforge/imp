@@ -322,7 +322,7 @@ def _record_recovery (plan: dict [str, Any], error: Exception, completed: list [
    return record
 
 
-def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
+def _apply_payload (plan: dict [str, Any]) -> tuple [dict [str, Any], dict [str, Any]]:
    if plan.get ("payload_schema") != "imp.done-plan.v1":
       raise state.StateError ("Unsupported integration plan")
    if plan.get ("state") != "ready":
@@ -331,7 +331,11 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
    feature = features.find (str (payload ["feature_id"]))
    if not feature:
       raise state.StateError ("Integration feature is missing")
-   direct_receipt = {
+   return payload, feature
+
+
+def _direct_receipt (plan: dict [str, Any], payload: dict [str, Any], feature: dict [str, Any]) -> dict [str, Any]:
+   return {
       "candidate_oid": payload ["candidate_oid"],
       "feature_id": feature ["feature_id"],
       "mode": "direct",
@@ -339,79 +343,115 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
       "pushed": bool (payload ["push"]),
       "target": payload ["target_ref"],
    }
+
+
+def _finish_done (plan: dict [str, Any]):
+   plans.mark (plan, "applied", applied_at=state.now ())
+   state.clear_recovery (str (plan ["plan_id"]))
+
+
+def _already_done (payload: dict [str, Any], feature: dict [str, Any], target_oid: str) -> bool:
+   return bool (
+      not payload ["pr"]
+      and feature.get ("state") == "completed"
+      and target_oid == payload ["candidate_oid"]
+      and not Path (str (feature ["path"])).exists ()
+      and not git.ref_exists (str (feature ["branch"]))
+   )
+
+
+def _validate_candidate (
+   plan: dict [str, Any],
+   payload: dict [str, Any],
+   feature: dict [str, Any],
+   target_oid: str,
+):
+   if not git.clean_at (str (feature ["path"])):
+      raise state.StateError ("Feature worktree became dirty")
+   for path in git.ref_worktrees (str (payload ["target_ref"])):
+      if not git.clean_at (path):
+         raise state.StateError (f"Target worktree is dirty: {path}")
+   if git.rev_parse (str (feature ["branch"])) != payload ["feature_oid"]:
+      raise state.StateError ("Feature moved after integration planning")
+   if git.remote_exists () and payload ["remote_target_oid"]:
+      target = str (payload ["target_ref"])
+      git.fetch (remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}")
+      current = git.rev_parse (f"origin/{target}")
+      if current not in { payload ["remote_target_oid"], payload ["candidate_oid"] }:
+         raise state.StateError ("Remote target moved after integration planning")
+   if target_oid not in { payload ["local_target_oid"], payload ["candidate_oid"] }:
+      raise state.StateError ("Local target moved after integration planning")
+   if _state_fingerprint (payload) != payload ["state_fingerprint"]:
+      raise state.StateError ("Integration candidate became stale")
+   failed = [
+      check for check in run_checks (payload ["candidate_oid"], payload ["check_commands"])
+      if check ["exit_code"]
+   ]
+   if failed:
+      raise state.StateError (f"Integration check failed: {failed [0]['name']}")
+   if _review_required (feature) and not review_current (plan):
+      raise state.StateError (f"Current human review required; run imp review {feature ['name']}")
+
+
+def _apply_pr (
+   plan: dict [str, Any],
+   payload: dict [str, Any],
+   feature: dict [str, Any],
+   actor_id: str,
+   completed: list [str],
+) -> dict [str, Any]:
+   title = git.subject (str (feature ["branch"])) or f"Complete {feature ['name']}"
+   body = f"Implements `{feature ['feature_id']}`.\n\nPrepared by Imp plan `{plan ['plan_id']}`."
+   if not validate.publishable (f"{title}\n{body}"):
+      raise state.StateError ("Pull request text contains AI attribution or an actor ID")
+   git.push (set_upstream=True, target=str (feature ["branch"]))
+   existing = gh.pr_view (str (feature ["branch"]))
+   url = gh.pr_edit (int (existing ["number"]), title, body) if existing else gh.pr_create (
+      title, body, str (payload ["target_ref"]), str (feature ["branch"])
+   )
+   features.complete (feature, actor_id, keep=True, state_name="awaiting-merge")
+   completed.extend ([ "push", "pull_request" ])
+   return { "feature_id": feature ["feature_id"], "mode": "pr", "plan_id": plan ["plan_id"], "url": url }
+
+
+def _apply_direct (
+   plan: dict [str, Any],
+   payload: dict [str, Any],
+   feature: dict [str, Any],
+   actor_id: str,
+   target_oid: str,
+   completed: list [str],
+) -> dict [str, Any]:
+   ref = f"refs/heads/{payload ['target_ref']}"
+   if target_oid == payload ["local_target_oid"]:
+      git.update_ref_checked (ref, payload ["candidate_oid"], payload ["local_target_oid"])
+      for path in git.ref_worktrees (str (payload ["target_ref"])):
+         git.reset_at (path, str (payload ["candidate_oid"]))
+   completed.append ("integrate")
+   if payload ["push"]:
+      git.push (ref=str (payload ["target_ref"]))
+      completed.append ("push")
+   features.complete (feature, actor_id, keep=bool (payload ["keep"]))
+   completed.append ("cleanup")
+   return _direct_receipt (plan, payload, feature)
+
+
+def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
+   payload, feature = _apply_payload (plan)
+   receipt = _direct_receipt (plan, payload, feature)
    completed = []
    try:
       with state.lock (f"done-{identity.slug (str (payload ['target_ref']))}"):
          target_oid = git.rev_parse (str (payload ["target_ref"]))
-         finished = (
-            not payload ["pr"]
-            and feature.get ("state") == "completed"
-            and target_oid == payload ["candidate_oid"]
-            and not Path (str (feature ["path"])).exists ()
-            and not git.ref_exists (str (feature ["branch"]))
+         if _already_done (payload, feature, target_oid):
+            _finish_done (plan)
+            return receipt
+         _validate_candidate (plan, payload, feature, target_oid)
+         data = _apply_pr (plan, payload, feature, actor_id, completed) if payload ["pr"] else _apply_direct (
+            plan, payload, feature, actor_id, target_oid, completed
          )
-         if finished:
-            plans.mark (plan, "applied", applied_at=state.now ())
-            state.clear_recovery (str (plan ["plan_id"]))
-            return direct_receipt
-         if not git.clean_at (str (feature ["path"])):
-            raise state.StateError ("Feature worktree became dirty")
-         for path in git.ref_worktrees (str (payload ["target_ref"])):
-            if not git.clean_at (path):
-               raise state.StateError (f"Target worktree is dirty: {path}")
-         if git.rev_parse (str (feature ["branch"])) != payload ["feature_oid"]:
-            raise state.StateError ("Feature moved after integration planning")
-         if git.remote_exists () and payload ["remote_target_oid"]:
-            target = str (payload ["target_ref"])
-            git.fetch (remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}")
-            if git.rev_parse (f"origin/{target}") not in {
-               payload ["remote_target_oid"], payload ["candidate_oid"],
-            }:
-               raise state.StateError ("Remote target moved after integration planning")
-         if target_oid not in { payload ["local_target_oid"], payload ["candidate_oid"] }:
-            raise state.StateError ("Local target moved after integration planning")
-         if _state_fingerprint (payload) != payload ["state_fingerprint"]:
-            raise state.StateError ("Integration candidate became stale")
-         failed = [
-            value
-            for value in run_checks (payload ["candidate_oid"], payload ["check_commands"])
-            if value ["exit_code"]
-         ]
-         if failed:
-            raise state.StateError (f"Integration check failed: {failed [0]['name']}")
-         if _review_required (feature) and not review_current (plan):
-            raise state.StateError (f"Current human review required; run imp review {feature ['name']}")
-
-         if payload ["pr"]:
-            title = git.subject (str (feature ["branch"])) or f"Complete {feature ['name']}"
-            body = f"Implements `{feature ['feature_id']}`.\n\nPrepared by Imp plan `{plan ['plan_id']}`."
-            if not validate.publishable (f"{title}\n{body}"):
-               raise state.StateError ("Pull request text contains AI attribution or an actor ID")
-            git.push (set_upstream=True, target=str (feature ["branch"]))
-            existing = gh.pr_view (str (feature ["branch"]))
-            url = gh.pr_edit (int (existing ["number"]), title, body) if existing else gh.pr_create (
-               title, body, str (payload ["target_ref"]), str (feature ["branch"])
-            )
-            features.complete (feature, actor_id, keep=True, state_name="awaiting-merge")
-            completed.extend ([ "push", "pull_request" ])
-            plans.mark (plan, "applied", applied_at=state.now ())
-            state.clear_recovery (str (plan ["plan_id"]))
-            return { "feature_id": feature ["feature_id"], "mode": "pr", "plan_id": plan ["plan_id"], "url": url }
-
-         ref = f"refs/heads/{payload ['target_ref']}"
-         if target_oid == payload ["local_target_oid"]:
-            git.update_ref_checked (ref, payload ["candidate_oid"], payload ["local_target_oid"])
-            for path in git.ref_worktrees (str (payload ["target_ref"])):
-               git.reset_at (path, str (payload ["candidate_oid"]))
-         completed.append ("integrate")
-         if payload ["push"]:
-            git.push (ref=str (payload ["target_ref"]))
-            completed.append ("push")
-         features.complete (feature, actor_id, keep=bool (payload ["keep"]))
-         completed.append ("cleanup")
-         plans.mark (plan, "applied", applied_at=state.now ())
-         state.clear_recovery (str (plan ["plan_id"]))
-         return direct_receipt
+         _finish_done (plan)
+         return data
    except Exception as error:
       _record_recovery (plan, error, completed)
       raise

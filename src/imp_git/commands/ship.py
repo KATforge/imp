@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, git, plans, result, runtime, source_release, state
+from imp_git import approval, console, git, plans, runtime, source_release, state
 
 _DIRTY_AUTOMATION = """Dirty source requires a separately approved commit plan.
 
@@ -79,24 +79,18 @@ def ship (
       )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
-   machine = json_output or runtime.options.json
-   if not machine:
-      _show (plan)
-   if plan_only or dry_run:
-      if machine:
-         result.emit ("imp.ship-plan.v2", "imp ship", { "plan": plan }, json_output=True)
-      return plan
-   if runtime.options.no_input and not yes:
-      console.fatal ("Non-interactive shipping requires --plan or --apply <plan-id> --yes")
-   if not yes and not console.confirm ("Publish this exact source release?"):
-      console.muted ("Cancelled")
-      raise typer.Exit (0)
-   try:
-      data = source_release.apply_ship (plan)
-   except state.StateError as error:
-      console.fatal (str (error))
-   if machine:
-      result.emit ("imp.release.v1", "imp ship", data, json_output=True)
-   else:
-      console.success (f"Released {data ['tag']}")
-   return data
+   return approval.run (
+      plan,
+      command="imp ship",
+      noun="shipping",
+      confirm="Publish this exact source release?",
+      plan_schema="imp.ship-plan.v2",
+      result_schema="imp.release.v1",
+      apply=source_release.apply_ship,
+      show=_show,
+      success=lambda data: console.success (f"Released {data ['tag']}"),
+      plan_only=plan_only,
+      dry_run=dry_run,
+      yes=yes,
+      json_output=json_output,
+   )

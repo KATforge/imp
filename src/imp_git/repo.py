@@ -1,6 +1,5 @@
 import functools
 import json
-import os
 from pathlib import Path
 
 from imp_git import git
@@ -12,16 +11,11 @@ _DEFAULTS = {
    "branch:prefix": "feature/",
    "claim:ttl": "8h",
    "check:commands": [],
-   "changelog:skip": [ "chore", "merge", "release" ],
    "commit:max_subject": 72,
    "commit:style": "conventional",
    "done:target": "",
    "done:push": False,
    "done:strategy": "preserve",
-   "docs:include": [],
-   "docs:mode": "reconcile",
-   "docs:path": "",
-   "docs:release": False,
    "feature:required": False,
    "ignore:check": True,
    "review:required": False,
@@ -63,35 +57,3 @@ def get (key: str, default=None):
       default = _DEFAULTS.get (key)
 
    return load ().get (key, default)
-
-def exists () -> bool:
-   return path ().is_file ()
-
-def save (cfg: dict):
-   p = path ()
-   cfg = { key: value for key, value in cfg.items () if key != "schema" }
-   temporary = p.with_name (f".{p.name}.{os.getpid ()}.tmp")
-   try:
-      with temporary.open ("w") as stream:
-         stream.write (json.dumps (cfg, indent=3, sort_keys=True) + "\n")
-         stream.flush ()
-         os.fsync (stream.fileno ())
-      temporary.replace (p)
-   finally:
-      temporary.unlink (missing_ok=True)
-   load.cache_clear ()
-
-def changelog_skip () -> list [str]:
-   return get ("changelog:skip", _DEFAULTS ["changelog:skip"])
-
-def docs_include () -> list [str]:
-   return get ("docs:include", [])
-
-def docs_mode () -> str:
-   return get ("docs:mode", "reconcile")
-
-def docs_path () -> str:
-   return get ("docs:path", "")
-
-def docs_release () -> bool:
-   return bool (get ("docs:release", False))

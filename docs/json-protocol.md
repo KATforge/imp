@@ -20,6 +20,18 @@ Every result uses this envelope:
 }
 ```
 
+A failed native command exits nonzero and emits the same envelope with `ok` false, schema `imp.error.v1`, and the failure message in `data.message`:
+
+```json
+{
+   "schema": "imp.error.v1",
+   "command": "imp commit",
+   "ok": false,
+   "data": { "message": "Not a git repository" },
+   "warnings": []
+}
+```
+
 Saved operation plans use `imp.plan.v1` and a command-specific payload schema.
 
 | Operation | Result or payload schema |
@@ -34,6 +46,7 @@ Saved operation plans use `imp.plan.v1` and a command-specific payload schema.
 | Guard revocation | `imp.guard-revoke.v1` |
 | Source-release plan | `imp.ship-plan.v2` |
 | Source-release receipt | `imp.release.v1` envelope with `imp.source-release.v2` persisted data |
+| Command failure | `imp.error.v1` |
 
 Automation must capture the returned `plan_id`, then apply that exact plan with `--apply <plan-id> --yes`. It must not parse human output or read Imp’s internal state files.
 

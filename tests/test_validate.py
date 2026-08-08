@@ -57,31 +57,3 @@ class TestPublishable:
    ])
    def test_allows_subject_matter (self, text):
       assert validate.publishable (text)
-
-   def test_detects_new_provenance (self):
-      assert validate.adds_provenance ("# Guide\n", "# Guide\n\nGenerated with Claude Code\n")
-
-   def test_allows_existing_provenance (self):
-      text = "Example: actor:codex:payment-agent\n"
-
-      assert not validate.adds_provenance (text, text + "More detail.\n")
-
-
-class TestBranch:
-
-   @pytest.mark.parametrize ("name", [
-      "main",
-      "feat/my-feature",
-      "fix/bug-123",
-      "release/1.0.0",
-   ])
-   def test_valid (self, name):
-      assert validate.branch (name)
-
-   @pytest.mark.parametrize ("name", [
-      "feat/my feature",
-      "feat;rm -rf",
-      "-delete",
-   ])
-   def test_invalid (self, name):
-      assert not validate.branch (name)

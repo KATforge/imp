@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, features, identity, plans, result, runtime, state
+from imp_git import approval, console, features, identity, plans, runtime, state
 
 
 def _show (plan: dict):
@@ -65,30 +65,25 @@ def start (
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
 
-   machine = json_output or runtime.options.json
-   if not machine:
-      _show (plan)
-
-   if plan_only or dry_run:
-      if machine:
-         result.emit ("imp.start-plan.v1", "imp start", { "plan": plan }, json_output=True)
-      else:
-         console.hint ("Plan saved; apply it with imp start <name> --apply <plan-id>")
-      return plan
-   if no_input and not yes:
-      console.fatal ("Non-interactive start requires --plan or --apply <plan-id> --yes")
-   if not yes and not console.confirm ("Create this feature?"):
-      console.muted ("Cancelled")
-      raise typer.Exit (0)
-
-   try:
-      feature = features.apply_start (plan)
-   except state.StateError as error:
-      console.fatal (str (error))
-
-   if machine:
-      result.emit ("imp.start.v1", "imp start", { "feature": feature }, json_output=True)
-   else:
+   def _success (feature: dict):
       console.success (f"Feature ready: {feature ['name']}")
       console.hint (f"cd {feature ['path']}")
-   return feature
+
+   return approval.run (
+      plan,
+      command="imp start",
+      noun="start",
+      confirm="Create this feature?",
+      plan_schema="imp.start-plan.v1",
+      result_schema="imp.start.v1",
+      apply=features.apply_start,
+      show=_show,
+      success=_success,
+      plan_only=plan_only,
+      dry_run=dry_run,
+      yes=yes,
+      json_output=json_output,
+      no_input=no_input,
+      wrap="feature",
+      plan_hint="Plan saved; apply it with imp start <name> --apply <plan-id>",
+   )
