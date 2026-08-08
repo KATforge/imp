@@ -3,6 +3,8 @@ from typing import Any
 
 from imp_git import console, identity, runtime, state
 
+_SCHEMAS = { "imp.plan.v1", "katforge.plan.v1" }
+
 
 def _directory () -> Path:
    return state.root () / "plans"
@@ -48,7 +50,7 @@ def create (
       plan_id = identity.resource ("plan", operation, label, str (sequence))
       blocked = blockers or []
       plan = {
-         "schema": "katforge.plan.v1",
+         "schema": "imp.plan.v1",
          "plan_id": plan_id,
          "command": f"imp {operation}",
          "label": label,
@@ -77,7 +79,14 @@ def load (plan_id: str) -> dict [str, Any]:
    """Load one plan by its typed identity."""
 
    identity.validate (plan_id, "plan")
-   return state.read (_path (plan_id), "katforge.plan.v1")
+   return _read (_path (plan_id))
+
+
+def _read (path: Path) -> dict [str, Any]:
+   value = state.read (path)
+   if value.get ("schema") not in _SCHEMAS:
+      raise state.StateError (f"Unsupported Imp plan schema: {value.get ('schema')}")
+   return value
 
 
 def all (operation: str = "") -> list [dict [str, Any]]:
@@ -90,7 +99,7 @@ def all (operation: str = "") -> list [dict [str, Any]]:
    values = []
    for path in directory.glob ("plan--*.json"):
       try:
-         value = state.read (path, "katforge.plan.v1")
+         value = _read (path)
       except state.StateError:
          continue
       if operation and value.get ("command") != f"imp {operation}":
