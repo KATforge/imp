@@ -30,13 +30,14 @@ description: Use for source-code changes in Git repositories. Route every Git op
 
    - Read with `imp status`, `imp diff`, `imp log`, `imp show`, or `imp blame`.
    - Run ordinary Git commands through Imp's passthrough, never through raw Git.
-   - Prepare an exact commit plan at a coherent milestone.
-   - Apply it only after explicit commit approval.
+   - Prepare an exact commit plan at a coherent milestone and apply it without asking.
    - Never push as part of a commit.
 
 5. Keep authority separate.
 
-   - Require separate approval for commit, push, integration, release, and deployment.
+   - Commit and integrate locally without approval.
+   - Require approval only at three gates: pushing to a remote, releasing to QA, and promoting to production.
+   - Treat "push it all the way up" as one approval covering every remaining gate.
    - Only a human may mark an Imp candidate reviewed.
 
 6. Keep authorship human.
