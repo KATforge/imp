@@ -9,7 +9,9 @@ _DIRTY_AUTOMATION = """Dirty source requires a separately approved commit plan.
 Next:
   imp commit --all --plan
   imp commit --apply <plan-id> --yes
-  imp ship --plan"""
+  imp ship --plan
+
+The plan ID prints with the saved plan."""
 
 
 def _level (patch: bool, minor: bool, major: bool) -> str:

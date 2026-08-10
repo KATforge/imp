@@ -23,13 +23,13 @@ def run (
    json_output: bool,
    no_input: bool = False,
    wrap: str = "",
-   plan_hint: str = "",
 ) -> dict [str, Any]:
    """Display one exact plan, gate on explicit approval, apply it, and emit the result.
 
    Every plan-driven command shares this spine so the approval contract cannot
    drift between commands. `wrap` nests the applied data under one key in the
-   machine result. `plan_hint` prints after an unapplied human-readable plan.
+   machine result. A saved human-readable plan reports its own identity so the
+   caller can apply exactly it; a `dry_run` plan is ephemeral and reports none.
    """
 
    machine = json_output or runtime.options.json
@@ -38,8 +38,9 @@ def run (
    if plan_only or dry_run:
       if machine:
          result.emit (plan_schema, command, { "plan": plan }, json_output=True)
-      elif plan_hint:
-         console.hint (plan_hint)
+      elif not dry_run:
+         console.hint (f"Plan saved: {plan ['plan_id']}")
+         console.muted (f"  {command} --apply {plan ['plan_id']} --yes")
       return plan
    if plan.get ("state") != "ready":
       console.fatal (f"{noun.capitalize ()} plan is blocked")

@@ -56,7 +56,7 @@ class TestSurface:
 
       assert seen == commands
 
-   def test_bare_optional_values_open_the_native_picker (self):
+   def test_bare_optional_values_reach_the_native_command (self):
       assert main_mod._optional_values ([ "commit", "--apply" ]) == [ "commit", "--apply=__pick__" ]
       assert main_mod._optional_values ([ "commit", "--fixup", "HEAD~2" ]) == [ "commit", "--fixup", "HEAD~2" ]
 
@@ -147,6 +147,40 @@ class TestAutomation:
       assert value ["schema"] == "imp.commit-plan.v2"
       assert value ["data"] ["plan"] ["state"] == "ready"
       assert commit_count (repo) == 1
+
+   def test_saved_plan_reports_its_identity_and_apply_command (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("changed\n")
+      git_run (repo, "add", "file.txt")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
+
+      result = runner.invoke (app, [ "commit", "--plan" ])
+
+      assert result.exit_code == 0
+      assert "Plan saved: plan:commit:" in result.stdout
+      assert "imp commit --apply plan:commit:" in result.stdout
+      assert "--yes" in result.stdout
+
+   def test_ephemeral_plan_reports_no_identity (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("changed\n")
+      git_run (repo, "add", "file.txt")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
+
+      result = runner.invoke (app, [ "commit", "--dry-run" ])
+
+      assert result.exit_code == 0
+      assert "Plan saved" not in result.stdout
+
+   def test_apply_without_a_plan_id_uses_the_newest_ready_plan (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("changed\n")
+      git_run (repo, "add", "file.txt")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
+      assert runner.invoke (app, [ "commit", "--plan" ]).exit_code == 0
+
+      args = main_mod._optional_values ([ "commit", "--apply", "--yes" ])
+      result = runner.invoke (app, [ "--no-input", *args ])
+
+      assert result.exit_code == 0
+      assert git.capture ("log", "-1", "--format=%s").strip () == "fix: update value"
 
    def test_no_input_fails_closed_without_explicit_approval (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("changed\n")

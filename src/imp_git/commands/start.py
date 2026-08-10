@@ -85,5 +85,4 @@ def start (
       json_output=json_output,
       no_input=no_input,
       wrap="feature",
-      plan_hint="Plan saved; apply it with imp start <name> --apply <plan-id>",
    )

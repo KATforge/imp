@@ -54,29 +54,29 @@ class TestIntegration:
       with pytest.raises (state.StateError, match="explicit feature"):
          features.resolve ("", title="Select feature to complete")
 
-   def test_omitted_plan_uses_picker_even_with_one_candidate (self, repo, tmp_path, monkeypatch):
+   def test_omitted_plan_uses_the_newest_ready_plan (self, repo, tmp_path, monkeypatch):
+      feature = _feature (repo, tmp_path)
+      oldest = integration.plan_done (feature, actor_id=ACTOR, keep=True)
+      monkeypatch.setattr (state, "now", lambda: "2999-01-01T00:00:00Z")
+      newest = integration.plan_done (feature, actor_id=ACTOR, keep=True)
+      assert newest ["plan_id"] != oldest ["plan_id"]
+      monkeypatch.setattr (runtime, "options", runtime.Options ())
+      monkeypatch.setattr (console, "choose", lambda title, values: pytest.fail ("Plans must not prompt"))
+
+      assert plans.resolve ("done") ["plan_id"] == newest ["plan_id"]
+
+   def test_omitted_plan_resolves_without_input (self, repo, tmp_path, monkeypatch):
       feature = _feature (repo, tmp_path)
       plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
-      selected = []
-      monkeypatch.setattr (runtime, "options", runtime.Options ())
-      monkeypatch.setattr (
-         console,
-         "choose",
-         lambda title, values: selected.append ((title, values)) or values [0],
-      )
-
-      value = plans.resolve ("done")
-
-      assert value ["plan_id"] == plan ["plan_id"]
-      assert selected [0] [0] == "Select imp done plan"
-      assert len (selected [0] [1]) == 1
-
-   def test_omitted_plan_fails_closed_without_input (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      integration.plan_done (feature, actor_id=ACTOR, keep=True)
       monkeypatch.setattr (runtime, "options", runtime.Options (no_input=True))
 
-      with pytest.raises (state.StateError, match="explicit imp done plan ID"):
+      assert plans.resolve ("done") ["plan_id"] == plan ["plan_id"]
+
+   def test_omitted_plan_fails_closed_without_a_ready_plan (self, repo, tmp_path, monkeypatch):
+      _feature (repo, tmp_path)
+      monkeypatch.setattr (runtime, "options", runtime.Options (no_input=True))
+
+      with pytest.raises (state.StateError, match="No ready imp done plan"):
          plans.resolve ("done")
 
    def test_failed_checks_leave_target_and_feature_unchanged (self, repo, tmp_path, monkeypatch):

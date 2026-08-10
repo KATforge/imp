@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from imp_git import console, identity, runtime, state
+from imp_git import identity, state
 
 _SCHEMAS = { "imp.plan.v1", "katforge.plan.v1" }
 
@@ -110,7 +110,11 @@ def all (operation: str = "") -> list [dict [str, Any]]:
 
 
 def resolve (operation: str, plan_id: str = "") -> dict [str, Any]:
-   """Resolve an explicit plan or open the ready-plan picker."""
+   """Resolve an explicit plan, or the newest ready plan for the operation.
+
+   The caller still approves the resolved plan, so the implicit newest-first
+   choice never applies anything the caller has not seen.
+   """
 
    if plan_id:
       plan = load (plan_id)
@@ -121,11 +125,7 @@ def resolve (operation: str, plan_id: str = "") -> dict [str, Any]:
    ready = [ plan for plan in all (operation) if plan.get ("state") == "ready" ]
    if not ready:
       raise state.StateError (f"No ready imp {operation} plan")
-   if runtime.options.json or runtime.options.no_input:
-      raise state.StateError (f"Pass an explicit imp {operation} plan ID")
-   labels = [ f"{plan ['label']}  ({plan ['created_at']})" for plan in ready ]
-   selected = console.choose (f"Select imp {operation} plan", labels)
-   return ready [labels.index (selected)]
+   return ready [0]
 
 
 def mark (plan: dict [str, Any], value: str, **audit: Any) -> dict [str, Any]:
