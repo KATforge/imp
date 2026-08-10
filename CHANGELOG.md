@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added the saved plan ID and its exact apply command to every human-readable `--plan` result
+- Changed `--apply` without a plan ID to resolve the newest ready plan instead of prompting, so it now works under `--json` and `--no-input`
+- Changed `imp ship --include-dirty` to `imp ship --commit`
 - Added optional smart-AI review fixes constrained to the exact reviewed files
 - Added `imp done --approve` for explicit human approval without review
 - Added `imp.error.v1` machine-readable failure envelopes under `--json`
