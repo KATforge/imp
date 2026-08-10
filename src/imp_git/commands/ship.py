@@ -55,9 +55,9 @@ def ship (
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
    dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
    json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
-   include_dirty: Annotated [
+   commit: Annotated [
       bool,
-      typer.Option ("--include-dirty", help="Commit dirty work with separate approval"),
+      typer.Option ("--commit", help="Commit dirty work with separate approval"),
    ] = False,
    prerelease: Annotated [bool, typer.Option ("--prerelease", help="Publish the next release candidate")] = False,
    rc: Annotated [bool, typer.Option ("--rc", hidden=True)] = False,
@@ -65,13 +65,13 @@ def ship (
    """Create an exact source release. It never builds or deploys."""
 
    prerelease = prerelease or rc
-   if include_dirty and not git.is_clean ():
+   if commit and not git.is_clean ():
       machine = json_output or runtime.options.json or runtime.options.no_input
       if machine or yes or runtime.options.yes:
          console.fatal (_DIRTY_AUTOMATION)
-      from imp_git.commands.commit import commit
+      from imp_git.commands import commit as commit_command
 
-      commit (all=True)
+      commit_command.commit (all=True)
    yes = yes or runtime.options.yes
    dry_run = dry_run or runtime.options.dry_run
    try:

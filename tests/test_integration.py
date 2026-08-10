@@ -436,7 +436,7 @@ class TestSourceRelease:
       assert "imp commit --all --plan" in str (error.value)
       assert "imp ship --plan" in str (error.value)
 
-   def test_include_dirty_runs_separate_commit_flow_before_ship_plan (self, repo, monkeypatch):
+   def test_commit_runs_separate_commit_flow_before_ship_plan (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("changed\n")
       commits = []
       plan = { "payload": {}, "plan_id": "plan:ship:demo:1", "state": "ready" }
@@ -445,7 +445,7 @@ class TestSourceRelease:
       monkeypatch.setattr (source_release, "plan_ship", lambda **_options: plan)
       monkeypatch.setattr (ship_cmd, "_show", lambda _plan: None)
 
-      result = ship_cmd.ship (include_dirty=True, plan_only=True)
+      result = ship_cmd.ship (commit=True, plan_only=True)
 
       assert result == plan
       assert commits == [ True ]
