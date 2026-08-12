@@ -126,6 +126,7 @@ def create (
    staged_paths = git.changed_paths (staged=True)
    if exclude:
       paths = [path for path in paths if not any (fnmatch (path, pattern) for pattern in exclude)]
+   paths = git.committable_paths (paths)
    if not paths:
       raise state.StateError ("Nothing selected to commit")
 

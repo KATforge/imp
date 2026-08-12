@@ -224,6 +224,19 @@ class TestPlans:
       assert git.diff (staged=True) == before_index
       assert (repo / "file.txt").read_text () == "planned\n"
 
+   def test_planning_skips_stale_intent_to_add_paths (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("updated\n")
+      (repo / "phantom.txt").write_text ("temp\n")
+      git_run (repo, "add", "-N", "phantom.txt")
+      (repo / "phantom.txt").unlink ()
+      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update local value")
+
+      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
+      commit_plan.apply (plan, _actor ())
+
+      assert git.capture ("show", "HEAD:file.txt") == "updated\n"
+      assert git.is_clean ()
+
    def test_possible_secret_warns_without_blocking (self, repo, monkeypatch):
       (repo / ".env").write_text ("TOKEN=secret\n")
       monkeypatch.setattr (ai, "fast", lambda prompt: "chore: update env defaults")

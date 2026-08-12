@@ -87,6 +87,15 @@ def changed_paths (*, staged: bool = False, all_changes: bool = False) -> list [
 
    return sorted ({ path for block in blocks for path in block.split ("\0") if path })
 
+def committable_paths (paths: list [str]) -> list [str]:
+   """Drop paths that exist neither in the worktree nor in HEAD, such as a
+   stale intent-to-add entry whose file was renamed or deleted."""
+
+   listed = capture ("ls-tree", "-r", "--name-only", "-z", "HEAD", "--", *paths)
+   tracked = { path for path in listed.split ("\0") if path }
+
+   return [ path for path in paths if path in tracked or os.path.lexists (path) ]
+
 def diff (
    staged: bool = False,
    ref: str = "",
