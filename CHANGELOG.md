@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added `imp commit --push` to commit and push in one approved step
+- Changed bare `imp push` to track the current branch's upstream on first push instead of failing
 - Fixed `imp commit` failing on a stale intent-to-add index entry whose file was renamed or deleted before the commit
 - Changed possible secret files from commit blockers to warnings; tracked `.env` defaults are routine in some stacks and their diffs now reach the AI planner
 - Added the saved plan ID and its exact apply command to every human-readable `--plan` result
