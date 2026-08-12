@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from imp_git import git
+from imp_git import git, passthrough
 from imp_git import main as main_mod
 from imp_git.main import app
 from tests.conftest import commit_file, git_run
@@ -108,3 +108,32 @@ class TestMutation:
 
       assert result.exit_code == 0
       assert (repo / "file.txt").read_text () == "hello\n"
+
+
+class TestSmartPush:
+
+   def test_bare_push_sets_upstream_for_a_new_branch (self, repo_with_origin):
+      work = repo_with_origin
+
+      result = runner.invoke (app, [ "push" ])
+
+      assert result.exit_code == 0
+      origin_branches = git_run (work.parent / "origin.git", "branch", "--list", "feat/wip").stdout
+      assert "feat/wip" in origin_branches
+      assert git.has_upstream ()
+
+   def test_smart_push_leaves_a_tracked_branch_unchanged (self, repo_with_origin):
+      git_run (repo_with_origin, "checkout", "master")
+
+      assert passthrough._smart_push ([ "push", "--force-with-lease" ]) == [ "push", "--force-with-lease" ]
+
+   def test_smart_push_leaves_explicit_remote_and_branch_untouched (self):
+      assert passthrough._smart_push ([ "push", "origin", "feat/wip" ]) == [ "push", "origin", "feat/wip" ]
+
+   def test_smart_push_leaves_all_and_mirror_untouched (self):
+      assert passthrough._smart_push ([ "push", "--all" ]) == [ "push", "--all" ]
+      assert passthrough._smart_push ([ "push", "--mirror" ]) == [ "push", "--mirror" ]
+
+   def test_smart_push_ignores_non_push_commands (self):
+      assert passthrough._smart_push ([ "pull" ]) == [ "pull" ]
+      assert passthrough._smart_push ([]) == []
