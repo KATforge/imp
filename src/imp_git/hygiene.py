@@ -1,11 +1,10 @@
 from pathlib import PurePosixPath
 
 
-def inspect (paths: list [str]) -> tuple [list [str], list [str]]:
-   """Return deterministic ignore-policy warnings and secret blockers."""
+def inspect (paths: list [str]) -> list [str]:
+   """Return deterministic ignore-policy and possible-secret warnings."""
 
    warnings = []
-   blockers = []
    generated_parts = {
       ".pytest_cache",
       ".ruff_cache",
@@ -27,6 +26,6 @@ def inspect (paths: list [str]) -> tuple [list [str], list [str]]:
          lower.startswith (".env.") and not lower.endswith ((".example", ".sample"))
       )
       if is_secret or path.suffix.lower () in secret_suffixes:
-         blockers.append (f"Possible secret file requires explicit review: {value}")
+         warnings.append (f"Possible secret file: {value}")
 
-   return warnings, blockers
+   return warnings

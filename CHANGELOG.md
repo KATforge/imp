@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Changed possible secret files from commit blockers to warnings; tracked `.env` defaults are routine in some stacks and their diffs now reach the AI planner
 - Added the saved plan ID and its exact apply command to every human-readable `--plan` result
 - Changed `--apply` without a plan ID to resolve the newest ready plan instead of prompting, so it now works under `--json` and `--no-input`
 - Changed `imp ship --include-dirty` to `imp ship --commit`

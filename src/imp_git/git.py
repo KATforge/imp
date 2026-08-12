@@ -18,22 +18,34 @@ def _run (
       run_env = { **os.environ, **env }
 
    try:
-      return subprocess.run (
+      raw = subprocess.run (
          [ "git", *args ],
          capture_output=True,
-         text=True,
-         check=check,
          timeout=timeout,
          env=run_env,
       )
    except subprocess.TimeoutExpired:
       label = args [0] if args else "command"
       console.fatal (f"git {label} timed out")
-   except subprocess.CalledProcessError as e:
-      detail = (e.stderr or e.stdout or "").strip ()
+
+   # Decode manually: text mode would translate CRLF to LF in captured
+   # output, corrupting diffs of CRLF files so `git apply` rejects them.
+   result = subprocess.CompletedProcess (
+      raw.args,
+      raw.returncode,
+      raw.stdout.decode ("utf-8", errors="replace"),
+      raw.stderr.decode ("utf-8", errors="replace"),
+   )
+
+   if check and result.returncode != 0:
+      detail = (result.stderr or result.stdout or "").strip ()
       if detail:
          console.err (detail)
-      raise
+      raise subprocess.CalledProcessError (
+         result.returncode, result.args, result.stdout, result.stderr
+      )
+
+   return result
 
 def capture (
    *args: str,

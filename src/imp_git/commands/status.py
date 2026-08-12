@@ -117,7 +117,7 @@ def status (
    tag = git.last_tag ()
    managed = features.all ()
    changes = git.status_short ()
-   hygiene_warnings, hygiene_blockers = hygiene.inspect (git.changed_paths (all_changes=True))
+   hygiene_warnings = hygiene.inspect (git.changed_paths (all_changes=True))
    selected = _active ()
 
    data = {
@@ -132,7 +132,7 @@ def status (
          "path": selected.get ("path"),
       } if selected else None,
       "features": managed,
-      "hygiene": { "blockers": hygiene_blockers, "warnings": hygiene_warnings },
+      "hygiene": { "blockers": [], "warnings": hygiene_warnings },
       "last_release": tag or None,
    }
    if json_output or runtime.options.json:
@@ -147,8 +147,6 @@ def status (
 
    for warning in hygiene_warnings:
       console.warn (warning)
-   for blocker in hygiene_blockers:
-      console.err (blocker)
 
    if tag:
       unpushed = git.log_oneline (rev_range=f"{tag}..HEAD")

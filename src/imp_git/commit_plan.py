@@ -129,14 +129,9 @@ def create (
    if not paths:
       raise state.StateError ("Nothing selected to commit")
 
-   warnings, blockers = hygiene.inspect (paths)
-   if blockers:
-      changes: list [dict [str, str]] = []
-      desired_tree = ""
-      groups = []
-   else:
-      changes, desired_tree = patches.changes (paths, mode)
-      groups = _groups (changes, whisper, single)
+   warnings = hygiene.inspect (paths)
+   changes, desired_tree = patches.changes (paths, mode)
+   groups = _groups (changes, whisper, single)
    feature = features.current ()
    label = str (feature ["name"]) if feature else identity.slug (git.branch () or "detached")
    head = git.rev_parse ("HEAD")
@@ -181,7 +176,6 @@ def create (
       payload_schema="imp.commit-plan.v2",
       payload=payload,
       warnings=warnings,
-      blockers=blockers,
       persist=persist,
    )
 

@@ -64,6 +64,20 @@ class TestPlans:
       )
       assert git.is_clean ()
 
+   def test_apply_preserves_crlf_file_content (self, repo, monkeypatch):
+      (repo / "crlf.txt").write_bytes (b"one\r\ntwo\r\nthree\r\n")
+      git_run (repo, "add", "crlf.txt")
+      git_run (repo, "commit", "-m", "test: add crlf fixture")
+      (repo / "crlf.txt").write_bytes (b"one\r\nTWO\r\nthree\r\n")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update crlf value")
+
+      plan = commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
+      result = commit_plan.apply (plan, _actor ())
+
+      assert len (result ["commits"]) == 1
+      assert git.capture ("show", "HEAD:crlf.txt") == "one\r\nTWO\r\nthree\r\n"
+      assert git.is_clean ()
+
    def test_planner_bounds_large_changes_without_dropping_sections (self, repo, monkeypatch):
       (repo / "large-a.txt").write_text ("a" * 200_000)
       (repo / "large-b.txt").write_text ("b" * 200_000)
@@ -210,17 +224,14 @@ class TestPlans:
       assert git.diff (staged=True) == before_index
       assert (repo / "file.txt").read_text () == "planned\n"
 
-   def test_possible_secret_blocks_before_ai (self, repo, monkeypatch):
+   def test_possible_secret_warns_without_blocking (self, repo, monkeypatch):
       (repo / ".env").write_text ("TOKEN=secret\n")
-      called = []
-      monkeypatch.setattr (ai, "fast", lambda prompt: called.append (prompt))
+      monkeypatch.setattr (ai, "fast", lambda prompt: "chore: update env defaults")
 
       plan = commit_plan.create (actor_id=_actor (), all_changes=True)
 
-      assert plan ["state"] == "blocked"
-      assert plan ["blockers"]
-      assert "TOKEN=secret" not in json.dumps (plan)
-      assert called == []
+      assert plan ["state"] == "ready"
+      assert any (warning.startswith ("Possible secret file") for warning in plan ["warnings"])
 
    def test_amend_replaces_only_the_last_unpublished_commit (self, repo, monkeypatch):
       (repo / "second.txt").write_text ("second\n")
