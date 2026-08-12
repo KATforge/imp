@@ -281,6 +281,11 @@ def push (
       args.extend ([ "origin", ref ])
    _run (*args)
 
+def push_current ():
+   """Push the current branch, setting its upstream on first push."""
+
+   push (set_upstream=not has_upstream (), target=branch ())
+
 def is_merged (branch_name: str, into: str) -> bool:
    result = _run ("merge-base", "--is-ancestor", branch_name, into, check=False)
    return result.returncode == 0
