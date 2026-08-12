@@ -159,7 +159,7 @@ def commit (
    actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
    amend: Annotated [bool, typer.Option ("--amend", help="Replace the last unpublished commit")] = False,
    fixup: Annotated [str, typer.Option ("--fixup", help="Create a fixup commit for an unpublished ref")] = "",
-   push: Annotated [bool, typer.Option ("--push", help="Push after committing")] = False,
+   push: Annotated [bool, typer.Option ("--push", "-p", help="Push after committing")] = False,
 ):
    """Plan and create approved local Conventional Commits."""
 
