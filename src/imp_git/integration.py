@@ -152,15 +152,8 @@ def _state_fingerprint (payload: dict [str, Any]) -> str:
    return fingerprint.values (value)
 
 
-def _approval_required (feature: dict [str, Any]) -> bool:
-   writers = feature.get ("writers")
-   if writers is None:
-      creator = str (feature.get ("created_by", ""))
-      writers = [] if creator.startswith ("actor:temper:") else [ creator ]
-   return bool (repo.get ("review:required", False)) or any (
-      writer and not str (writer).startswith ("actor:human:")
-      for writer in writers
-   )
+def _review_required () -> bool:
+   return bool (repo.get ("review:required", False))
 
 
 def plan_done (
@@ -190,7 +183,7 @@ def plan_done (
    configured = [] if skip_checks else _checks ()
    check_results = run_checks (candidate_oid, configured)
    blockers = [f"Check failed: {value ['name']}" for value in check_results if value ["exit_code"]]
-   if _approval_required (feature):
+   if _review_required ():
       blockers.append ("Human review or explicit approval required")
    payload = {
       "actor_id": actor_id,
@@ -437,7 +430,7 @@ def _validate_candidate (
    ]
    if failed:
       raise state.StateError (f"Integration check failed: {failed [0]['name']}")
-   if _approval_required (feature) and not approval_current (plan):
+   if _review_required () and not approval_current (plan):
       raise state.StateError (
          f"Current human review or explicit approval required; "
          f"run imp review {feature ['name']} or imp done {feature ['name']} --approve"

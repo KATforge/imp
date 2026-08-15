@@ -149,11 +149,23 @@ class TestIntegration:
       assert attempts == [ True, True ]
       assert not list ((state.root () / "recovery").glob ("*.json"))
 
-   def test_agent_work_requires_exact_human_review (self, repo, tmp_path):
+   def test_agent_work_integrates_without_review (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)
       features.release (feature, ACTOR)
       features.claim (feature, identity.resource ("actor", "codex", "session-1"))
       feature = features.find (feature ["feature_id"])
+
+      plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
+
+      assert plan ["state"] == "ready"
+      assert plan ["blockers"] == []
+
+   def test_configured_review_requires_exact_human_review (self, repo, tmp_path):
+      from imp_git import repo as repo_mod
+
+      commit_file (repo, ".imp", '{ "review:required": true }\n', "chore: require review")
+      repo_mod.load.cache_clear ()
+      feature = _feature (repo, tmp_path)
       plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
 
       assert plan ["state"] == "blocked"

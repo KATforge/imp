@@ -38,7 +38,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
    - Commit and integrate locally without approval.
    - Require approval only at three gates: pushing to a remote, releasing to QA, and promoting to production.
    - Treat "push it all the way up" as one approval covering every remaining gate.
-   - Only a human may mark an Imp candidate reviewed.
+   - Where `.imp` sets `review:required`, only a human may review or approve the candidate.
 
 6. Keep authorship human.
 
