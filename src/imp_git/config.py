@@ -10,11 +10,6 @@ _DEFAULTS = {
    "model:smart": "sonnet",
 }
 
-_ENV_OVERRIDES = {
-   "provider": "IMP_AI_PROVIDER",
-   "model:fast": "IMP_AI_MODEL_FAST",
-   "model:smart": "IMP_AI_MODEL_SMART",
-}
 
 def path () -> Path:
    xdg = os.environ.get ("XDG_CONFIG_HOME", "") or str (Path.home () / ".config")
@@ -45,10 +40,6 @@ def load () -> dict:
       except OSError:
          pass
 
-   for key, env in _ENV_OVERRIDES.items ():
-      val = os.environ.get (env, "")
-      if val:
-         cfg [key] = val
 
    return cfg
 

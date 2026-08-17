@@ -41,7 +41,7 @@ def validate (value: str, kind: str = "") -> str:
 def actor (override: str = "") -> str:
    """Resolve the calling human, agent session, or CI actor."""
 
-   explicit = override or runtime.options.actor_id or os.environ.get ("IMP_ACTOR_ID", "")
+   explicit = override or runtime.options.actor_id
    if explicit:
       return validate (explicit, "actor")
 

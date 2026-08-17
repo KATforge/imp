@@ -179,7 +179,7 @@ class TestConflictResolution:
    def test_an_editor_that_leaves_markers_is_refused (self, demo, tmp_path, monkeypatch):
       _feature, target, source = self._diverged (demo, tmp_path)
       scratch = tmp_path / "scratch"
-      monkeypatch.setenv ("IMP_EDITOR", "true")
+      monkeypatch.setenv ("EDITOR", "true")
       previous = Path.cwd ()
       os.chdir (demo / "api")
       try:

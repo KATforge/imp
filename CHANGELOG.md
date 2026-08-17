@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed the `IMP_AI_PROVIDER`, `IMP_AI_MODEL_FAST`, `IMP_AI_MODEL_SMART`, `IMP_ACTOR_ID`, and `IMP_EDITOR`
+  environment variables. Configuration lives in one file, the actor comes from `--actor-id` or a detected agent
+  session, and the editor follows the usual `VISUAL` and `EDITOR` convention
+
 - Removed the `imp config` command. Machine configuration is a plain JSON file, written with sensible defaults
   the first time Imp reads it, edited by hand or overridden with the `IMP_AI_*` environment variables. `imp config`
   now passes through to `git config` like any other unclaimed verb

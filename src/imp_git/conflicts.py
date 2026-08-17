@@ -19,7 +19,7 @@ _CHOICES = {
 
 
 def _editor () -> list [str]:
-   value = os.environ.get ("IMP_EDITOR", "") or os.environ.get ("VISUAL", "") or os.environ.get ("EDITOR", "")
+   value = os.environ.get ("VISUAL", "") or os.environ.get ("EDITOR", "")
    if not value:
       raise state.StateError ("Set $EDITOR to resolve a conflict by hand")
 

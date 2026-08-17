@@ -81,7 +81,7 @@ Imp stores feature records, plans, claims, and active selection under the reposi
 
 Repositories need no `.imp` file for built-in policy. Imp creates local state when an operation needs it. Adding tracked policy remains an explicit source change.
 
-Imp resolves supported agent session identities from the environment. Other clients can set a stable `IMP_ACTOR_ID`.
+Imp resolves supported agent session identities from the environment. Other clients pass `--actor-id`.
 
 ## Automation
 

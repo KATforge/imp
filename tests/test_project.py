@@ -33,7 +33,6 @@ class TestIdentity:
 
    def test_actor_uses_native_agent_session (self, monkeypatch):
       monkeypatch.setattr (identity.config, "get", lambda _key: None)
-      monkeypatch.delenv ("IMP_ACTOR_ID", raising=False)
       monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
       monkeypatch.setenv ("CODEX_THREAD_ID", "Thread 123")
 
@@ -112,3 +111,27 @@ class TestMachineConfiguration:
 
       assert config.load () ["provider"] == "claude"
       config.load.cache_clear ()
+
+   def test_machine_configuration_ignores_the_environment (self, tmp_path, monkeypatch):
+      from imp_git import config
+
+      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path))
+      monkeypatch.setenv ("IMP_AI_PROVIDER", "ollama")
+      monkeypatch.setenv ("IMP_AI_MODEL_FAST", "llama3.2")
+      config.load.cache_clear ()
+
+      assert config.load () ["provider"] == "claude"
+      assert config.load () ["model:fast"] == "haiku"
+      config.load.cache_clear ()
+
+   def test_the_actor_ignores_the_environment (self, monkeypatch):
+      from imp_git import identity, runtime
+
+      monkeypatch.setenv ("IMP_ACTOR_ID", "actor:human:someone-else")
+      monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)
+      monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
+      monkeypatch.setattr (identity.config, "get", lambda _key: None)
+      runtime.configure ()
+
+      assert identity.actor ().startswith ("actor:human:")
+      assert "someone-else" not in identity.actor ()
