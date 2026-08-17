@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from imp_git import features, fingerprint, gh, git, identity, plans, repo, state, validate
+from imp_git import conflicts, features, fingerprint, gh, git, identity, plans, repo, state, validate
 
 _HUMAN_APPROVAL_BLOCKERS = {
    "Human review required",
@@ -102,23 +102,42 @@ def _rebase_candidate (target_oid: str, feature_oid: str) -> tuple [str, list [d
       cleanup ()
 
 
-def _candidate (feature: dict [str, Any], target_oid: str, strategy: str) -> tuple [str, list [dict [str, str]]]:
+def _resolved_tree (target_oid: str, feature_oid: str, choice: str) -> tuple [str, list [dict [str, str]]]:
+   path, cleanup = _temporary_worktree (target_oid, "resolve")
+   try:
+      return conflicts.resolve (str (path), target_oid, feature_oid, choice=choice)
+   finally:
+      cleanup ()
+
+
+def _candidate (
+   feature: dict [str, Any],
+   target_oid: str,
+   strategy: str,
+   resolve: str = "",
+) -> tuple [str, list [dict [str, str]], list [dict [str, str]]]:
    feature_oid = git.rev_parse (str (feature ["branch"]))
    commits = _commits (git.merge_base (target_oid, feature_oid), feature_oid)
    if strategy == "preserve" and git.is_merged (target_oid, feature_oid):
-      return feature_oid, []
+      return feature_oid, [], []
    if strategy == "preserve" and not _published (commits):
-      return _rebase_candidate (target_oid, feature_oid)
+      rebased, rewrites = _rebase_candidate (target_oid, feature_oid)
+      return rebased, rewrites, []
 
-   tree_oid, conflicts = git.merge_tree (target_oid, feature_oid)
+   tree_oid, conflicted = git.merge_tree (target_oid, feature_oid)
+   decisions: list [dict [str, str]] = []
    if not tree_oid:
-      detail = f": {', '.join (conflicts)}" if conflicts else ""
-      raise state.StateError (f"Integration conflict{detail}")
+      if not resolve:
+         detail = f": {', '.join (conflicted)}" if conflicted else ""
+         raise state.StateError (
+            f"Integration conflict{detail}; rerun with --resolve ours|theirs|edit|ai"
+         )
+      tree_oid, decisions = _resolved_tree (target_oid, feature_oid, "" if resolve == "ask" else resolve)
    message = f"Merge {feature ['branch']} into {feature ['target']}"
    if strategy == "squash":
       message = f"feat: integrate {feature ['name']}"
-      return git.commit_tree_parents (tree_oid, [ target_oid ], message), []
-   return git.commit_tree_parents (tree_oid, [ target_oid, feature_oid ], message), []
+      return git.commit_tree_parents (tree_oid, [ target_oid ], message), [], decisions
+   return git.commit_tree_parents (tree_oid, [ target_oid, feature_oid ], message), [], decisions
 
 
 def _target_oids (target: str) -> tuple [str, str, str]:
@@ -166,6 +185,7 @@ def plan_done (
    push: bool = False,
    skip_checks: bool = False,
    strategy: str = "",
+   resolve: str = "",
    persist: bool = True,
 ) -> dict [str, Any]:
    if feature.get ("state") not in { "active", "awaiting-merge" }:
@@ -179,7 +199,7 @@ def plan_done (
       raise state.StateError (f"Unsupported integration strategy: {chosen_strategy}")
    target = into or str (feature.get ("target") or repo.get ("done:target", "")) or git.base_branch ()
    local_oid, remote_oid, target_oid = _target_oids (target)
-   candidate_oid, rewrites = _candidate (feature, target_oid, chosen_strategy)
+   candidate_oid, rewrites, decisions = _candidate (feature, target_oid, chosen_strategy, resolve)
    configured = [] if skip_checks else _checks ()
    check_results = run_checks (candidate_oid, configured)
    blockers = [f"Check failed: {value ['name']}" for value in check_results if value ["exit_code"]]
@@ -190,6 +210,7 @@ def plan_done (
       "candidate_oid": candidate_oid,
       "candidate_tree_oid": git.tree (candidate_oid),
       "check_commands": configured,
+      "conflict_decisions": decisions,
       "check_results": check_results,
       "feature_id": feature ["feature_id"],
       "feature_oid": git.rev_parse (str (feature ["branch"])),

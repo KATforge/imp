@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, features, fingerprint, git, hygiene, result, runtime, state
+from imp_git import console, features, fingerprint, git, hygiene, result, roster, runtime, spans, workspace
 
 
 def _file_style (code: str) -> str:
@@ -20,13 +20,6 @@ def _file_style (code: str) -> str:
    if code == "??":
       return "dim"
    return "default"
-
-
-def _active () -> dict | None:
-   try:
-      return features.active ()
-   except state.StateError:
-      return None
 
 
 def _sync () -> str:
@@ -54,12 +47,79 @@ def _stats () -> dict [str, tuple [str, str]]:
    return values
 
 
-def _show_source (selected: dict | None, managed: list [dict]):
-   if selected:
-      console.label ("Active source")
-      console.item (str (selected.get ("feature_id") or "trunk"))
-      console.item (str (selected ["path"]))
-      console.out.print ()
+_CONDITION_STYLE = {
+   roster.READY: "green",
+   roster.CONFLICT: "red",
+   roster.CHECKS: "yellow",
+   roster.DIRTY: "yellow",
+   roster.EMPTY: "muted",
+   roster.BROKEN: "red",
+}
+
+
+def _condition (value: str) -> str:
+   style = _CONDITION_STYLE.get (value, "default")
+
+   return f"[{style}]{value}[/{style}]"
+
+
+def _show_roster (value: dict, entries: list [dict]):
+   console.header (str (value ["name"]))
+   console.table (
+      [ "Feature", "Repositories", "State", "Writer", "Age" ],
+      [
+         [
+            str (entry ["name"]),
+            " ".join (entry ["repositories"]),
+            _condition (str (entry ["condition"])),
+            ", ".join (writer.rpartition (":") [0].removeprefix ("actor:") for writer in entry ["writers"]),
+            str (entry ["age"]),
+         ]
+         for entry in entries
+      ],
+   )
+   ready = len (roster.promotable (entries))
+   console.out.print ()
+   console.muted (f"{ready} of {len (entries)} ready")
+   if ready:
+      console.hint ("imp done to promote")
+
+
+def _workspace_status (json_output: bool):
+   value = workspace.require ()
+   entries = roster.collect (value)
+   repositories = workspace.repositories (value)
+   data = {
+      "workspace": value ["name"],
+      "root": value ["root"],
+      "repositories": sorted (repositories),
+      "features": entries,
+   }
+   if json_output or runtime.options.json:
+      return result.emit ("imp.roster.v1", "imp status", data, json_output=True)
+   _show_roster (value, entries)
+
+   return data
+
+
+def _spans () -> list [dict]:
+   value = workspace.load ()
+
+   return spans.all (value) if value else []
+
+
+def _show_spans (values: list [dict]):
+   if not values:
+      return
+   console.label ("Spanning features")
+   console.table (
+      [ "Feature", "Repositories" ],
+      [ [ str (span ["name"]), ", ".join (sorted (span ["members"])) ] for span in values ],
+   )
+   console.out.print ()
+
+
+def _show_features (managed: list [dict]):
    if not managed:
       return
    rows = []
@@ -110,6 +170,9 @@ def status (
    Suggests a next action based on the current state.
    """
 
+   if not git.succeeds ("rev-parse", "--git-dir") and workspace.load ():
+      return _workspace_status (json_output)
+
    git.require ()
 
    name = git.repo_name ()
@@ -118,7 +181,6 @@ def status (
    managed = features.all ()
    changes = git.status_short ()
    hygiene_warnings = hygiene.inspect (git.changed_paths (all_changes=True))
-   selected = _active ()
 
    data = {
       "repository": name,
@@ -126,20 +188,17 @@ def status (
       "head_oid": git.rev_parse ("HEAD"),
       "source_fingerprint": fingerprint.repository (),
       "changes": changes.splitlines (),
-      "active": {
-         "feature_id": selected.get ("feature_id"),
-         "generation": selected.get ("generation"),
-         "path": selected.get ("path"),
-      } if selected else None,
       "features": managed,
+      "spans": _spans (),
       "hygiene": { "blockers": [], "warnings": hygiene_warnings },
       "last_release": tag or None,
    }
    if json_output or runtime.options.json:
-      return result.emit ("imp.status.v1", "imp status", data, json_output=True)
+      return result.emit ("imp.status.v2", "imp status", data, json_output=True)
 
    console.header (name)
-   _show_source (selected, managed)
+   _show_features (managed)
+   _show_spans (data ["spans"])
    console.label ("Branch")
    console.out.print (f"  [muted]{branch}[/muted]{_sync ()}")
    console.out.print ()

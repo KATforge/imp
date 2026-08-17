@@ -35,6 +35,14 @@ def root () -> Path:
    return common.resolve () / "imp"
 
 
+def workspace_root (name: str) -> Path:
+   """Return the user-level Imp state directory for one workspace."""
+
+   base = os.environ.get ("XDG_STATE_HOME", "") or str (Path.home () / ".local" / "state")
+
+   return Path (base) / "imp" / "workspaces" / name
+
+
 def temporary (prefix: str) -> Path:
    """Reserve a unique path beneath tool-owned repository state."""
 
@@ -184,10 +192,10 @@ def _stale (record: dict [str, Any]) -> bool:
 
 
 @contextmanager
-def lock (name: str, *, attempts: int = 5, delay: float = 0.05) -> Iterator [dict [str, Any]]:
-   """Acquire one repository-local advisory lock for a bounded mutation."""
+def lock (name: str, *, base: Path | None = None, attempts: int = 5, delay: float = 0.05) -> Iterator [dict [str, Any]]:
+   """Acquire one advisory lock for a bounded mutation."""
 
-   path = root () / "locks" / f"{name}.json"
+   path = (base or root ()) / "locks" / f"{name}.json"
    path.parent.mkdir (parents=True, exist_ok=True)
    record = {
       "schema": "imp.lock.v1",

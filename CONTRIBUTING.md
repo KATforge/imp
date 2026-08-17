@@ -34,7 +34,7 @@ The project intentionally uses 3-space indentation and spaces inside brackets. D
 ```
 src/imp_git/
    commands/        # CLI boundary
-   features.py      # worktrees, claims, and active source
+   features.py      # worktrees and claims
    commit_plan.py   # exact logical commit plans
    integration.py   # review and completion candidates
    source_release.py # exact source releases

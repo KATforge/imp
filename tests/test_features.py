@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -13,8 +14,8 @@ def _actor (kind: str, name: str) -> str:
    return identity.resource ("actor", kind, name)
 
 
-def _start (name, actor_id, path, *, use=False):
-   plan = features.plan_start (name, actor_id=actor_id, path=str (path), use=use)
+def _start (name, actor_id, path):
+   plan = features.plan_start (name, actor_id=actor_id, path=str (path))
    return plan, features.apply_start (plan)
 
 
@@ -102,19 +103,13 @@ class TestFeatures:
       assert claim ["held_by"] == intruder
       assert intruder in features.find (feature ["feature_id"]) ["writers"]
 
-   def test_active_selection_switches_without_checkout (self, repo_with_origin, tmp_path):
+   def test_feature_worktree_does_not_disturb_the_current_branch (self, repo_with_origin, tmp_path):
       original_branch = git.branch ()
-      _plan, first = _start ("payments", _actor ("human", "anders"), tmp_path / "payments")
-      selection = features.select (first)
 
-      assert selection ["schema"] == "imp.active.v1"
-      assert features.active () ["path"] == first ["path"]
+      _plan, feature = _start ("payments", _actor ("human", "anders"), tmp_path / "payments")
+
+      assert Path (feature ["path"]).is_dir ()
       assert git.branch () == original_branch
-
-      trunk = features.select (None)
-
-      assert trunk ["feature_id"] is None
-      assert trunk ["generation"] == selection ["generation"] + 1
 
    def test_setup_and_ignored_share_are_applied_from_the_plan (self, repo_with_origin, tmp_path):
       git_run (repo_with_origin, "checkout", "master")
@@ -142,7 +137,7 @@ class TestFeatures:
 
    def test_clean_worktree_removal_is_planned_and_retains_feature_record (self, repo_with_origin, tmp_path):
       actor_id = _actor ("human", "anders")
-      _start_plan, feature = _start ("temporary", actor_id, tmp_path / "temporary", use=True)
+      _start_plan, feature = _start ("temporary", actor_id, tmp_path / "temporary")
 
       plan = features.plan_remove (feature, actor_id=actor_id)
 
@@ -155,4 +150,13 @@ class TestFeatures:
       assert retained ["state"] == "removed"
       assert retained ["worktree_state"] == "missing"
       assert retained ["claim"] is None
-      assert features.selection () ["feature_id"] is None
+
+   def test_completing_from_inside_the_worktree_leaves_a_live_directory (self, repo_with_origin, tmp_path):
+      actor_id = _actor ("human", "anders")
+      _plan, feature = _start ("stepping", actor_id, tmp_path / "stepping")
+      os.chdir (feature ["path"])
+
+      features.complete (feature, actor_id)
+
+      assert Path.cwd ().exists ()
+      assert not Path (feature ["path"]).exists ()

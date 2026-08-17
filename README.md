@@ -18,7 +18,7 @@ imp doctor
 ## Workflow
 
 ```bash
-imp start payment-retries --task "Improve failed-payment recovery" --use
+imp start payment-retries --task "Improve failed-payment recovery"
 cd "$(imp worktree path payment-retries)"
 
 # Edit and test.
@@ -29,6 +29,17 @@ imp review
 imp done --plan
 imp done --apply --yes
 ```
+
+Repositories that must move together share one feature:
+
+```bash
+imp start checkout --repo api --repo web
+imp review checkout
+imp done checkout
+```
+
+Imp finds `workspace.yaml` by walking up from the working directory. Without one it is
+simply the single-repository tool.
 
 Agent clients use the provider-neutral [Imp development skill](.agents/skills/imp-development/SKILL.md). Imp requires no hooks or adapters.
 

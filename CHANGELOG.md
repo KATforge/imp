@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added a workspace roster. `imp status` at the workspace root lists every open feature across every member
+  repository with its state, writer, and age, and emits `imp.roster.v1`
+- Added interactive promotion. `imp done` with no argument at the workspace root picks from the ready features
+  and integrates the chosen one dependency-first, emitting `imp.promote.v1`
+- Added `imp done --resolve ours|theirs|edit|ai|ask` so an integration conflict can be resolved in place instead
+  of refusing. Every resolution records its per-file choice in the candidate for review
+- Added multi-repository features. `imp start <name> --repo <alias> --repo <alias>` creates one feature across
+  several workspace repositories, and `imp review` and `imp done` then span every member in dependency order
+- Added workspace discovery. Imp walks up from the working directory for a `workspace.yaml` manifest
+  (`katforge.workspace.v1`) and stays a single-repository tool when there is none
+- Added `imp.span.v1` and `imp.span-done.v1` results, and a `spans` block in `imp status`
+- Removed `imp use`, `imp active`, `imp start --use`, and the active-source selection state; nothing bound a runtime to it and local tools always read the working tree they run in
+- Changed `imp worktree list` to mark the worktree the caller is standing in and emit `imp.worktrees.v2`
+- Changed `imp status` to drop the active-source block and emit `imp.status.v2`
 - Added `imp commit --push` to commit and push in one approved step
 - Changed bare `imp push` to track the current branch's upstream on first push instead of failing
 - Fixed `imp commit` failing on a stale intent-to-add index entry whose file was renamed or deleted before the commit

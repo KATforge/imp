@@ -1,6 +1,6 @@
 ---
 name: imp-development
-description: Use for source-code changes in Git repositories. Route every Git operation through Imp, isolate concurrent work with managed worktrees, and use Temper only for coupled repositories or shared local runtimes.
+description: Use for source-code changes in Git repositories. Route every Git operation through Imp, isolate concurrent work with managed worktrees, and span one feature across repositories when they must move together.
 ---
 
 # Imp development
@@ -8,49 +8,39 @@ description: Use for source-code changes in Git repositories. Route every Git op
 1. Discover before changing anything.
 
    - Outside Git, edit directly. Do not initialize Git or Imp.
-   - Inside Git, run `imp status --json`.
-   - Run `temper --json status` when a `temper.yaml` workspace owns the repository.
-   - Never create `.imp` or `temper.yaml` automatically.
+   - Inside Git, run `imp status --json`. It reports `spans` when a `workspace.yaml` above the repository groups it with others.
+   - Never create `.imp` or `workspace.yaml` automatically.
 
 2. Choose the smallest safe editing surface.
 
-   - Edit focused changes in the current checkout when the user allows it.
-   - Use `imp start <name> --task <intent> --use --yes --json` for parallel, large, risky, or clean-checkout work.
+   - Edit focused changes in the current checkout.
+   - Use `imp start <name> --task <intent> --yes --json` for parallel, large, risky, or clean-checkout work.
    - Reuse a managed feature only when it matches the task.
    - Never create a provider-owned worktree or edit another actor's claimed worktree.
 
-3. Use Temper only when sources must move or run together.
+3. Span repositories only when they must move together.
 
-   - Create one change for coupled repositories.
-   - Use targeted `dev` or `review` leases for interactive runtime work.
-   - Use an immutable `test` lease for release-gating tests.
-   - Do not start a full stack for repository-local work.
+   - Create one feature for all of them: `imp start <name> --repo <alias> --repo <alias>`.
+   - `--repo` takes service aliases from `workspace.yaml`; `needs` decides the order.
+   - `imp review <name>` and `imp done <name>` then cover every member.
 
 4. Use Imp for every Git operation.
 
    - Read with `imp status`, `imp diff`, `imp log`, `imp show`, or `imp blame`.
    - Run ordinary Git commands through Imp's passthrough, never through raw Git.
    - Prepare an exact commit plan at a coherent milestone and apply it without asking.
-   - Never push as part of a commit.
+   - Commit and integrate to trunk freely. Never push as part of a commit.
+   - Changing a remote needs approval first. Pushing and the QA release that follows are one grant; production is a second grant, often given in the same breath.
+   - Read intent, not wording. Any plain request to send work up grants the push and QA bundle. Without the production grant, stop at QA and say so.
 
-5. Keep authority separate.
+5. Keep authorship human.
 
-   - Commit and integrate locally without approval.
-   - Require approval only at three gates: pushing to a remote, releasing to QA, and promoting to production.
-   - Treat "push it all the way up" as one approval covering every remaining gate.
-   - Where `.imp` sets `review:required`, only a human may review or approve the candidate.
+   - Never identify an agent, model, provider, or bot as an author or contributor, and never add attribution or co-author trailers.
+   - Preserve the configured human Git identity. Keep actor IDs in local state and machine output.
 
-6. Keep authorship human.
+6. Finish cleanly.
 
-   - Never identify an agent, model, provider, or bot as an author or contributor.
-   - Never add attribution, signatures, generated-by notices, or co-author trailers.
-   - Preserve the configured human Git identity.
-   - Keep actor IDs in local state and machine output.
-
-7. Finish cleanly.
-
-   - Run configured checks.
-   - Run `imp status --json` before handoff.
-   - Release the writer claim when editing stops.
-   - Preserve blocked features and Temper changes for recovery.
-   - Never write repository instruction files unless the user explicitly requests one.
+   - Run configured checks, then `imp status --json` before handoff.
+   - Release the writer claim when editing stops, and remove worktrees and branches once they are merged into trunk.
+   - Preserve blocked features and their spans for recovery.
+   - Never write repository instruction files unless explicitly requested.

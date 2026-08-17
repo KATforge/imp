@@ -17,11 +17,11 @@ class TestSurface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "use", "status", "commit", "review", "ship", "worktree" ]:
+      for command in [ "start", "status", "commit", "review", "ship", "worktree" ]:
          assert command in result.output
       removed_commands = [
-         "amend", "bisect", "changelog", "context", "fleet", "guard",
-         "init", "release", "resolve", "revert", "split", "tidy", "undo",
+         "active", "amend", "bisect", "changelog", "context", "fleet", "guard",
+         "init", "release", "resolve", "revert", "split", "tidy", "undo", "use",
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
@@ -47,8 +47,8 @@ class TestSurface:
       monkeypatch.setattr (main_mod.passthrough, "run", lambda args: seen.append (args) or 0)
 
       commands = [
-         [ "context" ], [ "guard" ], [ "init", "--bare" ],
-         [ "resolve", "--ours" ], [ "split" ],
+         [ "active" ], [ "context" ], [ "guard" ], [ "init", "--bare" ],
+         [ "resolve", "--ours" ], [ "split" ], [ "use" ],
       ]
       for args in commands:
          result = runner.invoke (app, args)

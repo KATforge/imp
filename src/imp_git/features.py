@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 from builtins import all as all_values
@@ -191,7 +192,6 @@ def _descriptor (
    path: str = "",
    task: str = "",
    target: str = "",
-   use: bool = False,
    claim_writer: bool = True,
 ) -> dict [str, Any]:
    slug = identity.slug (name)
@@ -236,7 +236,6 @@ def _descriptor (
       "claim_writer": claim_writer,
       "setup": _commands (),
       "share": _shares (),
-      "use": use,
    }
 
 
@@ -250,7 +249,6 @@ def plan_start (
    path: str = "",
    task: str = "",
    target: str = "",
-   use: bool = False,
    claim_writer: bool = True,
    persist: bool = True,
 ) -> dict [str, Any]:
@@ -265,7 +263,6 @@ def plan_start (
       path=path,
       task=task,
       target=target,
-      use=use,
       claim_writer=claim_writer,
    )
    bound = {
@@ -419,8 +416,6 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
    except Exception:
       _discard_start (path, branch, feature_id)
       raise
-   if descriptor ["use"]:
-      select (record)
    plans.mark (plan, "applied", applied_at=state.now ())
    return { **record, "claim": claim_record, "worktree_state": "live" }
 
@@ -489,51 +484,9 @@ def assert_write_access (actor_id: str):
    claim (feature, actor_id)
 
 
-def _selection_path () -> Path:
-   return state.root () / "active.json"
-
-
-def selection () -> dict [str, Any]:
-   path = _selection_path ()
-   if path.exists ():
-      return state.read (path, "imp.active.v1")
-   return {
-      "schema": "imp.active.v1",
-      "generation": 0,
-      "feature_id": None,
-      "path": _primary_path (),
-      "selected_at": None,
-   }
-
-
-def select (feature: dict [str, Any] | None) -> dict [str, Any]:
-   with state.lock ("active"):
-      previous = selection ()
-      value = {
-         "schema": "imp.active.v1",
-         "generation": int (previous.get ("generation", 0)) + 1,
-         "feature_id": feature.get ("feature_id") if feature else None,
-         "path": str (feature.get ("path")) if feature else _primary_path (),
-         "selected_at": state.now (),
-      }
-      state.atomic_write (_selection_path (), value)
-      return value
-
-
-def active () -> dict [str, Any]:
-   value = selection ()
-   path = Path (str (value ["path"]))
-   if not path.is_dir ():
-      raise state.StateError (f"Active worktree is missing: {path}")
-   feature_id = value.get ("feature_id")
-   feature = find (str (feature_id)) if feature_id else None
-   return { **value, "feature": feature }
-
-
 def _remove_fingerprint (feature: dict [str, Any]) -> str:
    path = str (feature ["path"])
    return fingerprint.values ({
-      "active": selection (),
       "branch": feature ["branch"],
       "branch_oid": git.rev_parse (str (feature ["branch"])),
       "claim": _read_claim (str (feature ["feature_id"])),
@@ -607,14 +560,24 @@ def apply_remove (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
       stored ["state"] = "removed"
       stored ["removed_at"] = state.now ()
       state.atomic_write (_path (str (feature ["feature_id"])), stored)
-      if selection ().get ("feature_id") == feature ["feature_id"]:
-         select (None)
       plans.mark (plan, "applied", applied_at=state.now ())
    return {
       "branch_deleted": bool (payload ["delete_branch"]),
       "feature_id": feature ["feature_id"],
       "path": feature ["path"],
    }
+
+
+def _leave (path: str):
+   """Step out of a worktree before removing it, so the caller keeps a live directory."""
+
+   target = Path (path).resolve ()
+   try:
+      current = Path.cwd ().resolve ()
+   except OSError:
+      current = None
+   if current and (current == target or target in current.parents):
+      os.chdir (_primary_path ())
 
 
 def complete (
@@ -639,13 +602,12 @@ def complete (
    if Path (str (feature ["path"])).exists ():
       if not git.clean_at (str (feature ["path"])):
          raise state.StateError ("Completed feature worktree became dirty")
+      _leave (str (feature ["path"]))
       git.worktree_remove (str (feature ["path"]))
    _claim_path (feature_id).unlink (missing_ok=True)
    if git.ref_exists (str (feature ["branch"])):
       if not git.delete_branch (str (feature ["branch"]), force=True):
          raise state.StateError (f"Could not delete integrated branch {feature ['branch']}")
-   if selection ().get ("feature_id") == feature_id:
-      select (None)
 
    return record
 

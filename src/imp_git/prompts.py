@@ -105,3 +105,14 @@ Changes:
 {change_diffs}
 
 Output ONLY the JSON array:"""
+
+def resolve_conflict (path: str, body: str) -> str:
+   return f"""\
+Resolve the merge conflicts in this file. Keep both sides' intent where they do not
+contradict; where they do, prefer the incoming feature side.
+
+File: {path}
+
+{body}
+
+Output ONLY the complete resolved file with every conflict marker removed, nothing else:"""

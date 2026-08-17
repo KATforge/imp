@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, features, identity, plans, runtime, state
+from imp_git import approval, console, features, identity, plans, result, runtime, spans, state, workspace
 
 
 def _show (plan: dict):
@@ -27,8 +27,11 @@ def start (
    base: Annotated [str, typer.Option ("--base", help="Explicit base ref")] = "",
    target: Annotated [str, typer.Option ("--target", help="Integration target branch")] = "",
    path: Annotated [str, typer.Option ("--path", help="Explicit worktree path")] = "",
-   change_id: Annotated [str, typer.Option ("--change-id", help="Temper change identity")] = "",
-   use: Annotated [bool, typer.Option ("--use", help="Select this feature for local tools")] = False,
+   repos: Annotated [
+      list [str] | None,
+      typer.Option ("--repo", help="Workspace repository to span; repeat as needed"),
+   ] = None,
+   change_id: Annotated [str, typer.Option ("--change-id", help="Correlation identity for related features")] = "",
    no_claim: Annotated [bool, typer.Option ("--no-claim", help="Create without assigning a writer")] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Persist the plan without applying it")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved plan")] = "",
@@ -43,6 +46,10 @@ def start (
    yes = yes or runtime.options.yes
    dry_run = dry_run or runtime.options.dry_run
    no_input = no_input or runtime.options.no_input
+
+   if repos:
+      return _span (name, repos, actor_id=identity.actor (actor_id), base=base, target=target, dry_run=dry_run)
+
    try:
       if apply:
          plan = plans.resolve ("start", "" if apply == "__pick__" else apply)
@@ -58,7 +65,6 @@ def start (
             path=path,
             task=task,
             target=target,
-            use=use,
             claim_writer=not no_claim,
             persist=not dry_run,
          )
@@ -86,3 +92,43 @@ def start (
       no_input=no_input,
       wrap="feature",
    )
+
+
+def _span (
+   name: str,
+   repos: list [str],
+   *,
+   actor_id: str,
+   base: str,
+   target: str,
+   dry_run: bool,
+):
+   """Create one feature across several workspace repositories at once."""
+
+   try:
+      value = workspace.require ()
+      selected = workspace.order (value, repos)
+      members = { alias: workspace.resolve (value, alias) for alias in selected }
+      if spans.find (value, name):
+         raise state.StateError (f"Feature already spans repositories: {name}")
+      created = []
+      for alias in selected:
+         with spans.inside (members [alias]):
+            plan = features.plan_start (
+               name, actor_id=actor_id, base=base, target=target, persist=not dry_run,
+            )
+            created.append ({ "alias": alias, **features.apply_start (plan) })
+      span = spans.record (value, name, members, actor_id)
+   except (state.StateError, ValueError) as error:
+      console.fatal (str (error))
+
+   data = { "span": span, "features": created }
+   if runtime.options.json:
+      return result.emit ("imp.span.v1", "imp start", data, json_output=True)
+
+   console.header (f"Feature ready: {span ['name']}")
+   console.table (
+      [ "Repository", "Branch", "Worktree" ],
+      [ [ str (value ["alias"]), str (value ["branch"]), str (value ["path"]) ] for value in created ],
+   )
+   return data

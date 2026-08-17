@@ -19,7 +19,7 @@ def list_ (
    """List repository worktrees and their managed feature state."""
 
    git.require ()
-   selected = features.selection ()
+   here = str (Path.cwd ().resolve ())
    managed = { str (Path (feature ["path"]).resolve ()): feature for feature in features.all () }
    rows = []
    values = []
@@ -27,7 +27,7 @@ def list_ (
       path = str (Path (entry.get ("worktree", "")).resolve ())
       feature = managed.get (path)
       value = {
-         "active": path == selected ["path"],
+         "here": here == path or here.startswith (path + "/"),
          "branch": entry.get ("branch", "").removeprefix ("refs/heads/"),
          "feature_id": feature.get ("feature_id") if feature else None,
          "name": feature.get ("name") if feature else ("trunk" if not values else "unmanaged"),
@@ -36,10 +36,10 @@ def list_ (
          "target": feature.get ("target") if feature else None,
       }
       values.append (value)
-      rows.append ([ "*" if value ["active"] else "", str (value ["name"]), value ["branch"], path, value ["state"] ])
+      rows.append ([ "*" if value ["here"] else "", str (value ["name"]), value ["branch"], path, value ["state"] ])
    if json_output or runtime.options.json:
-      return result.emit ("imp.worktrees.v1", "imp worktree list", { "worktrees": values }, json_output=True)
-   console.table ([ "Active", "Feature", "Branch", "Path", "State" ], rows)
+      return result.emit ("imp.worktrees.v2", "imp worktree list", { "worktrees": values }, json_output=True)
+   console.table ([ "Here", "Feature", "Branch", "Path", "State" ], rows)
    return { "worktrees": values }
 
 
