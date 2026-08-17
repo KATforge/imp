@@ -25,6 +25,12 @@ def _editor () -> list [str]:
    return value.split ()
 
 
+def _stages (path: str, name: str) -> set [int]:
+   output = git.run_at (path, "ls-files", "-u", "--", name, check=False)
+
+   return { int (line.split () [2]) for line in output.stdout.splitlines () if len (line.split ()) > 2 }
+
+
 def _conflicted (path: str) -> list [str]:
    output = git.run_at (path, "diff", "--name-only", "--diff-filter=U", check=False)
 
@@ -49,7 +55,28 @@ def _resolve_with_model (path: str, name: str):
    Path (path, name).write_text (merged if merged.endswith ("\n") else merged + "\n")
 
 
-def _apply_choice (path: str, name: str, choice: str):
+def _apply_removal (path: str, name: str, choice: str, stages: set [int]):
+   """Resolve a delete-versus-edit conflict, which is a choice and never a merge.
+
+   Editing a file another branch deleted almost always means the edit predates the
+   deletion, so an unstated choice honours the deletion rather than resurrecting it.
+   """
+
+   deleted_by_us = 2 not in stages
+   keep = choice == THEIRS if deleted_by_us else choice == OURS
+   if keep:
+      git.run_at (path, "checkout", f"--{THEIRS if deleted_by_us else OURS}", "--", name)
+      git.run_at (path, "add", "--", name)
+   else:
+      git.run_at (path, "rm", "-f", "--quiet", "--", name)
+
+
+def _apply_choice (path: str, name: str, choice: str) -> str:
+   stages = _stages (path, name)
+   if not { 2, 3 } <= stages:
+      resolution = choice if choice in { OURS, THEIRS } else "deleted"
+      _apply_removal (path, name, resolution, stages)
+      return resolution
    if choice in { OURS, THEIRS }:
       git.run_at (path, "checkout", f"--{choice}", "--", name)
    elif choice == EDIT:
@@ -59,6 +86,8 @@ def _apply_choice (path: str, name: str, choice: str):
    else:
       _resolve_with_model (path, name)
    git.run_at (path, "add", "--", name)
+
+   return choice
 
 
 def resolve (
@@ -84,8 +113,8 @@ def resolve (
          if body:
             console.items ("Hunk", body)
          selected = _CHOICES [console.choose ("Resolve with", list (_CHOICES))]
-      _apply_choice (worktree, name, selected)
-      decisions.append ({ "choice": selected, "path": name })
+      applied = _apply_choice (worktree, name, selected)
+      decisions.append ({ "choice": applied, "path": name })
 
    remaining = _conflicted (worktree)
    if remaining:

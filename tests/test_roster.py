@@ -189,3 +189,40 @@ class TestConflictResolution:
             conflicts.resolve (str (scratch), target, source, choice=conflicts.EDIT)
       finally:
          os.chdir (previous)
+
+   def test_a_deletion_beats_a_stale_edit_by_default (self, demo, tmp_path):
+      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      commit_file (Path (feature ["path"]), "file.txt", "edited\n", "feat: edit the file")
+      git_run (demo / "api", "rm", "file.txt")
+      git_run (demo / "api", "commit", "-m", "chore: drop the file")
+      scratch = tmp_path / "scratch"
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         target = git.rev_parse ("master")
+         source = git.rev_parse (str (feature ["branch"]))
+         git.worktree_add_detached (str (scratch), target)
+         _tree, decisions = conflicts.resolve (str (scratch), target, source, choice=conflicts.RESOLVE)
+
+         assert decisions == [ { "choice": "deleted", "path": "file.txt" } ]
+         assert not (scratch / "file.txt").exists ()
+      finally:
+         os.chdir (previous)
+
+   def test_theirs_restores_a_file_trunk_deleted (self, demo, tmp_path):
+      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      commit_file (Path (feature ["path"]), "file.txt", "edited\n", "feat: edit the file")
+      git_run (demo / "api", "rm", "file.txt")
+      git_run (demo / "api", "commit", "-m", "chore: drop the file")
+      scratch = tmp_path / "scratch"
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         target = git.rev_parse ("master")
+         source = git.rev_parse (str (feature ["branch"]))
+         git.worktree_add_detached (str (scratch), target)
+         conflicts.resolve (str (scratch), target, source, choice=conflicts.THEIRS)
+
+         assert (scratch / "file.txt").read_text () == "edited\n"
+      finally:
+         os.chdir (previous)
