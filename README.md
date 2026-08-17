@@ -104,7 +104,7 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `status`, `done`, `fleet`, `commit`, `review`, `pr`, `release`, `doctor`, `worktree`, and `recover`.
+Native commands are `start`, `status`, `done`, `fleet`, `commit`, `review`, `pr`, `release`, `doctor`, and `worktree`.
 
 ## Optional repository policy
 

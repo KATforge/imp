@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from imp_git import console, features, fingerprint, git, hygiene, result, roster, runtime, spans, workspace
+from imp_git import console, features, fingerprint, git, hygiene, result, roster, runtime, spans, state, workspace
 
 
 def _file_style (code: str) -> str:
@@ -91,12 +91,46 @@ def _workspace_status (json_output: bool):
       "root": value ["root"],
       "repositories": sorted (repositories),
       "features": entries,
+      "interrupted": roster.interrupted (value),
    }
    if json_output:
       return result.emit ("imp.roster.v1", "imp status", data, json_output=True)
    _show_roster (value, entries)
+   _show_workspace_interrupted (data ["interrupted"])
 
    return data
+
+
+def _show_interrupted (values: list [dict]):
+   if not values:
+      return
+   console.label ("Interrupted")
+   console.table (
+      [ "Command", "Error", "Resume with" ],
+      [
+         [
+            str (record.get ("command", "")),
+            str (record.get ("error", "")),
+            str (record.get ("next", "")),
+         ]
+         for record in values
+      ],
+   )
+   console.out.print ()
+
+
+def _show_workspace_interrupted (values: list [dict]):
+   if not values:
+      return
+   console.out.print ()
+   console.label ("Interrupted")
+   console.table (
+      [ "Repository", "Command", "Error" ],
+      [
+         [ str (record ["alias"]), str (record.get ("command", "")), str (record.get ("error", "")) ]
+         for record in values
+      ],
+   )
 
 
 def _spans () -> list [dict]:
@@ -188,6 +222,7 @@ def status (
       "source_fingerprint": fingerprint.repository (),
       "changes": changes.splitlines (),
       "features": managed,
+      "interrupted": state.recoveries (),
       "spans": _spans (),
       "hygiene": { "blockers": [], "warnings": hygiene_warnings },
       "last_release": tag or None,
@@ -198,6 +233,7 @@ def status (
    console.header (name)
    _show_features (managed)
    _show_spans (data ["spans"])
+   _show_interrupted (data ["interrupted"])
    console.label ("Branch")
    console.out.print (f"  [muted]{branch}[/muted]{_sync ()}")
    console.out.print ()

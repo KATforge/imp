@@ -161,6 +161,39 @@ def read (
    raise StateError (f"Unsupported schema in {path}: {actual}")
 
 
+def recoveries () -> list [dict [str, Any]]:
+   """List interrupted operations, expiring records whose plan is settled.
+
+   A record is only useful while its plan can still be resumed. Once the plan is
+   applied or gone, the operation was finished another way and the record is noise.
+   """
+
+   from imp_git import plans
+
+   directory = root () / "recovery"
+   if not directory.is_dir ():
+      return []
+
+   values = []
+   for path in sorted (directory.glob ("*.json")):
+      try:
+         record = read (path, "imp.recovery.v1")
+      except StateError:
+         path.unlink (missing_ok=True)
+         continue
+      try:
+         plan = plans.load (str (record ["plan_id"]))
+      except (StateError, ValueError):
+         path.unlink (missing_ok=True)
+         continue
+      if plan.get ("state") == "applied":
+         path.unlink (missing_ok=True)
+         continue
+      values.append (record)
+
+   return sorted (values, key=lambda value: str (value.get ("created_at", "")))
+
+
 def clear_recovery (plan_id: str):
    """Remove recovery records resolved by a successful plan retry."""
 

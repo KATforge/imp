@@ -109,6 +109,19 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
    return sorted (values, key=lambda entry: (_ORDER.get (entry ["condition"], 9), str (entry ["created_at"])))
 
 
+def interrupted (value: dict [str, Any]) -> list [dict [str, Any]]:
+   """Every unfinished operation across the workspace, newest last."""
+
+   values = []
+   for alias, repository in sorted (workspace.repositories (value).items ()):
+      if not Path (repository, ".git").exists ():
+         continue
+      with spans.inside (repository):
+         values.extend ({ "alias": alias, **record } for record in state.recoveries ())
+
+   return sorted (values, key=lambda record: str (record.get ("created_at", "")))
+
+
 def promotable (values: list [dict [str, Any]]) -> list [dict [str, Any]]:
    return [ entry for entry in values if entry ["condition"] == READY ]
 

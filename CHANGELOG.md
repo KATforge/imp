@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed `imp recover`. Interrupted operations now appear in `imp status`, per repository with the exact resume
+  command, and in the workspace roster across every member repository at once
+- Fixed recovery records outliving their operation. A record whose plan is applied or gone is deleted on read,
+  so a run resolved another way stops being reported forever
+
 - Removed the `IMP_AI_PROVIDER`, `IMP_AI_MODEL_FAST`, `IMP_AI_MODEL_SMART`, `IMP_ACTOR_ID`, and `IMP_EDITOR`
   environment variables. Configuration lives in one file, the actor comes from `--actor-id` or a detected agent
   session, and the editor follows the usual `VISUAL` and `EDITOR` convention

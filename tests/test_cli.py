@@ -21,7 +21,7 @@ class TestSurface:
          assert command in result.output
       removed_commands = [
          "active", "amend", "bisect", "changelog", "context", "guard",
-         "config", "init", "resolve", "revert", "ship", "split", "tidy", "undo", "use",
+         "config", "init", "recover", "resolve", "revert", "ship", "split", "tidy", "undo", "use",
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output

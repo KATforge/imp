@@ -16,7 +16,6 @@ from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
 from imp_git.commands.fleet import fleet
 from imp_git.commands.pr import pr
-from imp_git.commands.recover import recover
 from imp_git.commands.release import release
 from imp_git.commands.review import review
 from imp_git.commands.start import start
@@ -103,7 +102,7 @@ def main (
 
 _commands = [
    commit, doctor, done, fleet, pr,
-   recover, release, review, start, status,
+   release, review, start, status,
 ]
 
 for _cmd in _commands:
