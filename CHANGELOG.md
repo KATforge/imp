@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed `--ascii` and `--no-color`. One controlled a table border character and the other duplicated the
+  standard `NO_COLOR` environment variable that Rich already honours
+- Changed `--json`, `--yes`, `--dry-run`, `--no-input`, and `--actor-id` to be declared once, globally, instead
+  of on each command as well. They still read naturally after the verb, because argv hoisting moves them ahead
+  of the subcommand. That removed 24 lines of per-command reconciliation where forgetting the merge was silent
+- Changed the global repository flag to `-C` only. `--repo` now unambiguously means a workspace repository on
+  `imp start`, which hoisting would otherwise have captured as a path
+- Removed `imp commit --push`, which contradicted the rule that a commit never pushes
+- Removed `imp commit --plans`, `--staged`, and `--single`. Saved plans are listed by `imp recover` and the
+  `--apply` picker, and the default scope already prefers staged changes
+- Removed `imp done --pr`, `--push`, and `imp fleet --pr` from the CLI. Work lands on trunk, and pushing is
+  its own approved step
+- Removed `imp ship --commit` and `--source-plan`. A dirty source runs `imp commit` first, as its own approval
+- Removed `imp start --change-id`, `--branch`, and `--no-claim`. Temper was the only caller of the first and
+  spans replaced it; the other two had no callers at all
+
 - Fixed a landed integration failing because its worktree could not be deleted. Root-owned container
   artifacts under `vendor/` or `node_modules/` now leave a warning and a path to clean up by hand,
   since the candidate is already on the target by the time cleanup runs

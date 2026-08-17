@@ -23,7 +23,6 @@ def _show (plan: dict):
 def start (
    name: Annotated [str, typer.Argument (help="Readable feature or lane name")] = "",
    task: Annotated [str, typer.Option ("--task", help="Optional working intent, not the prompt")] = "",
-   branch: Annotated [str, typer.Option ("--branch", help="Explicit branch name")] = "",
    base: Annotated [str, typer.Option ("--base", help="Explicit base ref")] = "",
    target: Annotated [str, typer.Option ("--target", help="Integration target branch")] = "",
    path: Annotated [str, typer.Option ("--path", help="Explicit worktree path")] = "",
@@ -31,21 +30,17 @@ def start (
       list [str] | None,
       typer.Option ("--repo", help="Workspace repository to span; repeat as needed"),
    ] = None,
-   change_id: Annotated [str, typer.Option ("--change-id", help="Correlation identity for related features")] = "",
-   no_claim: Annotated [bool, typer.Option ("--no-claim", help="Create without assigning a writer")] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Persist the plan without applying it")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved plan")] = "",
-   yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the exact displayed plan")] = False,
-   dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
-   no_input: Annotated [bool, typer.Option ("--no-input", help="Fail instead of prompting")] = False,
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit a versioned JSON result")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """Create and claim an isolated feature worktree."""
 
-   yes = yes or runtime.options.yes
-   dry_run = dry_run or runtime.options.dry_run
-   no_input = no_input or runtime.options.no_input
+   actor_id = runtime.options.actor_id
+   dry_run = runtime.options.dry_run
+   json_output = runtime.options.json
+   no_input = runtime.options.no_input
+   yes = runtime.options.yes
+
 
    if repos:
       return _span (name, repos, actor_id=identity.actor (actor_id), base=base, target=target, dry_run=dry_run)
@@ -60,12 +55,9 @@ def start (
             name,
             actor_id=identity.actor (actor_id),
             base=base,
-            branch=branch,
-            change_id=change_id,
             path=path,
             task=task,
             target=target,
-            claim_writer=not no_claim,
             persist=not dry_run,
          )
    except (state.StateError, ValueError) as error:

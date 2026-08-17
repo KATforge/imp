@@ -52,8 +52,6 @@ def done (
       str,
       typer.Option ("--resolve", help="Resolve conflicts: ours, theirs, edit, ai, or ask"),
    ] = "",
-   pr: Annotated [bool, typer.Option ("--pr", help="Push the feature and open a pull request")] = False,
-   push: Annotated [bool, typer.Option ("--push", help="Push the integrated target")] = False,
    keep: Annotated [bool, typer.Option ("--keep", help="Keep the feature worktree and branch")] = False,
    skip_checks: Annotated [bool, typer.Option ("--skip-checks", help="Explicitly bypass checks")] = False,
    approve: Annotated [
@@ -62,16 +60,15 @@ def done (
    ] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact candidate only")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved plan")] = "",
-   yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
-   dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """Validate and integrate exactly one managed feature."""
 
+   actor_id = runtime.options.actor_id
+   dry_run = runtime.options.dry_run
+   json_output = runtime.options.json
+   yes = runtime.options.yes
+
    actor = identity.actor (actor_id)
-   yes = yes or runtime.options.yes
-   dry_run = dry_run or runtime.options.dry_run
 
    if resolve and resolve not in { "ours", "theirs", "edit", "ai", "ask" }:
       console.fatal (f"Unsupported conflict resolution: {resolve}")
@@ -93,12 +90,12 @@ def done (
          selected = _feature (feature)
          reusable = (
             None
-            if any ([ into, keep, pr, push, skip_checks, strategy, resolve, dry_run ])
+            if any ([ into, keep, skip_checks, strategy, resolve, dry_run ])
             else integration.reusable_plan (selected)
          )
          plan = reusable or integration.plan_done (
-            selected, actor_id=actor, into=into, keep=keep, pr=pr,
-            push=push, skip_checks=skip_checks, strategy=strategy,
+            selected, actor_id=actor, into=into, keep=keep,
+            skip_checks=skip_checks, strategy=strategy,
             resolve=resolution, persist=not dry_run,
          )
       if approve:

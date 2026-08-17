@@ -1,7 +1,7 @@
 import pytest
 import typer
 
-from imp_git import ai, console, git
+from imp_git import ai, console, git, runtime
 from imp_git.commands import commit as commit_cmd
 from imp_git.commands import review as review_cmd
 from tests.conftest import commit_count, commit_file, git_run, last_commit_subject
@@ -16,7 +16,7 @@ class TestCommitCommand:
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
 
-      commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
+      commit_cmd.commit (all=False, exclude=None, whisper="")
 
       assert last_commit_subject (repo) == "feat: add login"
 
@@ -26,11 +26,12 @@ class TestCommitCommand:
 
       (repo / "new.txt").write_text ("new file\n")
 
-      commit_cmd.commit (all=True, exclude=None, yes=False, whisper="")
+      commit_cmd.commit (all=True, exclude=None, whisper="")
 
       assert last_commit_subject (repo) == "feat: add feature"
 
    def test_commit_cancelled (self, repo, monkeypatch):
+      runtime.configure ()
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add login")
       monkeypatch.setattr (console, "confirm", lambda text: False)
 
@@ -38,13 +39,13 @@ class TestCommitCommand:
       git_run (repo, "add", ".")
 
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
+         commit_cmd.commit (all=False, exclude=None, whisper="")
 
       assert commit_count (repo) == 1
 
    def test_commit_nothing_staged (self, repo, monkeypatch):
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
+         commit_cmd.commit (all=False, exclude=None, whisper="")
 
    def test_commit_retries_on_invalid_ai (self, repo, monkeypatch):
       calls = []
@@ -61,41 +62,12 @@ class TestCommitCommand:
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
 
-      commit_cmd.commit (all=False, exclude=None, yes=False, whisper="")
+      commit_cmd.commit (all=False, exclude=None, whisper="")
 
       assert last_commit_subject (repo) == "fix: resolve bug"
       assert len (calls) == 2
 
-   def test_push_flag_pushes_after_manual_commit (self, repo_with_origin):
-      work = repo_with_origin
-      (work / "file.txt").write_text ("changed\n")
-      git_run (work, "add", ".")
 
-      commit_cmd.commit (
-         all=False, exclude=None, yes=False, whisper="",
-         message="fix: push after commit", push=True,
-      )
-
-      origin_branches = git_run (work.parent / "origin.git", "branch", "--list", "feat/wip").stdout
-      assert "feat/wip" in origin_branches
-
-   def test_push_flag_pushes_after_planned_commit (self, repo_with_origin, monkeypatch):
-      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add feature")
-      monkeypatch.setattr (console, "confirm", lambda text: True)
-      work = repo_with_origin
-      (work / "new.txt").write_text ("new file\n")
-
-      commit_cmd.commit (all=True, exclude=None, yes=False, whisper="", push=True)
-
-      origin_branches = git_run (work.parent / "origin.git", "branch", "--list", "feat/wip").stdout
-      assert "feat/wip" in origin_branches
-
-   def test_push_flag_rejects_plan_only (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", ".")
-
-      with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, yes=False, whisper="", plan_only=True, push=True)
 
 
 class TestReviewCommand:

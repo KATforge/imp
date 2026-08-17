@@ -6,12 +6,10 @@ class Options:
    """Invocation-wide options shared by native Imp commands."""
 
    actor_id: str = ""
-   ascii: bool = False
    command: str = ""
    dry_run: bool = False
    json: bool = False
    no_input: bool = False
-   no_color: bool = False
    repo: str = ""
    yes: bool = False
 
@@ -29,12 +27,10 @@ def reset ():
 def configure (
    *,
    actor_id: str = "",
-   ascii: bool = False,
    command: str = "",
    dry_run: bool = False,
    json: bool = False,
    no_input: bool = False,
-   no_color: bool = False,
    repo: str = "",
    yes: bool = False,
 ):
@@ -43,12 +39,10 @@ def configure (
    global options
    options = Options (
       actor_id=actor_id,
-      ascii=ascii,
       command=command,
       dry_run=dry_run,
       json=json,
       no_input=no_input,
-      no_color=no_color,
       repo=repo,
       yes=yes,
    )

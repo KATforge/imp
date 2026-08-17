@@ -39,7 +39,7 @@ def _reset_process_state ():
    from imp_git import repo as repo_mod
 
    repo_mod.load.cache_clear ()
-   runtime.reset ()
+   runtime.configure (yes=True)
    try:
       yield
    finally:
@@ -121,3 +121,4 @@ def repo_with_origin (tmp_path):
    os.chdir (work)
    yield work
    os.chdir (old_cwd)
+

@@ -34,19 +34,17 @@ def _show (plan: dict):
 def fleet (
    into: Annotated [str, typer.Option ("--into", help="Integration target; defaults to repository trunk")] = "",
    strategy: Annotated [str, typer.Option ("--strategy", help="preserve, squash, or merge")] = "squash",
-   pr: Annotated [bool, typer.Option ("--pr", help="Push every feature and open or update pull requests")] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact fleet only")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved fleet plan")] = "",
-   yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
-   dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """Consolidate every managed feature in one repository."""
 
+   actor_id = runtime.options.actor_id
+   dry_run = runtime.options.dry_run
+   json_output = runtime.options.json
+   yes = runtime.options.yes
+
    actor = identity.actor (actor_id)
-   yes = yes or runtime.options.yes
-   dry_run = dry_run or runtime.options.dry_run
    try:
       if apply:
          plan = fleet_mod.refresh (plans.resolve ("fleet", "" if apply == "__pick__" else apply))
@@ -54,7 +52,6 @@ def fleet (
          plan = fleet_mod.plan_fleet (
             actor_id=actor,
             into=into,
-            pr=pr,
             strategy=strategy,
             persist=not dry_run,
          )

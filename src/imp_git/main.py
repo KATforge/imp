@@ -25,6 +25,9 @@ from imp_git.commands.worktree import worktree
 
 class GitGroup (TyperGroup):
 
+   def parse_args (self, ctx: click.Context, args: list [str]) -> list [str]:
+      return super ().parse_args (ctx, _hoist_global (args) if _native_request (args) else args)
+
    def get_command (self, ctx: click.Context, cmd_name: str) -> click.Command | None:
       command = super ().get_command (ctx, cmd_name)
       if command:
@@ -69,14 +72,12 @@ def main (
       callback=_version,
       is_eager=True,
    ),
-   repo_path: Annotated [str, typer.Option ("-C", "--repo", help="Run against this repository")] = "",
+   repo_path: Annotated [str, typer.Option ("-C", help="Run against this repository")] = "",
    json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
    dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
    no_input: Annotated [bool, typer.Option ("--no-input", help="Fail instead of prompting")] = False,
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply an exact displayed plan")] = False,
    actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
-   ascii_output: Annotated [bool, typer.Option ("--ascii", help="Use plain ASCII output")] = False,
-   no_color: Annotated [bool, typer.Option ("--no-color", help="Disable terminal color")] = False,
 ):
    """[green]imp[/green] — safe Git workstreams for people and agents"""
 
@@ -88,16 +89,13 @@ def main (
 
    runtime.configure (
       actor_id=actor_id,
-      ascii=ascii_output,
       command=ctx.invoked_subcommand or "",
       dry_run=dry_run,
       json=json_output,
       no_input=no_input,
-      no_color=no_color,
       repo=repo_path,
       yes=yes,
    )
-   console.out.no_color = no_color
 
 _commands = [
    commit, doctor, done, fleet, recover,
@@ -114,16 +112,49 @@ _NATIVE = { command.name or command.callback.__name__ for command in app.registe
 _NATIVE.update ({ "config", "worktree" })
 
 
+_GLOBAL_FLAGS = { "--dry-run", "--json", "--no-input", "--yes", "-y" }
+_GLOBAL_VALUED = { "-C", "--actor-id" }
+
+
+def _hoist_global (args: list [str]) -> list [str]:
+   """Move global flags ahead of the subcommand so they read naturally after it.
+
+   Click binds group options before the subcommand only, which would force
+   `imp --yes done checkout`. Hoisting lets the flag sit where a person types it.
+   """
+
+   leading: list [str] = []
+   rest: list [str] = []
+   index = 0
+   seen_command = False
+   while index < len (args):
+      value = args [index]
+      if value in _GLOBAL_VALUED and index + 1 < len (args):
+         leading.extend (args [index:index + 2])
+         index += 2
+         continue
+      if value in _GLOBAL_FLAGS:
+         leading.append (value)
+         index += 1
+         continue
+      if not value.startswith ("-") and not seen_command:
+         seen_command = True
+      rest.append (value)
+      index += 1
+
+   return leading + rest if seen_command else args
+
+
 def _native_request (args: list [str]) -> bool:
    """Return whether argv targets Imp's documented native surface."""
 
    index = 0
    while index < len (args):
       value = args [index]
-      if value in { "-C", "--repo", "--actor-id" }:
+      if value in _GLOBAL_VALUED:
          index += 2
          continue
-      if value in { "--ascii", "--dry-run", "--json", "--no-color", "--no-input", "--yes", "-y" }:
+      if value in _GLOBAL_FLAGS:
          index += 1
          continue
       if value.startswith ("-"):

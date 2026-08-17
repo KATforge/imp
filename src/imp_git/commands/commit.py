@@ -33,24 +33,8 @@ def _show (plan: dict):
       console.err (str (blocker))
 
 
-def _list_plans (json_output: bool):
-   values = plans.all ("commit")
-   if json_output or runtime.options.json:
-      return result.emit ("imp.plans.v1", "imp commit --plans", { "plans": values }, json_output=True)
-
-   console.header ("Commit plans")
-   if not values:
-      console.muted ("No commit plans")
-      return { "plans": [] }
-   console.table (
-      [ "State", "Plan", "Created" ],
-      [ [ str (plan ["state"]), str (plan ["label"]), str (plan ["created_at"]) ] for plan in values ],
-   )
-   return { "plans": values }
-
-
 def _finish (data: dict, command: str, message: str, json_output: bool) -> dict:
-   if json_output or runtime.options.json:
+   if json_output:
       result.emit ("imp.commit.v1", command, data, json_output=True)
    else:
       console.success (message)
@@ -69,7 +53,7 @@ def _fixup (ref: str, actor: str, json_output: bool) -> dict:
    return _finish (data, "imp commit --fixup", f"Created fixup for {target}", json_output)
 
 
-def _manual (message: str, actor: str, amend: bool, push: bool, json_output: bool) -> dict:
+def _manual (message: str, actor: str, amend: bool, json_output: bool) -> dict:
    features.assert_write_access (actor)
    if amend and git.published ("HEAD"):
       console.fatal ("Cannot amend published history")
@@ -78,9 +62,7 @@ def _manual (message: str, actor: str, amend: bool, push: bool, json_output: boo
    if not git.staged_files ():
       console.fatal ("Nothing staged")
    git.commit (message, amend=amend)
-   if push:
-      git.push_current ()
-   data = { "branch": git.branch (), "message": message, "oid": git.rev_parse ("HEAD"), "pushed": push }
+   data = { "branch": git.branch (), "message": message, "oid": git.rev_parse ("HEAD") }
    return _finish (data, "imp commit", f"Committed: {message}", json_output)
 
 
@@ -94,9 +76,6 @@ def _planned (
    exclude: list [str] | None,
    json_output: bool,
    plan_only: bool,
-   push: bool,
-   single: bool,
-   staged: bool,
    whisper: str,
    yes: bool,
 ) -> dict:
@@ -106,8 +85,6 @@ def _planned (
          all_changes=all_changes,
          amend=amend,
          exclude=exclude,
-         single=single,
-         staged=staged,
          whisper=whisper,
          persist=not dry_run,
       )
@@ -115,22 +92,17 @@ def _planned (
       console.fatal (str (error))
 
    def apply_plan (value: dict) -> dict:
-      data = commit_plan.apply (value, actor)
-      if push:
-         git.push_current ()
-      return { **data, "pushed": push }
+      return commit_plan.apply (value, actor)
 
    def success (data: dict):
       for value in data ["commits"]:
          console.success (str (value ["message"]))
-      if data ["pushed"]:
-         console.success (f"Pushed {data ['branch']}")
 
    return approval.run (
       plan,
       command="imp commit",
       noun="commit",
-      confirm=f"Create {len (plan ['payload'] ['groups'])} local commit(s){' and push' if push else ''}?",
+      confirm=f"Create {len (plan ['payload'] ['groups'])} local commit(s)?",
       plan_schema="imp.commit-plan.v2",
       result_schema="imp.commit.v1",
       apply=apply_plan,
@@ -146,41 +118,32 @@ def _planned (
 def commit (
    all: Annotated [bool, typer.Option ("--all", "-a", help="Include every dirty path")] = False,
    exclude: Annotated [list [str] | None, typer.Option ("--exclude", "-E", help="Exclude matching paths")] = None,
-   yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the exact displayed plan")] = False,
    whisper: Annotated [str, typer.Option ("--whisper", "-w", help="Context for commit planning")] = "",
    message: Annotated [str, typer.Option ("--message", "-m", help="Commit staged changes without AI")] = "",
-   staged: Annotated [bool, typer.Option ("--staged", help="Plan only staged changes")] = False,
-   single: Annotated [bool, typer.Option ("--single", help="Force one logical commit")] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Persist the plan without applying it")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved commit plan")] = "",
-   list_plans: Annotated [bool, typer.Option ("--plans", help="List saved commit plans")] = False,
-   dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit a versioned JSON result")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
    amend: Annotated [bool, typer.Option ("--amend", help="Replace the last unpublished commit")] = False,
    fixup: Annotated [str, typer.Option ("--fixup", help="Create a fixup commit for an unpublished ref")] = "",
-   push: Annotated [bool, typer.Option ("--push", "-p", help="Push after committing")] = False,
 ):
    """Plan and create approved local Conventional Commits."""
 
+   actor_id = runtime.options.actor_id
+   dry_run = runtime.options.dry_run
+   json_output = runtime.options.json
+   yes = runtime.options.yes
+
    git.require ()
    actor = identity.actor (actor_id)
-   yes = yes or runtime.options.yes
    if amend and fixup:
       console.fatal ("--amend and --fixup are mutually exclusive")
-   if list_plans:
-      return _list_plans (json_output)
    if fixup:
-      if apply or plan_only or all or single or message or push:
+      if apply or plan_only or all or message:
          console.fatal ("--fixup cannot be combined with other commit modes")
       return _fixup (fixup, actor, json_output)
    if message:
-      if apply or plan_only or all or single:
+      if apply or plan_only or all:
          console.fatal ("imp commit -m cannot be combined with planning options")
-      return _manual (message, actor, amend, push, json_output)
-   dry_run = dry_run or runtime.options.dry_run
-   if push and (plan_only or dry_run):
-      console.fatal ("--push cannot be combined with --plan or --dry-run")
+      return _manual (message, actor, amend, json_output)
    return _planned (
       actor=actor,
       all_changes=all,
@@ -190,9 +153,6 @@ def commit (
       exclude=exclude,
       json_output=json_output,
       plan_only=plan_only,
-      push=push,
-      single=single,
-      staged=staged,
       whisper=whisper,
       yes=yes,
    )

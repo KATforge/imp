@@ -14,9 +14,11 @@ worktree = typer.Typer (
 
 @worktree.command ("list")
 def list_ (
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
+
 ):
    """List repository worktrees and their managed feature state."""
+
+   json_output = runtime.options.json
 
    git.require ()
    here = str (Path.cwd ().resolve ())
@@ -37,7 +39,7 @@ def list_ (
       }
       values.append (value)
       rows.append ([ "*" if value ["here"] else "", str (value ["name"]), value ["branch"], path, value ["state"] ])
-   if json_output or runtime.options.json:
+   if json_output:
       return result.emit ("imp.worktrees.v2", "imp worktree list", { "worktrees": values }, json_output=True)
    console.table ([ "Here", "Feature", "Branch", "Path", "State" ], rows)
    return { "worktrees": values }
@@ -89,13 +91,13 @@ def remove (
    unmanaged: Annotated [bool, typer.Option ("--unmanaged", help="Remove a worktree with no feature record")] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Persist without applying")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply a saved plan")] = "",
-   yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """Remove one clean worktree. Managed worktrees go through an exact plan."""
 
+   actor_id = runtime.options.actor_id
+   yes = runtime.options.yes
+
    actor = identity.actor (actor_id)
-   yes = yes or runtime.options.yes
    if unmanaged:
       return _remove_unmanaged (name, delete_branch, plan_only, apply, yes)
    try:
@@ -178,9 +180,10 @@ def prune (
       typer.Option ("--adopt", help="Record orphaned managed branches and worktrees as features"),
    ] = False,
    remove_orphans: Annotated [bool, typer.Option ("--remove", help="Delete clean orphaned worktrees")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """Prune stale Git entries and reconcile managed worktree records."""
+
+   actor_id = runtime.options.actor_id
 
    git.require ()
    if adopt and remove_orphans:
@@ -236,9 +239,10 @@ def _feature (name: str) -> dict:
 def claim_ (
    name: Annotated [str, typer.Argument (help="Feature name or ID")] = "",
    ttl: Annotated [str, typer.Option ("--ttl", help="Claim duration, such as 2h")] = "",
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """Acquire an unclaimed feature or renew the caller's claim."""
+
+   actor_id = runtime.options.actor_id
 
    try:
       feature = _feature (name)
@@ -252,9 +256,10 @@ def claim_ (
 @worktree.command ("release")
 def release_ (
    name: Annotated [str, typer.Argument (help="Feature name or ID")] = "",
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """Release the caller's writer claim without removing the worktree."""
+
+   actor_id = runtime.options.actor_id
 
    try:
       feature = _feature (name)

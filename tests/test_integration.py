@@ -5,10 +5,8 @@ import pytest
 import typer
 
 from imp_git import ai, console, features, git, identity, integration, plans, runtime, source_release, state
-from imp_git.commands import commit as commit_cmd
 from imp_git.commands import done as done_cmd
 from imp_git.commands import review as review_cmd
-from imp_git.commands import ship as ship_cmd
 from tests.conftest import commit_file, git_run
 
 ACTOR = identity.resource ("actor", "human", "anders")
@@ -200,9 +198,7 @@ class TestIntegration:
       plan = done_cmd.done (
          feature ["feature_id"],
          approve=True,
-         plan_only=True,
-         actor_id=ACTOR,
-      )
+         plan_only=True)
       receipt = integration.approval_receipt (feature ["feature_id"])
 
       assert plan ["state"] == "ready"
@@ -213,23 +209,17 @@ class TestIntegration:
    def test_agent_cannot_use_explicit_approval_override (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)
 
+      runtime.configure (actor_id=identity.resource ("actor", "codex", "session-1"), yes=True)
+
       with pytest.raises (typer.Exit):
-         done_cmd.done (
-            feature ["feature_id"],
-            approve=True,
-            plan_only=True,
-            actor_id=identity.resource ("actor", "codex", "session-1"),
-         )
+         done_cmd.done (feature ["feature_id"], approve=True, plan_only=True)
 
    def test_machine_review_includes_the_complete_diff (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)
 
       value = review_cmd.review (
          feature ["feature_id"],
-         no_ai=True,
-         json_output=True,
-         actor_id=ACTOR,
-      )
+         no_ai=True)
 
       assert "checkout.txt" in value ["diff"]
       assert "+checkout" in value ["diff"]
@@ -244,18 +234,19 @@ class TestIntegration:
          lambda *_args: pytest.fail ("current worktree should not open the feature picker"),
       )
 
-      value = review_cmd.review (no_ai=True, json_output=True, actor_id=ACTOR)
+      value = review_cmd.review (no_ai=True)
 
       assert value ["feature_id"] == feature ["feature_id"]
 
    def test_dirty_review_commits_after_exact_approval (self, repo, tmp_path, monkeypatch):
+      runtime.configure (actor_id=ACTOR)
       feature = _feature (repo, tmp_path)
       path = Path (feature ["path"])
       (path / "dirty.txt").write_text ("dirty\n")
       monkeypatch.setattr (ai, "fast", lambda _prompt: "fix: commit review candidate")
       monkeypatch.setattr (console, "confirm", lambda message: message.startswith ("Create "))
 
-      value = review_cmd.review (feature ["feature_id"], no_ai=True, actor_id=ACTOR)
+      value = review_cmd.review (feature ["feature_id"], no_ai=True)
 
       assert git.clean_at (str (path))
       assert git.capture ("-C", str (path), "log", "-1", "--format=%s").strip () == (
@@ -272,7 +263,7 @@ class TestIntegration:
       monkeypatch.setattr (console, "confirm", lambda _message: False)
 
       with pytest.raises (typer.Exit):
-         review_cmd.review (feature ["feature_id"], no_ai=True, actor_id=ACTOR)
+         review_cmd.review (feature ["feature_id"], no_ai=True)
 
       assert git.capture ("-C", str (path), "rev-parse", "HEAD").strip () == before
       assert not git.clean_at (str (path))
@@ -283,12 +274,13 @@ class TestIntegration:
       monkeypatch.setattr (console, "interactive", lambda: True)
       monkeypatch.setattr (console, "confirm", lambda message: prompts.append (message) or True)
 
-      value = review_cmd.review (feature ["feature_id"], no_ai=True, actor_id=ACTOR)
+      value = review_cmd.review (feature ["feature_id"], no_ai=True)
 
       assert prompts == [ "Mark this exact candidate reviewed?" ]
       assert value ["receipt"] ["candidate_oid"] == value ["candidate_oid"]
 
    def test_human_review_can_apply_smart_fixes (self, repo, tmp_path, monkeypatch):
+      runtime.configure (actor_id=ACTOR)
       feature = _feature (repo, tmp_path)
       responses = iter ([
          "The checkout value should be clearer.",
@@ -304,7 +296,7 @@ class TestIntegration:
       monkeypatch.setattr (console, "interactive", lambda: True)
       monkeypatch.setattr (console, "choose", lambda _title, values: values [0])
 
-      value = review_cmd.review (feature ["feature_id"], actor_id=ACTOR)
+      value = review_cmd.review (feature ["feature_id"])
 
       assert value ["fix"] == { "applied": True, "files": [ "checkout.txt" ] }
       assert value ["receipt"] is None
@@ -326,7 +318,7 @@ class TestIntegration:
       monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: next (responses))
 
       with pytest.raises (typer.Exit):
-         review_cmd.review (feature ["feature_id"], fix=True, actor_id=ACTOR)
+         review_cmd.review (feature ["feature_id"], fix=True)
 
       assert (Path (feature ["path"]) / "file.txt").read_text () == "hello\n"
       assert git.clean_at (str (feature ["path"]))
@@ -448,19 +440,6 @@ class TestSourceRelease:
       assert "imp commit --all --plan" in str (error.value)
       assert "imp ship --plan" in str (error.value)
 
-   def test_commit_runs_separate_commit_flow_before_ship_plan (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("changed\n")
-      commits = []
-      plan = { "payload": {}, "plan_id": "plan:ship:demo:1", "state": "ready" }
-      monkeypatch.setattr (runtime, "options", runtime.Options ())
-      monkeypatch.setattr (commit_cmd, "commit", lambda **options: commits.append (options ["all"]))
-      monkeypatch.setattr (source_release, "plan_ship", lambda **_options: plan)
-      monkeypatch.setattr (ship_cmd, "_show", lambda _plan: None)
-
-      result = ship_cmd.ship (commit=True, plan_only=True)
-
-      assert result == plan
-      assert commits == [ True ]
 
    def test_apply_revalidates_release_notes (self, repo):
       plan = source_release.plan_ship (level="patch")

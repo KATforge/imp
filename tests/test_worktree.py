@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp_git import features, git, plans, state
+from imp_git import features, git, plans, runtime, state
 from imp_git.commands import start as start_cmd
 from imp_git.commands import worktree as worktree_cmd
 from tests.conftest import commit_file, git_run
@@ -32,9 +32,7 @@ class TestStartSafeBase:
       start_cmd.start (
          name="KAT-99-thing",
          base="",
-         path=str (wt_path),
-         yes=True,
-      )
+         path=str (wt_path))
 
       assert wt_path.exists ()
 
@@ -64,9 +62,7 @@ class TestStartSafeBase:
       start_cmd.start (
          name="KAT-99-fetched",
          base="",
-         path=str (tmp_path / "fetched-wt"),
-         yes=True,
-      )
+         path=str (tmp_path / "fetched-wt"))
 
       assert any (
          kwargs.get ("remote") == "origin"
@@ -83,9 +79,7 @@ class TestStartSafeBase:
       start_cmd.start (
          name="KAT-99-explicit",
          base="feat/wip",
-         path=str (wt_path),
-         yes=True,
-      )
+         path=str (wt_path))
 
       assert git.rev_parse ("feature/kat-99-explicit") == target_sha
 
@@ -98,9 +92,7 @@ class TestStartSafeBase:
       start_cmd.start (
          name="KAT-99-explicit-no-fetch",
          base="feat/wip",
-         path=str (tmp_path / "explicit-no-fetch-wt"),
-         yes=True,
-      )
+         path=str (tmp_path / "explicit-no-fetch-wt"))
 
       assert fetched == []
 
@@ -117,9 +109,7 @@ class TestStartSafeBase:
       start_cmd.start (
          name="KAT-99-main-base",
          base="",
-         path=str (wt_path),
-         yes=True,
-      )
+         path=str (wt_path))
 
       assert git.rev_parse ("feature/kat-99-main-base") == git.rev_parse ("origin/main")
 
@@ -139,9 +129,7 @@ class TestStartSafeBase:
       start_cmd.start (
          name="KAT-99-no-remote",
          base="",
-         path=str (wt_path),
-         yes=True,
-      )
+         path=str (wt_path))
 
       assert git.rev_parse ("feature/kat-99-no-remote") == main_sha
 
@@ -160,9 +148,7 @@ class TestStartSafeBase:
          start_cmd.start (
             name="KAT-99-doomed",
             base="",
-            path=str (tmp_path / "doomed-wt"),
-            yes=True,
-         )
+            path=str (tmp_path / "doomed-wt"))
 
 
 class TestRefExists:
@@ -205,7 +191,7 @@ class TestPruneReconciliation:
       orphan = tmp_path / "adopt-wt"
       git_run (repo_with_origin, "worktree", "add", "-b", "feature/adopt-me", str (orphan), "origin/master")
 
-      report = worktree_cmd.prune (adopt=True, actor_id="actor:human:test")
+      report = worktree_cmd.prune (adopt=True)
 
       assert report ["adopted"] == [ "feature:adopt-me" ]
       feature = features.find ("adopt-me")
@@ -216,7 +202,7 @@ class TestPruneReconciliation:
       monkeypatch.setattr (features, "_managed_root", lambda: tmp_path / "managed")
       git_run (repo_with_origin, "branch", "feature/adopt-branch", "origin/master")
 
-      report = worktree_cmd.prune (adopt=True, actor_id="actor:human:test")
+      report = worktree_cmd.prune (adopt=True)
 
       assert report ["adopted"] == [ "feature:adopt-branch" ]
       feature = features.find ("adopt-branch")
@@ -266,7 +252,7 @@ class TestUnmanagedRemove:
       git_run (repo_with_origin, "worktree", "add", "-b", "scratch", str (target), "origin/master")
       assert target.exists ()
 
-      data = worktree_cmd.remove (name="scratch", unmanaged=True, delete_branch=True, yes=True)
+      data = worktree_cmd.remove (name="scratch", unmanaged=True, delete_branch=True)
 
       assert data ["unmanaged"] is True
       assert not target.exists ()
@@ -275,24 +261,19 @@ class TestUnmanagedRemove:
    def test_unmanaged_remove_refuses_managed_worktrees (self, repo_with_origin, tmp_path, mock_spin):
       start_cmd.start (
          name="managed-one",
-         path=str (tmp_path / "managed-wt"),
-         yes=True,
-         actor_id="actor:human:test",
-      )
+         path=str (tmp_path / "managed-wt"))
 
       with pytest.raises (typer.Exit):
-         worktree_cmd.remove (name="managed-one", unmanaged=True, yes=True)
+         worktree_cmd.remove (name="managed-one", unmanaged=True)
 
 
 class TestLockScoping:
 
    def test_worktree_remove_ignores_the_global_features_lock (self, repo_with_origin, tmp_path, mock_spin):
+      runtime.configure (actor_id="actor:human:test", yes=True)
       start_cmd.start (
          name="scoped",
-         path=str (tmp_path / "scoped-wt"),
-         yes=True,
-         actor_id="actor:human:test",
-      )
+         path=str (tmp_path / "scoped-wt"))
       feature = features.find ("scoped")
       child = subprocess.Popen ([ sys.executable, "-c", "import time; time.sleep(60)" ])
       path = state.root () / "locks" / "features.json"

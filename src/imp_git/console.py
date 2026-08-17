@@ -62,7 +62,7 @@ def divider ():
 def table (headers: list [str], rows: list [list [str]], *, right: set [int] | None = None):
    """Render one shared responsive CLI table."""
 
-   border = box.ASCII if runtime.options.ascii else box.ROUNDED
+   border = box.ROUNDED
    value = Table (box=border, header_style="accent", border_style=theme.muted, show_lines=False)
    right = right or set ()
    for index, header in enumerate (headers):

@@ -2,16 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, git, plans, runtime, source_release, state
-
-_DIRTY_AUTOMATION = """Dirty source requires a separately approved commit plan.
-
-Next:
-  imp commit --all --plan
-  imp commit --apply <plan-id> --yes
-  imp ship --plan
-
-The plan ID prints with the saved plan."""
+from imp_git import approval, console, plans, runtime, source_release, state
 
 
 def _level (patch: bool, minor: bool, major: bool) -> str:
@@ -49,35 +40,22 @@ def ship (
    minor: Annotated [bool, typer.Option ("--minor", help="Bump minor version")] = False,
    major: Annotated [bool, typer.Option ("--major", help="Bump major version")] = False,
    set_version: Annotated [str, typer.Option ("--version", help="Use an explicit semantic version")] = "",
-   source_plan: Annotated [str, typer.Option ("--source-plan", help="Build from an exact imp done candidate")] = "",
    plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact release candidate only")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved source-release plan")] = "",
-   yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply the displayed plan")] = False,
-   dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
-   commit: Annotated [
-      bool,
-      typer.Option ("--commit", help="Commit dirty work with separate approval"),
-   ] = False,
    prerelease: Annotated [bool, typer.Option ("--prerelease", help="Publish the next release candidate")] = False,
    rc: Annotated [bool, typer.Option ("--rc", hidden=True)] = False,
 ):
    """Create an exact source release. It never builds or deploys."""
 
-   prerelease = prerelease or rc
-   if commit and not git.is_clean ():
-      machine = json_output or runtime.options.json or runtime.options.no_input
-      if machine or yes or runtime.options.yes:
-         console.fatal (_DIRTY_AUTOMATION)
-      from imp_git.commands import commit as commit_command
+   dry_run = runtime.options.dry_run
+   json_output = runtime.options.json
+   yes = runtime.options.yes
 
-      commit_command.commit (all=True)
-   yes = yes or runtime.options.yes
-   dry_run = dry_run or runtime.options.dry_run
+   prerelease = prerelease or rc
    try:
       plan = plans.resolve ("ship", "" if apply == "__pick__" else apply) if apply else source_release.plan_ship (
          level=_level (patch, minor, major), prerelease=prerelease, set_version=set_version,
-         source_plan_id=source_plan, persist=not dry_run,
+         persist=not dry_run,
       )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))

@@ -74,7 +74,7 @@ def _commit_dirty (feature: dict, actor_id: str, machine: bool):
    console.muted ("Feature is dirty; preparing an exact commit plan before review")
    try:
       os.chdir (path)
-      commit (all=True, actor_id=actor_id)
+      commit (all=True)
    finally:
       os.chdir (previous)
       if not preserve_claim:
@@ -264,7 +264,7 @@ def _managed_review (
       raise state.StateError ("--fix requires smart AI review")
    if fix and mark_reviewed:
       raise state.StateError ("--fix and review approval are mutually exclusive")
-   machine = json_output or runtime.options.json
+   machine = json_output
    _commit_dirty (feature, actor_id, machine)
    plan, patch, files = _plan (feature, actor_id)
    payload = plan ["payload"]
@@ -335,12 +335,13 @@ def review (
       bool,
       typer.Option ("--mark-reviewed", hidden=True),
    ] = False,
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
    last: Annotated [int, typer.Option ("--last", "-l", hidden=True)] = 0,
    whisper: Annotated [str, typer.Option ("--whisper", "-w", hidden=True)] = "",
 ):
    """Inspect all feature state before integration and optionally acknowledge it."""
+
+   actor_id = runtime.options.actor_id
+   json_output = runtime.options.json
 
    try:
       managed = _feature (feature)

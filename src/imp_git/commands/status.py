@@ -1,7 +1,4 @@
 from pathlib import Path
-from typing import Annotated
-
-import typer
 
 from imp_git import console, features, fingerprint, git, hygiene, result, roster, runtime, spans, workspace
 
@@ -95,7 +92,7 @@ def _workspace_status (json_output: bool):
       "repositories": sorted (repositories),
       "features": entries,
    }
-   if json_output or runtime.options.json:
+   if json_output:
       return result.emit ("imp.roster.v1", "imp status", data, json_output=True)
    _show_roster (value, entries)
 
@@ -161,7 +158,7 @@ def _show_worktrees ():
    console.out.print ()
 
 def status (
-   json_output: Annotated [bool, typer.Option ("--json", help="Emit a versioned JSON result")] = False,
+
 ):
    """Show repository overview.
 
@@ -169,6 +166,8 @@ def status (
    commits since the last tag, worktrees, and the last release version.
    Suggests a next action based on the current state.
    """
+
+   json_output = runtime.options.json
 
    if not git.succeeds ("rev-parse", "--git-dir") and workspace.load ():
       return _workspace_status (json_output)
@@ -193,7 +192,7 @@ def status (
       "hygiene": { "blockers": [], "warnings": hygiene_warnings },
       "last_release": tag or None,
    }
-   if json_output or runtime.options.json:
+   if json_output:
       return result.emit ("imp.status.v2", "imp status", data, json_output=True)
 
    console.header (name)
