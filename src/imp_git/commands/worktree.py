@@ -173,7 +173,10 @@ def _remove_unmanaged (name: str, delete_branch: bool, plan_only: bool, apply: s
 
 @worktree.command ("prune")
 def prune (
-   adopt: Annotated [bool, typer.Option ("--adopt", help="Record orphaned managed worktrees as features")] = False,
+   adopt: Annotated [
+      bool,
+      typer.Option ("--adopt", help="Record orphaned managed branches and worktrees as features"),
+   ] = False,
    remove_orphans: Annotated [bool, typer.Option ("--remove", help="Delete clean orphaned worktrees")] = False,
    actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
@@ -196,10 +199,10 @@ def prune (
    removed = []
    for orphan in found:
       label = orphan ["path"] or orphan ["branch"]
-      if adopt and orphan ["kind"] == "worktree":
+      if adopt:
          try:
             adopted.append (str (features.adopt (orphan, identity.actor (actor_id)) ["feature_id"]))
-            console.success (f"Adopted orphaned worktree: {label}")
+            console.success (f"Adopted orphaned {orphan ['kind']}: {label}")
          except state.StateError as error:
             console.err (str (error))
          continue

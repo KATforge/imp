@@ -2,6 +2,7 @@ import json
 import socket
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 import typer
@@ -210,6 +211,36 @@ class TestPruneReconciliation:
       feature = features.find ("adopt-me")
       assert feature is not None
       assert feature ["worktree_state"] == "live"
+
+   def test_orphaned_managed_branch_can_be_adopted (self, repo_with_origin, tmp_path, monkeypatch):
+      monkeypatch.setattr (features, "_managed_root", lambda: tmp_path / "managed")
+      git_run (repo_with_origin, "branch", "feature/adopt-branch", "origin/master")
+
+      report = worktree_cmd.prune (adopt=True, actor_id="actor:human:test")
+
+      assert report ["adopted"] == [ "feature:adopt-branch" ]
+      feature = features.find ("adopt-branch")
+      assert feature is not None
+      assert feature ["worktree_state"] == "live"
+      assert Path (feature ["path"]).exists ()
+
+   def test_failed_branch_adoption_removes_the_created_worktree (self, repo_with_origin, tmp_path, monkeypatch):
+      managed = tmp_path / "managed"
+      monkeypatch.setattr (features, "_managed_root", lambda: managed)
+      git_run (repo_with_origin, "branch", "feature/adopt-failure", "origin/master")
+      orphan = next (value for value in features.orphans () if value ["branch"] == "feature/adopt-failure")
+
+      def fail_merge_base (*args):
+         if args [0] == "merge-base":
+            raise state.StateError ("merge base failed")
+         return ""
+
+      monkeypatch.setattr (git, "capture", fail_merge_base)
+
+      with pytest.raises (state.StateError, match="merge base failed"):
+         features.adopt (orphan, "actor:human:test")
+
+      assert not (managed / "adopt-failure").exists ()
 
    def test_stale_ready_start_plan_is_marked_failed (self, repo_with_origin, tmp_path):
       plan = features.plan_start (

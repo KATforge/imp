@@ -27,6 +27,8 @@ All notable changes to this project will be documented in this file.
 - Changed `imp ship --include-dirty` to `imp ship --commit`
 - Added optional smart-AI review fixes constrained to the exact reviewed files
 - Added `imp done --approve` for explicit human approval without review
+- Added resumable `imp fleet` plans for local consolidation and per-feature pull requests
+- Changed fleet integration to block on dirty, missing, foreign-claimed, or unmanaged feature state without discarding work
 - Added `imp.error.v1` machine-readable failure envelopes under `--json`
 - Changed plan-driven commands to share one display, approval, and apply flow
 - Removed legacy commands, duplicate aliases, their exclusive code, tests, and 117 obsolete demo assets

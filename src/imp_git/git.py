@@ -344,6 +344,11 @@ def worktree_add (path: str, branch: str, base: str = ""):
       args.append (base)
    _run (*args)
 
+def worktree_add_existing (path: str, branch: str):
+   """Attach an existing local branch to a new worktree."""
+
+   _run ("worktree", "add", path, branch)
+
 def worktree_add_detached (path: str, ref: str):
    """Create a detached temporary worktree at an exact object."""
 

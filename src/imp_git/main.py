@@ -14,6 +14,7 @@ from imp_git.commands.commit import commit
 from imp_git.commands.config import config_app
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
+from imp_git.commands.fleet import fleet
 from imp_git.commands.recover import recover
 from imp_git.commands.review import review
 from imp_git.commands.ship import ship
@@ -99,7 +100,7 @@ def main (
    console.out.no_color = no_color
 
 _commands = [
-   commit, doctor, done, recover,
+   commit, doctor, done, fleet, recover,
    review, ship, start, status,
 ]
 

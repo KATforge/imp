@@ -17,10 +17,10 @@ class TestSurface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "status", "commit", "review", "ship", "worktree" ]:
+      for command in [ "start", "status", "commit", "review", "fleet", "ship", "worktree" ]:
          assert command in result.output
       removed_commands = [
-         "active", "amend", "bisect", "changelog", "context", "fleet", "guard",
+         "active", "amend", "bisect", "changelog", "context", "guard",
          "init", "release", "resolve", "revert", "split", "tidy", "undo", "use",
       ]
       for removed in removed_commands:

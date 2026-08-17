@@ -28,6 +28,12 @@ def _checks () -> list [dict [str, Any]]:
    return checks
 
 
+def configured_checks () -> list [dict [str, Any]]:
+   """Return the repository checks bound to an integration candidate."""
+
+   return _checks ()
+
+
 def _temporary_worktree (ref: str, prefix: str) -> tuple [Path, callable]:
    root = Path (tempfile.mkdtemp (prefix=f"imp-{prefix}-"))
    path = root / "worktree"
@@ -117,6 +123,8 @@ def _candidate (
    resolve: str = "",
 ) -> tuple [str, list [dict [str, str]], list [dict [str, str]]]:
    feature_oid = git.rev_parse (str (feature ["branch"]))
+   if git.is_merged (feature_oid, target_oid):
+      return target_oid, []
    commits = _commits (git.merge_base (target_oid, feature_oid), feature_oid)
    if strategy == "preserve" and git.is_merged (target_oid, feature_oid):
       return feature_oid, [], []
@@ -155,6 +163,12 @@ def _target_oids (target: str) -> tuple [str, str, str]:
    return local_oid, remote_oid, target_oid
 
 
+def target_state (target: str) -> tuple [str, str, str]:
+   """Resolve local, remote, and effective target objects for one integration train."""
+
+   return _target_oids (target)
+
+
 def _state_fingerprint (payload: dict [str, Any]) -> str:
    feature = features.find (str (payload ["feature_id"]))
    if not feature:
@@ -187,6 +201,8 @@ def plan_done (
    strategy: str = "",
    resolve: str = "",
    persist: bool = True,
+   resolved_target: tuple [str, str, str] | None = None,
+   allow_configured_push: bool = True,
 ) -> dict [str, Any]:
    if feature.get ("state") not in { "active", "awaiting-merge" }:
       raise state.StateError (f"Feature is {feature.get ('state')}")
@@ -198,7 +214,7 @@ def plan_done (
    if chosen_strategy not in { "preserve", "squash", "merge" }:
       raise state.StateError (f"Unsupported integration strategy: {chosen_strategy}")
    target = into or str (feature.get ("target") or repo.get ("done:target", "")) or git.base_branch ()
-   local_oid, remote_oid, target_oid = _target_oids (target)
+   local_oid, remote_oid, target_oid = resolved_target or _target_oids (target)
    candidate_oid, rewrites, decisions = _candidate (feature, target_oid, chosen_strategy, resolve)
    configured = [] if skip_checks else _checks ()
    check_results = run_checks (candidate_oid, configured)
@@ -217,7 +233,7 @@ def plan_done (
       "keep": keep,
       "local_target_oid": local_oid,
       "pr": pr,
-      "push": push or bool (repo.get ("done:push", False)),
+      "push": push or (allow_configured_push and bool (repo.get ("done:push", False))),
       "remote_target_oid": remote_oid,
       "rewrites": rewrites,
       "skip_checks": skip_checks,

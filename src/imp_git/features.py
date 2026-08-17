@@ -46,6 +46,16 @@ def _is_expired (claim_record: dict [str, Any]) -> bool:
    return expires <= datetime.now (timezone.utc)
 
 
+def claimed_by_other (feature: dict [str, Any], actor_id: str) -> str:
+   """Return the live writer holding a feature, or an empty string."""
+
+   claim_record = feature.get ("claim")
+   if not claim_record or _is_expired (claim_record):
+      return ""
+   holder = str (claim_record.get ("held_by", ""))
+   return holder if holder and holder != actor_id else ""
+
+
 def _read_claim (feature_id: str) -> dict [str, Any] | None:
    path = _claim_path (feature_id)
    if not path.exists ():
@@ -641,40 +651,57 @@ def orphans () -> list [dict [str, Any]]:
 
 
 def adopt (orphan: dict [str, Any], actor_id: str) -> dict [str, Any]:
-   """Create a feature record for one orphaned managed worktree."""
+   """Create a feature record and worktree for one orphaned managed branch."""
 
-   if orphan ["kind"] != "worktree":
-      raise state.StateError (f"Only orphaned worktrees can be adopted: {orphan ['branch']}")
    branch = str (orphan ["branch"])
    prefix = str (repo.get ("branch:prefix", "feature/"))
+   if not branch.startswith (prefix):
+      raise state.StateError (f"Branch is outside the managed prefix: {branch}")
    name = identity.slug (branch.removeprefix (prefix) or branch)
    feature_id = identity.resource ("feature", name)
    trunk = str (repo.get ("done:target", "")) or git.base_branch ()
    base_ref = f"origin/{trunk}" if git.remote_exists () else trunk
+   path = (
+      Path (str (orphan ["path"])).resolve ()
+      if orphan ["kind"] == "worktree"
+      else _default_path (name).resolve ()
+   )
+   created_worktree = False
    with state.lock ("features"):
       if find (name) or find (feature_id):
          raise state.StateError (f"Feature already exists: {name}")
-      base_oid = git.rev_parse (branch)
-      if git.ref_exists (trunk) or git.ref_exists (base_ref):
-         merged = git.capture ("merge-base", branch, base_ref if git.ref_exists (base_ref) else trunk).strip ()
-         base_oid = merged or base_oid
-      record = {
-         "schema": "imp.feature.v1",
-         "feature_id": feature_id,
-         "name": name,
-         "branch": branch,
-         "path": str (Path (str (orphan ["path"])).resolve ()),
-         "base:ref": base_ref,
-         "base:oid": base_oid,
-         "target": trunk,
-         "task": "adopted by imp worktree prune",
-         "created_by": actor_id,
-         "writers": [],
-         "created_at": state.now (),
-         "change_id": "",
-         "state": "active",
-      }
-      state.atomic_write (_path (feature_id), record)
+      try:
+         if orphan ["kind"] == "branch":
+            if path.exists ():
+               raise state.StateError (f"Managed worktree path already exists: {path}")
+            path.parent.mkdir (parents=True, exist_ok=True)
+            git.worktree_add_existing (str (path), branch)
+            created_worktree = True
+         base_oid = git.rev_parse (branch)
+         if git.ref_exists (trunk) or git.ref_exists (base_ref):
+            target = base_ref if git.ref_exists (base_ref) else trunk
+            base_oid = git.capture ("merge-base", branch, target).strip () or base_oid
+         record = {
+            "schema": "imp.feature.v1",
+            "feature_id": feature_id,
+            "name": name,
+            "branch": branch,
+            "path": str (path),
+            "base:ref": base_ref,
+            "base:oid": base_oid,
+            "target": trunk,
+            "task": "adopted by imp worktree prune",
+            "created_by": actor_id,
+            "writers": [],
+            "created_at": state.now (),
+            "change_id": "",
+            "state": "active",
+         }
+         state.atomic_write (_path (feature_id), record)
+      except Exception:
+         if created_worktree:
+            git.worktree_remove (str (path), force=True)
+         raise
    return record
 
 
