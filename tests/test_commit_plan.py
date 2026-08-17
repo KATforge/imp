@@ -270,3 +270,24 @@ class TestPlans:
 
       with pytest.raises (state.StateError, match="published"):
          commit_plan.create (actor_id=_actor (), amend=True, staged=True)
+
+   def test_truncated_diffs_warn_instead_of_passing_silently (self, repo, monkeypatch):
+      (repo / "large-a.txt").write_text ("a" * 200_000)
+      warnings = []
+      monkeypatch.setattr (ai, "fast", lambda prompt: "chore: add a large fixture")
+      monkeypatch.setattr (commit_plan.console, "warn", lambda text: warnings.append (text))
+
+      commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
+
+      assert any ("Diff truncated" in text for text in warnings)
+      assert any ("large-a.txt" in text for text in warnings)
+
+   def test_a_diff_within_budget_warns_about_nothing (self, repo, monkeypatch):
+      (repo / "small.txt").write_text ("small\n")
+      warnings = []
+      monkeypatch.setattr (ai, "fast", lambda prompt: "chore: add a small fixture")
+      monkeypatch.setattr (commit_plan.console, "warn", lambda text: warnings.append (text))
+
+      commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
+
+      assert warnings == []

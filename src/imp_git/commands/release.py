@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, plans, runtime, source_release, state
+from imp_git import approval, console, git, plans, runtime, source_release, state
 
 
 def _level (patch: bool, minor: bool, major: bool) -> str:
@@ -47,6 +47,8 @@ def release (
    rc: Annotated [bool, typer.Option ("--rc", hidden=True)] = False,
 ):
    """Cut a source release: bump the version, commit, tag, and publish."""
+
+   git.require ()
 
    dry_run = runtime.options.dry_run
    json_output = runtime.options.json

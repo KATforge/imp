@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, features, identity, plans, result, runtime, spans, state, workspace
+from imp_git import approval, console, features, git, identity, plans, result, runtime, spans, state, workspace
 
 
 def _show (plan: dict):
@@ -34,6 +34,8 @@ def start (
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved plan")] = "",
 ):
    """Create and claim an isolated feature worktree."""
+
+   git.require ()
 
    actor_id = runtime.options.actor_id
    dry_run = runtime.options.dry_run

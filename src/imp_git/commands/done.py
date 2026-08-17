@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -63,6 +64,10 @@ def done (
 ):
    """Validate and integrate exactly one managed feature."""
 
+   git.require ()
+   if not keep:
+      _warn_if_standing_here ()
+
    actor_id = runtime.options.actor_id
    dry_run = runtime.options.dry_run
    json_output = runtime.options.json
@@ -119,6 +124,27 @@ def done (
       yes=yes,
       json_output=json_output,
    )
+
+
+def _warn_if_standing_here ():
+   """Warn when the caller stands in a worktree this run will remove.
+
+   Integration deletes the feature worktree, which leaves the calling shell in a
+   directory that no longer exists. Imp itself steps out, but the shell cannot, so
+   the next prompt reports a missing working directory as though something failed.
+   """
+
+   try:
+      here = Path.cwd ().resolve ()
+   except OSError:
+      return
+   for feature in features.all ():
+      if feature.get ("state") not in { "active", "awaiting-merge" }:
+         continue
+      path = Path (str (feature ["path"])).resolve ()
+      if here == path or path in here.parents:
+         console.warn (f"You are standing in {path}, which this removes; run from the repository root")
+         return
 
 
 def _group (feature: str) -> dict | None:

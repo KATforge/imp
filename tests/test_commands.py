@@ -243,3 +243,39 @@ class TestPullRequest:
       pr_cmd.pr (into="master")
 
       assert [ line for line in bodies [0].splitlines () if line ] == [ "- chore: sync" ]
+
+
+class TestStandingWarning:
+
+   def test_done_warns_when_run_inside_the_worktree_it_removes (self, repo_with_origin, tmp_path, monkeypatch):
+      import os
+      from pathlib import Path
+
+      from imp_git import features
+      from imp_git.commands import done as done_cmd
+      from imp_git.commands import start as start_cmd
+
+      start_cmd.start (name="standing", path=str (tmp_path / "standing-wt"))
+      feature = features.find ("standing")
+      warnings = []
+      monkeypatch.setattr (done_cmd.console, "warn", lambda text: warnings.append (text))
+      previous = Path.cwd ()
+      os.chdir (feature ["path"])
+      try:
+         done_cmd._warn_if_standing_here ()
+      finally:
+         os.chdir (previous)
+
+      assert any ("standing-wt" in text for text in warnings)
+
+   def test_done_stays_quiet_from_the_repository_root (self, repo_with_origin, tmp_path, monkeypatch):
+      from imp_git.commands import done as done_cmd
+      from imp_git.commands import start as start_cmd
+
+      start_cmd.start (name="standing", path=str (tmp_path / "standing-wt"))
+      warnings = []
+      monkeypatch.setattr (done_cmd.console, "warn", lambda text: warnings.append (text))
+
+      done_cmd._warn_if_standing_here ()
+
+      assert warnings == []

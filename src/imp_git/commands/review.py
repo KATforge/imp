@@ -340,6 +340,8 @@ def review (
 ):
    """Inspect all feature state before integration and optionally acknowledge it."""
 
+   git.require ()
+
    actor_id = runtime.options.actor_id
    json_output = runtime.options.json
 

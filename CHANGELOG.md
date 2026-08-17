@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed `imp start`, `done`, `review`, `release`, and `fleet` failing with a confusing internal error outside a
+  repository. They now report "Not a git repository" like `imp commit` and `imp status` already did
+- Changed the commit planner to warn when a diff exceeds its budget, naming the truncated paths. It still covers
+  every change, but no longer describes a diff it only partly read without saying so
+- Added a warning when `imp done` is run from inside the worktree it will remove, since the shell is left in a
+  directory that no longer exists and the next prompt looks like a failure
+
 - Removed `imp recover`. Interrupted operations now appear in `imp status`, per repository with the exact resume
   command, and in the workspace roster across every member repository at once
 - Fixed recovery records outliving their operation. A record whose plan is applied or gone is deleted on read,

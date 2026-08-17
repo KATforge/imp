@@ -3,7 +3,21 @@ import shutil
 from fnmatch import fnmatch
 from typing import Any
 
-from imp_git import ai, features, fingerprint, git, hygiene, identity, patches, plans, prompts, repo, state, validate
+from imp_git import (
+   ai,
+   console,
+   features,
+   fingerprint,
+   git,
+   hygiene,
+   identity,
+   patches,
+   plans,
+   prompts,
+   repo,
+   state,
+   validate,
+)
 
 
 def _scope (all_changes: bool, staged: bool) -> tuple [str, list [str]]:
@@ -36,18 +50,43 @@ def _allocate (sizes: list [int], budget: int) -> list [int]:
    return limits
 
 
+_TOO_MANY = """Too many change sections for one commit plan.
+
+Narrow the scope or write the message yourself:
+
+  imp commit --exclude <glob>
+  imp commit -m <message>"""
+
+
 def _diffs (changes: list [dict [str, str]]) -> str:
    headers = [f"--- {change ['id']} ---\n" for change in changes]
    overhead = sum (len (header) for header in headers) + max (0, len (headers) - 1)
    if len (headers) > ai.MAX_DIFF_LINES or overhead > ai.MAX_DIFF_CHARS:
-      raise state.StateError ("Too many change sections for one commit plan")
+      raise state.StateError (_TOO_MANY)
    line_budget = max (0, ai.MAX_DIFF_LINES - len (headers))
-   line_limits = _allocate ([len (change ["patch"].splitlines ()) for change in changes], line_budget)
+   sizes = [len (change ["patch"].splitlines ()) for change in changes]
+   line_limits = _allocate (sizes, line_budget)
+   clipped = {
+      change ["path"]
+      for change, limit, size in zip (changes, line_limits, sizes, strict=True)
+      if limit < size
+   }
    bodies = [
       "\n".join (change ["patch"].splitlines () [:limit])
       for change, limit in zip (changes, line_limits, strict=True)
    ]
    char_limits = _allocate ([len (body) for body in bodies], ai.MAX_DIFF_CHARS - overhead)
+   clipped.update (
+      change ["path"]
+      for change, limit, body in zip (changes, char_limits, bodies, strict=True)
+      if limit < len (body)
+   )
+   if clipped:
+      console.warn (
+         f"Diff truncated for {len (clipped)} path(s); messages may not describe every change: "
+         f"{', '.join (sorted (clipped) [:5])}"
+      )
+
    return "\n".join (
       f"{header}{body [:limit]}"
       for header, body, limit in zip (headers, bodies, char_limits, strict=True)

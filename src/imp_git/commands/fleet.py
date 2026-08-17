@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, identity, plans, runtime, state
+from imp_git import approval, console, git, identity, plans, runtime, state
 from imp_git import fleet as fleet_mod
 
 
@@ -38,6 +38,8 @@ def fleet (
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved fleet plan")] = "",
 ):
    """Consolidate every managed feature in one repository."""
+
+   git.require ()
 
    actor_id = runtime.options.actor_id
    dry_run = runtime.options.dry_run
