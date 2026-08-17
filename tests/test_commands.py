@@ -191,3 +191,55 @@ class TestPullRequest:
 
       with pytest.raises (typer.Exit):
          pr_cmd.pr (into="master")
+
+   def test_pr_body_is_one_short_bullet_per_commit (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "master")
+      git_run (repo_with_origin, "checkout", "-b", "feature/widget")
+      commit_file (repo_with_origin, "a.txt", "a\n", "feat: add the widget")
+      commit_file (
+         repo_with_origin, "b.txt", "b\n",
+         "fix: handle the empty case. This also rewires the loader and updates the docs.",
+      )
+      commit_file (
+         repo_with_origin, "c.txt", "c\n",
+         "chore: tidy a genuinely enormous subject line that keeps going well past any cap worth scanning",
+      )
+      bodies = []
+      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
+      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: {})
+      monkeypatch.setattr (
+         pr_cmd.gh, "pr_create",
+         lambda title, body, base, head: bodies.append (body) or "https://example.test/1",
+      )
+      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
+
+      pr_cmd.pr (into="master")
+
+      lines = [ line for line in bodies [0].splitlines () if line ]
+
+      assert all (line.startswith ("- ") for line in lines)
+      assert all (len (line) <= 76 for line in lines)
+      assert "This also rewires" not in bodies [0]
+      assert lines [0] == "- feat: add the widget"
+
+   def test_pr_body_drops_duplicate_subjects (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "master")
+      git_run (repo_with_origin, "checkout", "-b", "feature/widget")
+      commit_file (repo_with_origin, "a.txt", "a\n", "chore: sync")
+      commit_file (repo_with_origin, "b.txt", "b\n", "chore: sync")
+      bodies = []
+      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
+      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: {})
+      monkeypatch.setattr (
+         pr_cmd.gh, "pr_create",
+         lambda title, body, base, head: bodies.append (body) or "https://example.test/1",
+      )
+      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
+
+      pr_cmd.pr (into="master")
+
+      assert [ line for line in bodies [0].splitlines () if line ] == [ "- chore: sync" ]

@@ -132,6 +132,8 @@ Setup commands are argv arrays. Shared paths must be explicitly allowed, ignored
 
 `imp pr --into main` pushes the current branch and opens or updates its pull request. It never tags or bumps a version, so it is the promotion path rather than a release.
 
+The body is one short bullet per commit, oldest first. Each line keeps its first clause and clips at `commit:max_subject`, so a reviewer scans it instead of reading it.
+
 See the [Imp documentation](https://docs.katforge.com/packages/imp/) for the complete workflow.
 Machine clients should follow the [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
 

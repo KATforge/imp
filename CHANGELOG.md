@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Changed `imp pr` bodies to one short bullet per commit, oldest first, with duplicates dropped. Each line keeps
+  its first clause only and clips at the repository's `commit:max_subject` on a word boundary, so a body is
+  scannable rather than a wall of prose. The title is held to the same limit
+
 - Changed `imp ship` to `imp release`, with `imp.release-plan.v1` and `imp.release.v1` replacing the ship
   schemas. The verb now names the artifact it produces
 - Added `imp release --local`, which bumps the version, commits, and tags without pushing or publishing.
