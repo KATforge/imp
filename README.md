@@ -11,7 +11,6 @@ Imp gives each concurrent writer an isolated Git worktree and turns finished wor
 
 ```bash
 pip install imp-git
-imp config
 imp doctor
 ```
 
@@ -105,7 +104,7 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `status`, `done`, `fleet`, `commit`, `review`, `pr`, `release`, `config`, `doctor`, `worktree`, and `recover`.
+Native commands are `start`, `status`, `done`, `fleet`, `commit`, `review`, `pr`, `release`, `doctor`, `worktree`, and `recover`.
 
 ## Optional repository policy
 

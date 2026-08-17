@@ -71,3 +71,44 @@ class TestCommandsRegistered:
       result = self._help ("doctor")
       assert result.exit_code == 0
       assert "--agents" not in self._options ("doctor")
+
+
+class TestMachineConfiguration:
+
+   def test_the_defaults_file_is_written_on_first_read (self, tmp_path, monkeypatch):
+      from imp_git import config
+
+      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path))
+      config.load.cache_clear ()
+      target = tmp_path / "imp" / "config.json"
+
+      assert not target.exists ()
+      settings = config.load ()
+
+      assert target.is_file ()
+      assert json.loads (target.read_text ()) == settings
+      assert settings ["provider"] == "claude"
+      config.load.cache_clear ()
+
+   def test_an_existing_file_is_never_overwritten (self, tmp_path, monkeypatch):
+      from imp_git import config
+
+      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path))
+      target = tmp_path / "imp" / "config.json"
+      target.parent.mkdir (parents=True)
+      target.write_text (json.dumps ({ "schema": "imp.machine.v1", "provider": "ollama" }))
+      config.load.cache_clear ()
+
+      assert config.load () ["provider"] == "ollama"
+      assert json.loads (target.read_text ()) ["provider"] == "ollama"
+      config.load.cache_clear ()
+
+   def test_a_read_only_home_still_yields_defaults (self, tmp_path, monkeypatch):
+      from imp_git import config
+
+      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path / "nope"))
+      monkeypatch.setattr (config.Path, "mkdir", lambda *_a, **_k: (_ for _ in ()).throw (OSError ()))
+      config.load.cache_clear ()
+
+      assert config.load () ["provider"] == "claude"
+      config.load.cache_clear ()

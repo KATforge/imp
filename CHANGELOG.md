@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed the `imp config` command. Machine configuration is a plain JSON file, written with sensible defaults
+  the first time Imp reads it, edited by hand or overridden with the `IMP_AI_*` environment variables. `imp config`
+  now passes through to `git config` like any other unclaimed verb
+- Changed `imp doctor` to print machine configuration and repository policy as tables, absorbing what
+  `imp config show` and `imp config validate` did
+
 - Changed `imp pr` bodies to one short bullet per commit, oldest first, with duplicates dropped. Each line keeps
   its first clause only and clips at the repository's `commit:max_subject` on a word boundary, so a body is
   scannable rather than a wall of prose. The title is held to the same limit

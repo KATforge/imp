@@ -12,7 +12,6 @@ from typer.core import TyperGroup
 from imp_git import __version__, console, passthrough, runtime
 from imp_git.cli import SortedCommand, ordered
 from imp_git.commands.commit import commit
-from imp_git.commands.config import config_app
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
 from imp_git.commands.fleet import fleet
@@ -110,11 +109,10 @@ _commands = [
 for _cmd in _commands:
    app.command (cls=SortedCommand) (_cmd)
 
-app.add_typer (config_app, name="config")
 app.add_typer (worktree, name="worktree")
 
 _NATIVE = { command.name or command.callback.__name__ for command in app.registered_commands }
-_NATIVE.update ({ "config", "worktree" })
+_NATIVE.update ({ "worktree" })
 
 
 _GLOBAL_FLAGS = { "--dry-run", "--json", "--no-input", "--yes", "-y" }

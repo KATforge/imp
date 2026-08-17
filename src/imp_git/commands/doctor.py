@@ -3,7 +3,7 @@ import subprocess
 
 import typer
 
-from imp_git import ai, config, console
+from imp_git import ai, config, console, git, repo
 
 
 def _check (name: str, command: str, url: str, required: bool = True) -> bool:
@@ -51,12 +51,27 @@ def doctor ():
 
    settings = config.load ()
    provider = settings ["provider"]
-   console.muted (f"Provider: {provider}")
-   console.muted (f"Fast model: {settings ['model:fast']}")
-   console.muted (f"Smart model: {settings ['model:smart']}")
-   console.muted (f"Config: {config.path ()}")
-
+   console.label ("Machine configuration")
+   console.table (
+      [ "Key", "Value" ],
+      [ [ key, str (value) ] for key, value in sorted (settings.items ()) ],
+   )
+   console.item (str (config.path ()))
+   console.muted ("  Edit that file by hand; imp has no config command")
    console.out.print ()
+
+   if git.succeeds ("rev-parse", "--git-dir"):
+      policy = repo.load ()
+      console.label ("Repository policy")
+      if policy:
+         console.table (
+            [ "Key", "Value" ],
+            [ [ key, str (value) ] for key, value in sorted (policy.items ()) ],
+         )
+         console.item (str (repo.path ()))
+      else:
+         console.muted ("  None; this repository uses the defaults")
+      console.out.print ()
 
    if has_claude or has_ollama:
       if console.spin ("Testing AI connection...", ai.ping):
