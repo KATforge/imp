@@ -1,6 +1,7 @@
 import typer
 
 from imp_git import config, console, repo
+from imp_git.cli import SortedCommand
 
 config_app = typer.Typer (name="config", help="Read and validate Imp configuration")
 
@@ -24,7 +25,7 @@ def configure (ctx: typer.Context):
       _configure ()
 
 
-@config_app.command ("show")
+@config_app.command ("show", cls=SortedCommand)
 def show ():
    """Show repository policy and machine defaults."""
 
@@ -34,7 +35,7 @@ def show ():
    console.table ([ "Key", "Value" ], [ [ key, str (value) ] for key, value in sorted (config.load ().items ()) ])
 
 
-@config_app.command ("validate")
+@config_app.command ("validate", cls=SortedCommand)
 def validate ():
    """Validate repository policy and machine configuration."""
 

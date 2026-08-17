@@ -223,3 +223,35 @@ class TestAutomation:
       assert value ["ok"] is False
       assert value ["command"] == "imp commit"
       assert value ["data"] ["message"]
+
+
+class TestHelpOrdering:
+
+   def _options (self, *args: str) -> list [str]:
+      result = runner.invoke (app, [ *args, "--help" ])
+
+      assert result.exit_code == 0
+      return [
+         value.split () [0]
+         for line in result.output.splitlines ()
+         if (value := line.strip ("│ ").strip ()).startswith ("--")
+      ]
+
+   def test_global_options_are_alphabetical_with_help_last (self):
+      options = self._options ()
+
+      assert options [-1] == "--help"
+      assert options [:-1] == sorted (options [:-1])
+
+   def test_every_command_orders_its_options_alphabetically (self):
+      for command in [ "commit", "done", "start", "ship", "review", "fleet" ]:
+         options = self._options (command)
+
+         assert options [-1] == "--help", command
+         assert options [:-1] == sorted (options [:-1]), command
+
+   def test_subcommand_options_are_ordered_too (self):
+      options = self._options ("worktree", "remove")
+
+      assert options [-1] == "--help"
+      assert options [:-1] == sorted (options [:-1])

@@ -4,6 +4,7 @@ from typing import Annotated
 import typer
 
 from imp_git import console, features, git, identity, plans, result, runtime, state
+from imp_git.cli import SortedCommand
 
 worktree = typer.Typer (
    name="worktree",
@@ -12,7 +13,7 @@ worktree = typer.Typer (
 )
 
 
-@worktree.command ("list")
+@worktree.command ("list", cls=SortedCommand)
 def list_ (
 
 ):
@@ -45,7 +46,7 @@ def list_ (
    return { "worktrees": values }
 
 
-@worktree.command ("path")
+@worktree.command ("path", cls=SortedCommand)
 def path (
    name: Annotated [str, typer.Argument (help="Feature name, feature ID, or branch")] = "",
 ):
@@ -84,7 +85,7 @@ def _show_remove (plan: dict):
       console.err (str (blocker))
 
 
-@worktree.command ("remove")
+@worktree.command ("remove", cls=SortedCommand)
 def remove (
    name: Annotated [str, typer.Argument (help="Managed feature name or ID")] = "",
    delete_branch: Annotated [bool, typer.Option ("--delete-branch", "-d", help="Delete a merged branch too")] = False,
@@ -173,7 +174,7 @@ def _remove_unmanaged (name: str, delete_branch: bool, plan_only: bool, apply: s
    return data
 
 
-@worktree.command ("prune")
+@worktree.command ("prune", cls=SortedCommand)
 def prune (
    adopt: Annotated [
       bool,
@@ -235,7 +236,7 @@ def _feature (name: str) -> dict:
       console.fatal (str (error))
 
 
-@worktree.command ("claim")
+@worktree.command ("claim", cls=SortedCommand)
 def claim_ (
    name: Annotated [str, typer.Argument (help="Feature name or ID")] = "",
    ttl: Annotated [str, typer.Option ("--ttl", help="Claim duration, such as 2h")] = "",
@@ -253,7 +254,7 @@ def claim_ (
    return value
 
 
-@worktree.command ("release")
+@worktree.command ("release", cls=SortedCommand)
 def release_ (
    name: Annotated [str, typer.Argument (help="Feature name or ID")] = "",
 ):

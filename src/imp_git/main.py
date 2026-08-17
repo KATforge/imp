@@ -10,6 +10,7 @@ import typer
 from typer.core import TyperGroup
 
 from imp_git import __version__, console, passthrough, runtime
+from imp_git.cli import SortedCommand, ordered
 from imp_git.commands.commit import commit
 from imp_git.commands.config import config_app
 from imp_git.commands.doctor import doctor
@@ -24,6 +25,9 @@ from imp_git.commands.worktree import worktree
 
 
 class GitGroup (TyperGroup):
+
+   def get_params (self, ctx: click.Context) -> list [click.Parameter]:
+      return ordered (super ().get_params (ctx))
 
    def parse_args (self, ctx: click.Context, args: list [str]) -> list [str]:
       return super ().parse_args (ctx, _hoist_global (args) if _native_request (args) else args)
@@ -103,7 +107,7 @@ _commands = [
 ]
 
 for _cmd in _commands:
-   app.command () (_cmd)
+   app.command (cls=SortedCommand) (_cmd)
 
 app.add_typer (config_app, name="config")
 app.add_typer (worktree, name="worktree")

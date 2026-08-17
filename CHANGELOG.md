@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Changed every help listing to order options alphabetically with `--help` last, enforced in the command
+  classes rather than by declaration order so it cannot drift as options are added
+
 - Removed `--ascii` and `--no-color`. One controlled a table border character and the other duplicated the
   standard `NO_COLOR` environment variable that Rich already honours
 - Changed `--json`, `--yes`, `--dry-run`, `--no-input`, and `--actor-id` to be declared once, globally, instead
