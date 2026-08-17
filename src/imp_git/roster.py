@@ -109,6 +109,31 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
    return sorted (values, key=lambda entry: (_ORDER.get (entry ["condition"], 9), str (entry ["created_at"])))
 
 
+def repositories (value: dict [str, Any]) -> list [dict [str, Any]]:
+   """Summarise every member repository: its branch, drift, and uncommitted work."""
+
+   values = []
+   for alias, repository in sorted (workspace.repositories (value).items ()):
+      if not Path (repository, ".git").exists ():
+         continue
+      with spans.inside (repository):
+         branch = git.branch ()
+         upstream = f"origin/{branch}"
+         tracked = bool (git.rev_parse (upstream))
+         values.append ({
+            "ahead": git.count_ahead () if tracked else 0,
+            "alias": alias,
+            "behind": git.count_behind () if tracked else 0,
+            "branch": branch,
+            "dirty": len (git.status_short ().splitlines ()),
+            "path": repository,
+            "tracked": tracked,
+            "worktrees": max (0, len (git.worktrees ()) - 1),
+         })
+
+   return values
+
+
 def interrupted (value: dict [str, Any]) -> list [dict [str, Any]]:
    """Every unfinished operation across the workspace, newest last."""
 

@@ -146,3 +146,60 @@ def alias_for (value: dict [str, Any], repository: str) -> str:
       if Path (path).resolve () == target:
          return name
    raise state.StateError (f"Repository is not a workspace member: {repository}")
+
+
+SKIP = {
+   ".git", ".venv", "__pycache__", "build", "dist", "node_modules", "obsolete",
+   "target", "vendor", "venv",
+}
+DEPTH = 3
+
+
+def _repositories_below (root: Path, depth: int) -> dict [str, str]:
+   found: dict [str, str] = {}
+
+   def walk (directory: Path, level: int):
+      if level > depth:
+         return
+      try:
+         entries = sorted (directory.iterdir ())
+      except OSError:
+         return
+      for entry in entries:
+         if not entry.is_dir () or entry.is_symlink () or entry.name in SKIP or entry.name.startswith ("."):
+            continue
+         if (entry / ".git").exists ():
+            found [str (entry.relative_to (root))] = str (entry)
+            continue
+         walk (entry, level + 1)
+
+   walk (root, 1)
+
+   return found
+
+
+def discover (start: Path | None = None, depth: int = DEPTH) -> dict [str, Any] | None:
+   """Build a workspace from nested repositories when no manifest declares one.
+
+   A directory holding several checkouts is a workspace in practice even without
+   `workspace.yaml`, so every command that spans repositories can still work there.
+   Discovered members carry no dependency graph, only their paths.
+   """
+
+   root = (start or Path.cwd ()).resolve ()
+   repositories = _repositories_below (root, depth)
+   if not repositories:
+      return None
+
+   return {
+      "name": root.name,
+      "root": str (root),
+      "discovered": True,
+      "services": { alias: { "needs": [], "path": path } for alias, path in repositories.items () },
+   }
+
+
+def here (start: str = "") -> dict [str, Any] | None:
+   """Return the declared workspace, falling back to one discovered on disk."""
+
+   return load (start) or discover (Path (start) if start else None)

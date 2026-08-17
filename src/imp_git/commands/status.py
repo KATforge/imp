@@ -61,7 +61,9 @@ def _condition (value: str) -> str:
 
 
 def _show_roster (value: dict, entries: list [dict]):
-   console.header (str (value ["name"]))
+   if not entries:
+      return
+   console.label ("Features")
    console.table (
       [ "Feature", "Repositories", "State", "Writer", "Age" ],
       [
@@ -83,7 +85,7 @@ def _show_roster (value: dict, entries: list [dict]):
 
 
 def _workspace_status (json_output: bool):
-   value = workspace.require ()
+   value = workspace.here ()
    entries = roster.collect (value)
    repositories = workspace.repositories (value)
    data = {
@@ -92,9 +94,12 @@ def _workspace_status (json_output: bool):
       "repositories": sorted (repositories),
       "features": entries,
       "interrupted": roster.interrupted (value),
+      "members": roster.repositories (value),
    }
    if json_output:
       return result.emit ("imp.roster.v1", "imp status", data, json_output=True)
+   console.header (str (value ["name"]))
+   _show_members (data ["members"])
    _show_roster (value, entries)
    _show_workspace_interrupted (data ["interrupted"])
 
@@ -114,6 +119,38 @@ def _show_interrupted (values: list [dict]):
             str (record.get ("next", "")),
          ]
          for record in values
+      ],
+   )
+   console.out.print ()
+
+
+def _drift (member: dict) -> str:
+   if not member ["tracked"]:
+      return "untracked"
+   parts = []
+   if member ["ahead"]:
+      parts.append (f"[green]{member ['ahead']} ahead[/green]")
+   if member ["behind"]:
+      parts.append (f"[yellow]{member ['behind']} behind[/yellow]")
+
+   return ", ".join (parts) or "[muted]synced[/muted]"
+
+
+def _show_members (values: list [dict]):
+   if not values:
+      return
+   console.label ("Repositories")
+   console.table (
+      [ "Repository", "Branch", "Remote", "Dirty", "Worktrees" ],
+      [
+         [
+            str (member ["alias"]),
+            str (member ["branch"]),
+            _drift (member),
+            f"[yellow]{member ['dirty']}[/yellow]" if member ["dirty"] else "",
+            str (member ["worktrees"]) if member ["worktrees"] else "",
+         ]
+         for member in values
       ],
    )
    console.out.print ()
@@ -203,7 +240,7 @@ def status (
 
    json_output = runtime.options.json
 
-   if not git.succeeds ("rev-parse", "--git-dir") and workspace.load ():
+   if not git.succeeds ("rev-parse", "--git-dir") and workspace.here ():
       return _workspace_status (json_output)
 
    git.require ()

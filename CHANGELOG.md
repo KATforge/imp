@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added repository discovery. A directory holding several checkouts is treated as a workspace even without
+  `workspace.yaml`, so `imp status` and `imp worktree list` work at any multi-project root. A manifest still wins
+  when present, since only it carries aliases and the dependency graph
+- Added a repositories table to `imp status` at a workspace root: branch, drift against origin, uncommitted
+  count, and worktree count per member
+- Changed `imp worktree list` outside a repository to list feature worktrees across every member repository
+
 - Fixed `imp start`, `done`, `review`, `release`, and `fleet` failing with a confusing internal error outside a
   repository. They now report "Not a git repository" like `imp commit` and `imp status` already did
 - Changed the commit planner to warn when a diff exceeds its budget, naming the truncated paths. It still covers

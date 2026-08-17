@@ -386,3 +386,63 @@ class TestInterrupted:
       values = roster.interrupted (workspace.load (str (demo)))
 
       assert sorted (record ["alias"] for record in values) == [ "api", "web" ]
+
+
+class TestDiscovery:
+
+   def _repo (self, path: Path):
+      path.mkdir (parents=True, exist_ok=True)
+      git_run (path, "init", "-q", "-b", "main", ".")
+      git_run (path, "config", "user.email", "t@t.com")
+      git_run (path, "config", "user.name", "T")
+      commit_file (path, "file.txt", "x\n", "chore: init")
+
+   def test_nested_repositories_are_found_without_a_manifest (self, tmp_path, monkeypatch):
+      root = tmp_path / "projects"
+      self._repo (root / "alpha")
+      self._repo (root / "group" / "beta")
+      monkeypatch.chdir (root)
+      workspace.load.cache_clear ()
+
+      value = workspace.here ()
+
+      assert value ["discovered"] is True
+      assert sorted (value ["services"]) == [ "alpha", "group/beta" ]
+
+   def test_a_manifest_wins_over_discovery (self, demo):
+      value = workspace.here (str (demo))
+
+      assert "discovered" not in value
+      assert sorted (value ["services"]) == [ "api", "web" ]
+
+   def test_noise_directories_are_not_searched (self, tmp_path, monkeypatch):
+      root = tmp_path / "projects"
+      self._repo (root / "alpha")
+      self._repo (root / "node_modules" / "package")
+      self._repo (root / ".hidden" / "thing")
+      monkeypatch.chdir (root)
+      workspace.load.cache_clear ()
+
+      assert sorted (workspace.here () ["services"]) == [ "alpha" ]
+
+   def test_a_directory_without_repositories_is_not_a_workspace (self, tmp_path, monkeypatch):
+      root = tmp_path / "empty"
+      root.mkdir ()
+      monkeypatch.chdir (root)
+      workspace.load.cache_clear ()
+
+      assert workspace.here () is None
+
+   def test_members_report_branch_and_dirty_state (self, tmp_path, monkeypatch):
+      root = tmp_path / "projects"
+      self._repo (root / "alpha")
+      (root / "alpha" / "loose.txt").write_text ("unsaved\n")
+      monkeypatch.chdir (root)
+      workspace.load.cache_clear ()
+
+      members = roster.repositories (workspace.here ())
+
+      assert [ member ["alias"] for member in members ] == [ "alpha" ]
+      assert members [0] ["branch"] == "main"
+      assert members [0] ["dirty"] == 1
+      assert members [0] ["tracked"] is False

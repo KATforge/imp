@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, features, git, identity, plans, result, runtime, state
+from imp_git import console, features, git, identity, plans, result, runtime, spans, state, workspace
 from imp_git.cli import SortedCommand
 
 worktree = typer.Typer (
@@ -13,6 +13,55 @@ worktree = typer.Typer (
 )
 
 
+def _collect (alias: str = "") -> list [dict]:
+   managed = { str (Path (feature ["path"]).resolve ()): feature for feature in features.all () }
+   values = []
+   for entry in git.worktrees ():
+      path = str (Path (entry.get ("worktree", "")).resolve ())
+      feature = managed.get (path)
+      values.append ({
+         "alias": alias,
+         "branch": entry.get ("branch", "").removeprefix ("refs/heads/"),
+         "feature_id": feature.get ("feature_id") if feature else None,
+         "name": feature.get ("name") if feature else ("trunk" if not values else "unmanaged"),
+         "path": path,
+         "state": feature.get ("worktree_state", "live") if feature else "unmanaged",
+         "target": feature.get ("target") if feature else None,
+      })
+
+   return values
+
+
+def _across_workspace (json_output: bool):
+   """List every worktree in every repository below a multi-project root."""
+
+   value = workspace.here ()
+   if not value:
+      console.fatal ("Not a git repository, and no repositories below this directory")
+
+   values = []
+   for alias, repository in sorted (workspace.repositories (value).items ()):
+      if not Path (repository, ".git").exists ():
+         continue
+      with spans.inside (repository):
+         values.extend (entry for entry in _collect (alias) if entry ["name"] != "trunk")
+
+   if json_output:
+      return result.emit ("imp.worktrees.v2", "imp worktree list", { "worktrees": values }, json_output=True)
+   if not values:
+      console.muted (f"No feature worktrees below {value ['root']}")
+      return { "worktrees": values }
+   console.table (
+      [ "Repository", "Feature", "Branch", "Path", "State" ],
+      [
+         [ str (v ["alias"]), str (v ["name"]), v ["branch"], v ["path"], v ["state"] ]
+         for v in values
+      ],
+   )
+
+   return { "worktrees": values }
+
+
 @worktree.command ("list", cls=SortedCommand)
 def list_ (
 
@@ -20,6 +69,9 @@ def list_ (
    """List repository worktrees and their managed feature state."""
 
    json_output = runtime.options.json
+
+   if not git.succeeds ("rev-parse", "--git-dir"):
+      return _across_workspace (json_output)
 
    git.require ()
    here = str (Path.cwd ().resolve ())
