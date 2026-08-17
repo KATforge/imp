@@ -130,11 +130,10 @@ def _group (feature: str) -> dict | None:
    value = workspace.load ()
    if not value:
       return None
+   inside = git.succeeds ("rev-parse", "--git-dir")
 
    if not feature:
-      if not git.succeeds ("rev-parse", "--git-dir"):
-         return _pick (value)
-      return None
+      return None if inside else _pick (value)
 
    span = spans.find (value, feature)
    if span:
@@ -142,7 +141,7 @@ def _group (feature: str) -> dict | None:
       return { "name": str (span ["name"]), "members": members, "workspace": value }
 
    entry = next ((row for row in roster.collect (value) if row ["name"] == feature), None)
-   if not entry or len (entry ["members"]) < 2:
+   if not entry or (inside and len (entry ["members"]) < 2):
       return None
 
    return {
