@@ -373,9 +373,9 @@ class TestSourceRelease:
       monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
       monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
 
-      first = source_release.plan_ship (level="patch", prerelease=True)
+      first = source_release.plan_release (level="patch", prerelease=True)
 
-      assert first ["payload_schema"] == "imp.ship-plan.v2"
+      assert first ["payload_schema"] == "imp.release-plan.v1"
       assert first ["payload"] ["version"] == "1.2.4-rc.1"
       assert first ["payload"] ["tag"] == "v1.2.4-rc.1"
       assert first ["payload"] ["prerelease"] is True
@@ -387,30 +387,30 @@ class TestSourceRelease:
          "release_create",
          lambda version, notes, prerelease=False: releases.append ((version, prerelease)) or True,
       )
-      receipt = source_release.apply_ship (first)
+      receipt = source_release.apply_release (first)
 
       assert receipt ["prerelease"] is True
       assert releases == [ ("1.2.4-rc.1", True) ]
 
-      second = source_release.plan_ship (level="patch", prerelease=True)
+      second = source_release.plan_release (level="patch", prerelease=True)
 
       assert second ["payload"] ["version"] == "1.2.4-rc.2"
 
    def test_stable_release_rejects_prerelease_version (self, repo):
       with pytest.raises (state.StateError, match=r"must be X\.Y\.Z"):
-         source_release.plan_ship (set_version="1.2.3-rc.1")
+         source_release.plan_release (set_version="1.2.3-rc.1")
 
    def test_github_release_failure_is_not_reported_as_success (self, repo, monkeypatch):
-      plan = source_release.plan_ship (level="patch")
+      plan = source_release.plan_release (level="patch")
       plan ["payload"] ["github_release"] = True
       monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
       monkeypatch.setattr (source_release.gh, "release_create", lambda *_args, **_kwargs: False)
 
       with pytest.raises (state.StateError, match="GitHub release creation failed"):
-         source_release.apply_ship (plan)
+         source_release.apply_release (plan)
 
    def test_github_release_failure_can_resume_the_same_plan (self, repo, monkeypatch):
-      plan = source_release.plan_ship (level="patch")
+      plan = source_release.plan_release (level="patch")
       plan ["payload"] ["github_release"] = True
       attempts = []
 
@@ -422,9 +422,9 @@ class TestSourceRelease:
       monkeypatch.setattr (source_release.gh, "release_create", create)
 
       with pytest.raises (state.StateError, match="GitHub release creation failed"):
-         source_release.apply_ship (plan)
+         source_release.apply_release (plan)
 
-      receipt = source_release.apply_ship (plan)
+      receipt = source_release.apply_release (plan)
 
       assert receipt ["tag"] == "v0.0.1"
       assert attempts == [ True, True ]
@@ -434,20 +434,20 @@ class TestSourceRelease:
       (repo / "file.txt").write_text ("changed\n")
 
       with pytest.raises (state.StateError) as error:
-         source_release.plan_ship (level="patch")
+         source_release.plan_release (level="patch")
 
       assert "Uncommitted changes cannot be shipped" in str (error.value)
       assert "imp commit --all --plan" in str (error.value)
-      assert "imp ship --plan" in str (error.value)
+      assert "imp release --plan" in str (error.value)
 
 
    def test_apply_revalidates_release_notes (self, repo):
-      plan = source_release.plan_ship (level="patch")
+      plan = source_release.plan_release (level="patch")
       before = git.rev_parse ("main")
       plan ["payload"] ["changelog"] = "Generated with Claude Code"
 
       with pytest.raises (state.StateError, match="Release notes"):
-         source_release.apply_ship (plan)
+         source_release.apply_release (plan)
 
       assert git.rev_parse ("main") == before
       assert not git.tag_exists ("v0.0.1")
@@ -459,16 +459,46 @@ class TestSourceRelease:
       git_run (repo, "commit", "-m", "feat: add package metadata")
       before = git.rev_parse ("main")
 
-      plan = source_release.plan_ship (level="patch")
+      plan = source_release.plan_release (level="patch")
 
       assert plan ["payload"] ["version"] == "0.0.1"
       assert plan ["payload"] ["manifest_versions"] == { "pyproject.toml": "0.0.1" }
       assert "- Added package metadata" in plan ["payload"] ["changelog"]
       assert git.rev_parse ("main") == before
 
-      receipt = source_release.apply_ship (plan)
+      receipt = source_release.apply_release (plan)
 
       assert receipt ["tag"] == "v0.0.1"
       assert git.rev_parse ("v0.0.1") == git.rev_parse ("main")
       assert 'version = "0.0.1"' in (repo / "pyproject.toml").read_text ()
       assert "- Added package metadata" in (repo / "CHANGELOG.md").read_text ()
+
+   def test_local_release_commits_and_tags_without_reaching_a_remote (self, repo, monkeypatch):
+      git.tag ("v1.2.3")
+      monkeypatch.setattr (source_release.gh, "available", lambda: True)
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
+      monkeypatch.setattr (source_release.git, "fetch", lambda **_kwargs: None)
+      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
+      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
+
+      plan = source_release.plan_release (level="minor", local=True, persist=False)
+
+      assert plan ["payload"] ["local"] is True
+      assert plan ["payload"] ["push"] is False
+      assert plan ["payload"] ["github_release"] is False
+      actions = { item ["action"] for item in plan ["items"] }
+      assert actions == { "update_ref", "tag" }
+
+   def test_a_published_release_pushes_and_creates_a_github_release (self, repo, monkeypatch):
+      git.tag ("v1.2.3")
+      monkeypatch.setattr (source_release.gh, "available", lambda: True)
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
+      monkeypatch.setattr (source_release.git, "fetch", lambda **_kwargs: None)
+      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
+      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
+
+      plan = source_release.plan_release (level="minor", persist=False)
+
+      assert plan ["payload"] ["local"] is False
+      actions = { item ["action"] for item in plan ["items"] }
+      assert actions == { "update_ref", "tag", "push", "github_release" }

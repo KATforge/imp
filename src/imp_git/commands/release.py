@@ -35,17 +35,18 @@ def _show (plan: dict):
    console.divider ()
 
 
-def ship (
+def release (
    patch: Annotated [bool, typer.Option ("--patch", help="Bump patch version")] = False,
    minor: Annotated [bool, typer.Option ("--minor", help="Bump minor version")] = False,
    major: Annotated [bool, typer.Option ("--major", help="Bump major version")] = False,
    set_version: Annotated [str, typer.Option ("--version", help="Use an explicit semantic version")] = "",
+   local: Annotated [bool, typer.Option ("--local", help="Commit and tag without pushing or publishing")] = False,
    plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact release candidate only")] = False,
    apply: Annotated [str, typer.Option ("--apply", help="Apply one saved source-release plan")] = "",
    prerelease: Annotated [bool, typer.Option ("--prerelease", help="Publish the next release candidate")] = False,
    rc: Annotated [bool, typer.Option ("--rc", hidden=True)] = False,
 ):
-   """Create an exact source release. It never builds or deploys."""
+   """Cut a source release: bump the version, commit, tag, and publish."""
 
    dry_run = runtime.options.dry_run
    json_output = runtime.options.json
@@ -53,20 +54,20 @@ def ship (
 
    prerelease = prerelease or rc
    try:
-      plan = plans.resolve ("ship", "" if apply == "__pick__" else apply) if apply else source_release.plan_ship (
+      plan = plans.resolve ("release", "" if apply == "__pick__" else apply) if apply else source_release.plan_release (
          level=_level (patch, minor, major), prerelease=prerelease, set_version=set_version,
-         persist=not dry_run,
+         local=local, persist=not dry_run,
       )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
    return approval.run (
       plan,
-      command="imp ship",
+      command="imp release",
       noun="shipping",
       confirm="Publish this exact source release?",
-      plan_schema="imp.ship-plan.v2",
+      plan_schema="imp.release-plan.v1",
       result_schema="imp.release.v1",
-      apply=source_release.apply_ship,
+      apply=source_release.apply_release,
       show=_show,
       success=lambda data: console.success (f"Released {data ['tag']}"),
       plan_only=plan_only,

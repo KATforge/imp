@@ -31,6 +31,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
    - Prepare an exact commit plan at a coherent milestone and apply it without asking.
    - Commit and integrate to trunk freely. Never push as part of a commit.
    - Changing a remote needs approval first. Pushing and the QA release that follows are one grant; production is a second grant, often given in the same breath.
+   - `imp done` lands a feature on trunk locally. `imp pr` proposes a branch for review. `imp release` cuts a version, and `--local` keeps it off the remote.
    - Read intent, not wording. Any plain request to send work up grants the push and QA bundle. Without the production grant, stop at QA and say so.
 
 5. Keep authorship human.

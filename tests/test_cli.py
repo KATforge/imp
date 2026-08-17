@@ -17,11 +17,11 @@ class TestSurface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "status", "commit", "review", "fleet", "ship", "worktree" ]:
+      for command in [ "start", "status", "commit", "review", "fleet", "release", "pr", "worktree" ]:
          assert command in result.output
       removed_commands = [
          "active", "amend", "bisect", "changelog", "context", "guard",
-         "init", "release", "resolve", "revert", "split", "tidy", "undo", "use",
+         "init", "resolve", "revert", "ship", "split", "tidy", "undo", "use",
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
@@ -74,8 +74,8 @@ class TestSurface:
       assert result.exit_code == 0
       assert "--approve" in result.output
 
-   def test_ship_exposes_prerelease_without_legacy_release_flags (self):
-      result = runner.invoke (app, [ "ship", "--help" ])
+   def test_release_exposes_prerelease_without_legacy_flags (self):
+      result = runner.invoke (app, [ "release", "--help" ])
 
       assert result.exit_code == 0
       assert "--prerelease" in result.output
@@ -244,7 +244,7 @@ class TestHelpOrdering:
       assert options [:-1] == sorted (options [:-1])
 
    def test_every_command_orders_its_options_alphabetically (self):
-      for command in [ "commit", "done", "start", "ship", "review", "fleet" ]:
+      for command in [ "commit", "done", "start", "release", "pr", "review", "fleet" ]:
          options = self._options (command)
 
          assert options [-1] == "--help", command

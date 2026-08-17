@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Changed `imp ship` to `imp release`, with `imp.release-plan.v1` and `imp.release.v1` replacing the ship
+  schemas. The verb now names the artifact it produces
+- Added `imp release --local`, which bumps the version, commits, and tags without pushing or publishing.
+  Previously the only choices were a bare `git tag` through passthrough or the full publish
+- Added `imp pr`, which pushes the current branch and opens or updates its pull request in a standard format,
+  asking for approval unless `--yes`. It bumps no version and cuts no tag, so promotion and release stay
+  separate verbs. `--into` selects the target branch
+
 - Changed every help listing to order options alphabetically with `--help` last, enforced in the command
   classes rather than by declaration order so it cannot drift as options are added
 

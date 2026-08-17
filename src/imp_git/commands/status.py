@@ -224,7 +224,7 @@ def status (
    if changes:
       console.hint ("imp commit to plan local commits")
    elif unpushed:
-      console.hint ("imp ship when trunk is ready")
+      console.hint ("imp release when trunk is ready")
    else:
       console.hint ("make changes, then imp commit")
 

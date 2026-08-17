@@ -139,3 +139,55 @@ class TestStatusParsing:
          if "spaced" in path:
             found = True
       assert found, "File with leading spaces not found in status"
+
+
+class TestPullRequest:
+
+   def test_pr_pushes_the_branch_and_creates_one (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "-b", "feature/widget")
+      commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
+      pushed, created = [], []
+      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
+      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: {})
+      monkeypatch.setattr (
+         pr_cmd.gh, "pr_create",
+         lambda title, body, base, head: created.append ((title, base, head)) or "https://example.test/1",
+      )
+      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: pushed.append (kwargs))
+
+      data = pr_cmd.pr (into="master")
+
+      assert pushed == [ { "set_upstream": True, "target": "feature/widget" } ]
+      assert created [0] [1:] == ( "master", "feature/widget" )
+      assert data ["url"] == "https://example.test/1"
+      assert data ["updated"] is False
+
+   def test_pr_updates_an_existing_one_instead_of_duplicating (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "-b", "feature/widget")
+      commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
+      edited = []
+      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
+      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: { "number": 7 })
+      monkeypatch.setattr (
+         pr_cmd.gh, "pr_edit",
+         lambda number, title, body: edited.append (number) or "https://example.test/7",
+      )
+      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
+
+      data = pr_cmd.pr (into="master")
+
+      assert edited == [ 7 ]
+      assert data ["updated"] is True
+
+   def test_pr_refuses_to_target_its_own_branch (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "master")
+      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
+
+      with pytest.raises (typer.Exit):
+         pr_cmd.pr (into="master")

@@ -105,7 +105,7 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `use`, `status`, `done`, `fleet`, `commit`, `review`, `ship`, `config`, `doctor`, `active`, `worktree`, and `recover`.
+Native commands are `start`, `status`, `done`, `fleet`, `commit`, `review`, `pr`, `release`, `config`, `doctor`, `worktree`, and `recover`.
 
 ## Optional repository policy
 
@@ -126,7 +126,11 @@ Project overrides live in `.imp`:
 
 Setup commands are argv arrays. Shared paths must be explicitly allowed, ignored, untracked, and inside the primary repository.
 
-`imp ship --prerelease` creates the next `-rc.N` source release. Stable shipping omits that flag. Both modes update package versions, lockfiles, and the flat changelog before committing, tagging, pushing, and publishing the GitHub release.
+`imp release --minor` reads the highest existing tag, steps the version, then updates package versions, lockfiles, and the flat changelog before committing, tagging, pushing, and publishing the GitHub release. `--prerelease` cuts the next `-rc.N` instead.
+
+`imp release --local` stops after the commit and the tag, touching no remote. Use it when you want a version cut locally and will publish later.
+
+`imp pr --into main` pushes the current branch and opens or updates its pull request. It never tags or bumps a version, so it is the promotion path rather than a release.
 
 See the [Imp documentation](https://docs.katforge.com/packages/imp/) for the complete workflow.
 Machine clients should follow the [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).

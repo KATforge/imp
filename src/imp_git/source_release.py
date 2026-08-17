@@ -24,7 +24,7 @@ Next:
   imp commit --all --plan
 
 After the exact commit plan is approved and applied:
-  imp ship --plan"""
+  imp release --plan"""
 
 
 def _hash (path: Path) -> str:
@@ -93,7 +93,7 @@ def _source (
    if not source_plan_id:
       branch = git.branch ()
       if not branch:
-         raise state.StateError ("imp ship requires a branch or --source-plan")
+         raise state.StateError ("imp release requires a branch or --source-plan")
       return git.rev_parse (branch), branch, git.rev_parse (branch), None
    source_plan = plans.load (source_plan_id)
    if source_plan.get ("payload_schema") != "imp.done-plan.v1":
@@ -104,12 +104,13 @@ def _source (
    return payload ["candidate_oid"], payload ["target_ref"], payload ["local_target_oid"], source_plan
 
 
-def plan_ship (
+def plan_release (
    *,
    level: str = "patch",
    prerelease: bool = False,
    set_version: str = "",
    source_plan_id: str = "",
+   local: bool = False,
    persist: bool = True,
 ) -> dict [str, Any]:
    if level not in { "patch", "minor", "major" }:
@@ -153,7 +154,7 @@ def plan_ship (
       "commit_tree_oid": git.tree (commit_oid),
       "depends_on": [source_plan_id] if source_plan_id else [],
       "diff": diff,
-      "github_release": gh.available () and git.remote_exists (),
+      "github_release": not local and gh.available () and git.remote_exists (),
       "level": level,
       "lock_commands": lock_commands,
       "lockfile_hashes": lock_hashes,
@@ -161,11 +162,12 @@ def plan_ship (
       "previous_tag": previous_tag,
       "prerelease": prerelease,
       "public_target_oid": public_target_oid,
-      "push": git.remote_exists (),
+      "push": not local and git.remote_exists (),
       "repository": git.repo_name (),
       "source_oid": source_oid,
       "source_plan_fingerprint": source_plan.get ("fingerprint") if source_plan else "",
       "source_plan_id": source_plan_id,
+      "local": local,
       "tag": tag,
       "target_ref": target_ref,
       "version": new_version,
@@ -177,9 +179,10 @@ def plan_ship (
       "target_ref": target_ref,
       "version": new_version,
       "prerelease": prerelease,
+      "local": local,
    })
    return plans.create (
-      "ship", new_version,
+      "release", new_version,
       scope={ "repository": git.repo_name (), "target": target_ref },
       items=[
          { "action": "update_ref", "ref": target_ref, "oid": commit_oid },
@@ -188,14 +191,14 @@ def plan_ship (
          *([ { "action": "github_release", "tag": tag } ] if payload ["github_release"] else []),
       ],
       fingerprint=plan_fingerprint,
-      payload_schema="imp.ship-plan.v2",
+      payload_schema="imp.release-plan.v1",
       payload=payload,
       persist=persist,
    )
 
 
 def _validate (plan: dict [str, Any]) -> dict [str, Any]:
-   if plan.get ("payload_schema") != "imp.ship-plan.v2":
+   if plan.get ("payload_schema") != "imp.release-plan.v1":
       raise state.StateError ("Unsupported source-release plan")
    if plan.get ("state") != "ready":
       raise state.StateError (f"Source-release plan is {plan.get ('state')}")
@@ -219,23 +222,23 @@ def _validate (plan: dict [str, Any]) -> dict [str, Any]:
 
 
 def _recovery (plan: dict [str, Any], completed: list [str], error: Exception):
-   recovery_id = identity.resource ("recovery", "ship", str (plan ["label"]), str (len (completed) + 1))
+   recovery_id = identity.resource ("recovery", "release", str (plan ["label"]), str (len (completed) + 1))
    state.atomic_write (
       state.root () / "recovery" / f"{identity.key (recovery_id)}.json",
       {
          "schema": "imp.recovery.v1",
-         "command": "imp ship",
+         "command": "imp release",
          "completed": completed,
          "created_at": state.now (),
          "error": str (error),
-         "next": f"imp ship --apply {plan ['plan_id']} --yes",
+         "next": f"imp release --apply {plan ['plan_id']} --yes",
          "plan_id": plan ["plan_id"],
          "recovery_id": recovery_id,
       },
    )
 
 
-def apply_ship (plan: dict [str, Any]) -> dict [str, Any]:
+def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
    completed = []
    try:
       with state.lock ("release"):
