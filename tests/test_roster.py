@@ -226,3 +226,88 @@ class TestConflictResolution:
          assert (scratch / "file.txt").read_text () == "edited\n"
       finally:
          os.chdir (previous)
+
+
+class TestHardening:
+
+   def test_a_candidate_that_restores_a_deleted_path_is_blocked (self, demo, tmp_path):
+      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      commit_file (Path (feature ["path"]), "file.txt", "still wanted\n", "feat: keep editing the file")
+      git_run (demo / "api", "rm", "file.txt")
+      git_run (demo / "api", "commit", "-m", "chore: drop the file")
+      git_run (demo / "api", "push", "origin", "master")
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         from imp_git import integration
+         plan = integration.plan_done (
+            features.find (str (feature ["feature_id"])),
+            actor_id="actor:human:anders",
+            strategy="squash",
+            resolve="theirs",
+            persist=False,
+         )
+
+         assert plan ["payload"] ["resurrected"] == [ "file.txt" ]
+         assert any ("restores" in value for value in plan ["blockers"])
+      finally:
+         os.chdir (previous)
+
+   def test_honouring_a_deletion_leaves_nothing_to_block (self, demo, tmp_path):
+      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      commit_file (Path (feature ["path"]), "file.txt", "still wanted\n", "feat: keep editing the file")
+      git_run (demo / "api", "rm", "file.txt")
+      git_run (demo / "api", "commit", "-m", "chore: drop the file")
+      git_run (demo / "api", "push", "origin", "master")
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         from imp_git import integration
+         plan = integration.plan_done (
+            features.find (str (feature ["feature_id"])),
+            actor_id="actor:human:anders",
+            strategy="squash",
+            resolve="resolve",
+            persist=False,
+         )
+
+         assert plan ["payload"] ["resurrected"] == []
+         assert plan ["blockers"] == []
+      finally:
+         os.chdir (previous)
+
+   def test_an_undeletable_worktree_leaves_the_integration_landed (self, demo, tmp_path, monkeypatch):
+      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         import subprocess as sp
+         monkeypatch.setattr (
+            features.git, "worktree_remove",
+            lambda *a, **k: (_ for _ in ()).throw (sp.CalledProcessError (255, "git")),
+         )
+
+         record = features.complete (features.find (str (feature ["feature_id"])), "actor:human:anders")
+
+         assert record ["state"] == "completed"
+         assert Path (feature ["path"]).exists ()
+      finally:
+         os.chdir (previous)
+
+   def test_stale_scratch_worktrees_are_swept (self, demo, tmp_path, monkeypatch):
+      from imp_git import integration
+      scratch = Path (tmp_path / "tmp")
+      scratch.mkdir ()
+      stale = scratch / "imp-resolve-old"
+      stale.mkdir ()
+      fresh = scratch / "imp-resolve-new"
+      fresh.mkdir ()
+      os.utime (stale, (0, 0))
+      monkeypatch.setattr (integration.tempfile, "gettempdir", lambda: str (scratch))
+      monkeypatch.setattr (integration.git, "prune_worktrees", lambda: None)
+
+      integration._sweep_stale ()
+
+      assert not stale.exists ()
+      assert fresh.exists ()

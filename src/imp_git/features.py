@@ -590,6 +590,21 @@ def _leave (path: str):
       os.chdir (_primary_path ())
 
 
+def _discard (path: str):
+   """Remove an integrated worktree, reporting rather than failing when files resist.
+
+   The candidate is already on the target by the time this runs, so a worktree that
+   cannot be deleted (root-owned container artifacts under vendor/ or node_modules/)
+   is a leftover to clean up by hand, never a reason to fail a landed integration.
+   """
+
+   try:
+      git.worktree_remove (path, force=True)
+   except (subprocess.CalledProcessError, OSError):
+      git.prune_worktrees ()
+      console.warn (f"Integrated worktree left behind, remove it by hand: {path}")
+
+
 def complete (
    feature: dict [str, Any],
    actor_id: str,
@@ -613,11 +628,11 @@ def complete (
       if not git.clean_at (str (feature ["path"])):
          raise state.StateError ("Completed feature worktree became dirty")
       _leave (str (feature ["path"]))
-      git.worktree_remove (str (feature ["path"]))
+      _discard (str (feature ["path"]))
    _claim_path (feature_id).unlink (missing_ok=True)
    if git.ref_exists (str (feature ["branch"])):
       if not git.delete_branch (str (feature ["branch"]), force=True):
-         raise state.StateError (f"Could not delete integrated branch {feature ['branch']}")
+         console.warn (f"Integrated branch left behind: {feature ['branch']}")
 
    return record
 

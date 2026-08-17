@@ -34,7 +34,31 @@ def configured_checks () -> list [dict [str, Any]]:
    return _checks ()
 
 
+_STALE_AFTER = 2 * 60 * 60
+
+
+def _sweep_stale ():
+   """Drop temporary worktrees a killed run never got to clean up.
+
+   Cleanup is a finally block, which a SIGKILL skips, so an interrupted
+   integration leaves a scratch worktree and its registry entry behind.
+   """
+
+   removed = False
+   for root in Path (tempfile.gettempdir ()).glob ("imp-*"):
+      try:
+         if not root.is_dir () or time.time () - root.stat ().st_mtime < _STALE_AFTER:
+            continue
+         shutil.rmtree (root, ignore_errors=True)
+         removed = True
+      except OSError:
+         continue
+   if removed:
+      git.prune_worktrees ()
+
+
 def _temporary_worktree (ref: str, prefix: str) -> tuple [Path, callable]:
+   _sweep_stale ()
    root = Path (tempfile.mkdtemp (prefix=f"imp-{prefix}-"))
    path = root / "worktree"
    git.worktree_add_detached (str (path), ref)
@@ -148,6 +172,24 @@ def _candidate (
    return git.commit_tree_parents (tree_oid, [ target_oid, feature_oid ], message), [], decisions
 
 
+def _resurrected (base_oid: str, target_oid: str, candidate_oid: str) -> list [str]:
+   """Paths the target deleted that this candidate would bring back.
+
+   A branch that predates a deletion still carries the file, and a squash merge
+   restores it without reporting a conflict. Landing that silently undoes the
+   removal, so it is a blocker rather than a surprise.
+   """
+
+   removed = set (git.capture (
+      "diff", "--name-only", "--diff-filter=D", base_oid, target_oid,
+   ).splitlines ())
+   if not removed:
+      return []
+   present = set (git.capture ("ls-tree", "-r", "--name-only", candidate_oid).splitlines ())
+
+   return sorted (path for path in removed if path and path in present)
+
+
 def _target_oids (target: str) -> tuple [str, str, str]:
    local_oid = git.rev_parse (target)
    if not local_oid:
@@ -219,6 +261,13 @@ def plan_done (
    configured = [] if skip_checks else _checks ()
    check_results = run_checks (candidate_oid, configured)
    blockers = [f"Check failed: {value ['name']}" for value in check_results if value ["exit_code"]]
+   revived = _resurrected (
+      git.merge_base (target_oid, git.rev_parse (str (feature ["branch"]))), target_oid, candidate_oid,
+   )
+   if revived:
+      blockers.append (
+         f"Candidate restores {len (revived)} path(s) {target} deleted: {', '.join (revived [:5])}"
+      )
    if _review_required ():
       blockers.append ("Human review or explicit approval required")
    payload = {
@@ -227,6 +276,7 @@ def plan_done (
       "candidate_tree_oid": git.tree (candidate_oid),
       "check_commands": configured,
       "conflict_decisions": decisions,
+      "resurrected": revived,
       "check_results": check_results,
       "feature_id": feature ["feature_id"],
       "feature_oid": git.rev_parse (str (feature ["branch"])),

@@ -106,13 +106,18 @@ Changes:
 
 Output ONLY the JSON array:"""
 
-def resolve_conflict (path: str, body: str) -> str:
+def resolve_conflicts (blocks: str) -> str:
    return f"""\
-Resolve the merge conflicts in this file. Keep both sides' intent where they do not
-contradict; where they do, prefer the incoming feature side.
+Resolve every merge conflict below. Each block is one conflict region from one file.
+Keep both sides' intent where they do not contradict; where they do, prefer the
+incoming feature side.
 
-File: {path}
+{blocks}
 
-{body}
+For every block, output exactly its replacement text between its own markers:
 
-Output ONLY the complete resolved file with every conflict marker removed, nothing else:"""
+<<<HUNK n>>>
+the resolved lines that replace the whole conflict region
+<<<END n>>>
+
+Output nothing else. Every marker must be removed from the resolved lines."""

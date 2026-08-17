@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed a landed integration failing because its worktree could not be deleted. Root-owned container
+  artifacts under `vendor/` or `node_modules/` now leave a warning and a path to clean up by hand,
+  since the candidate is already on the target by the time cleanup runs
+- Changed `--resolve ai` to resolve every conflicted hunk across every file in one model call. One call
+  per file took long enough on a busy repository to invalidate the integration plan it was built for
+- Fixed temporary resolve worktrees leaking when a run is killed, by sweeping stale ones on the next run
+- Added a blocker for a candidate that restores paths the target deleted. A branch predating a deletion
+  still carries the file, and keeping it during conflict resolution silently undid the removal
+
 - Added a workspace roster. `imp status` at the workspace root lists every open feature across every member
   repository with its state, writer, and age, and emits `imp.roster.v1`
 - Added interactive promotion. `imp done` with no argument at the workspace root picks from the ready features

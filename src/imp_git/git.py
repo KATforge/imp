@@ -399,6 +399,9 @@ def ref_worktrees (branch_name: str) -> list [str]:
    expected = f"refs/heads/{branch_name}"
    return [entry ["worktree"] for entry in worktrees () if entry.get ("branch") == expected]
 
+def prune_worktrees ():
+   _run ("worktree", "prune", check=False)
+
 def worktree_remove (path: str, force: bool = False):
    args = [ "worktree", "remove" ]
    if force:
