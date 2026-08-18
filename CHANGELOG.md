@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added `imp cleanup` to reconcile expired claims, spent recoveries, closed features, merged or empty active
+  features, stale state, and merged orphan worktrees under one exact approval. Missing worktrees with unique
+  branches are restored; dirty, claimed, and unmerged active work is preserved with its next command
+
 - Fixed release changelog bullets lowercasing the first letter of whatever followed the verb, which mangled
   ticket references and acronyms into `sPK-68493`. Only an ordinary capitalized word is lowered now
 - Fixed merge commits becoming changelog entries, so a release no longer lists the branch plumbing around

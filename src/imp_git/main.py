@@ -11,6 +11,7 @@ from typer.core import TyperGroup
 
 from imp_git import __version__, console, passthrough, runtime
 from imp_git.cli import SortedCommand, ordered
+from imp_git.commands.cleanup import cleanup
 from imp_git.commands.commit import commit
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
@@ -100,7 +101,7 @@ def main (
    )
 
 _commands = [
-   commit, doctor, done, pr,
+   cleanup, commit, doctor, done, pr,
    release, review, start, status,
 ]
 

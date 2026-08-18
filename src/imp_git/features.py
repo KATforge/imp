@@ -68,6 +68,23 @@ def claimed_by_other (feature: dict [str, Any], actor_id: str) -> str:
    return holder if holder and holder != actor_id else ""
 
 
+def claim_expired (feature: dict [str, Any]) -> bool:
+   claim_record = feature.get ("claim")
+
+   return bool (claim_record and _is_expired (claim_record))
+
+
+def drop_expired_claim (feature: dict [str, Any]):
+   feature_id = str (feature ["feature_id"])
+   with state.lock (identity.key (feature_id)):
+      existing = _read_claim (feature_id)
+      if not existing:
+         return
+      if not _is_expired (existing):
+         raise state.StateError (f"Feature claim is still active: {feature ['name']}")
+      _claim_path (feature_id).unlink ()
+
+
 def _read_claim (feature_id: str) -> dict [str, Any] | None:
    path = _claim_path (feature_id)
    if not path.exists ():
@@ -636,12 +653,16 @@ def complete (
    feature: dict [str, Any],
    actor_id: str,
    *,
+   branch_oid: str = "",
    keep: bool = False,
    state_name: str = "completed",
 ) -> dict [str, Any]:
    """Mark a feature complete and optionally remove its clean local resources."""
 
    feature_id = str (feature ["feature_id"])
+   branch = str (feature ["branch"])
+   if branch_oid and git.rev_parse (branch) != branch_oid:
+      raise state.StateError (f"Feature branch changed: {branch}")
    with state.lock (f"feature-{identity.key (feature_id)}"):
       record = state.read (_path (feature_id), "imp.feature.v2", _MIGRATIONS)
       record ["state"] = state_name
@@ -657,11 +678,51 @@ def complete (
       _leave (str (feature ["path"]))
       _discard (str (feature ["path"]))
    _claim_path (feature_id).unlink (missing_ok=True)
-   if git.ref_exists (str (feature ["branch"])):
-      if not git.delete_branch (str (feature ["branch"]), force=True):
+   if git.ref_exists (branch):
+      if branch_oid:
+         try:
+            git.delete_branch_checked (branch, branch_oid)
+         except subprocess.CalledProcessError as error:
+            raise state.StateError (f"Integrated branch changed: {branch}") from error
+      elif not git.delete_branch (branch, force=True):
          console.warn (f"Integrated branch left behind: {feature ['branch']}")
 
    return record
+
+
+def purge (feature: dict [str, Any]):
+   feature_id = str (feature ["feature_id"])
+   with state.lock (f"feature-{identity.key (feature_id)}"):
+      current = find (feature_id)
+      if not current:
+         return
+      if current.get ("state") not in { "completed", "removed" }:
+         raise state.StateError (f"Feature is not complete: {current ['name']}")
+      if current.get ("worktree_state") != "missing":
+         raise state.StateError (f"Feature worktree still exists: {current ['name']}")
+      if git.ref_exists (str (current ["branch"])):
+         raise state.StateError (f"Feature branch still exists: {current ['branch']}")
+      claim_record = _read_claim (feature_id)
+      if claim_record and not _is_expired (claim_record):
+         raise state.StateError (f"Feature claim is still active: {current ['name']}")
+      _claim_path (feature_id).unlink (missing_ok=True)
+      (state.root () / "reviews" / f"{identity.key (feature_id)}.json").unlink (missing_ok=True)
+      _path (feature_id).unlink ()
+
+
+def restore (feature: dict [str, Any]):
+   current = find (str (feature ["feature_id"]))
+   if not current or current.get ("state") not in { "active", "awaiting-merge" }:
+      raise state.StateError (f"Feature is not open: {feature ['name']}")
+   if current.get ("worktree_state") != "missing":
+      raise state.StateError (f"Feature worktree is not missing: {feature ['name']}")
+   if not git.ref_exists (str (current ["branch"])):
+      raise state.StateError (f"Feature branch is missing: {feature ['branch']}")
+   path = Path (str (current ["path"]))
+   if path.exists ():
+      raise state.StateError (f"Feature worktree path already exists: {path}")
+   path.parent.mkdir (parents=True, exist_ok=True)
+   git.worktree_add_existing (str (path), str (current ["branch"]))
 
 
 def orphans () -> list [dict [str, Any]]:
@@ -746,17 +807,30 @@ def adopt (orphan: dict [str, Any], actor_id: str) -> dict [str, Any]:
    return record
 
 
-def discard (orphan: dict [str, Any]):
+def discard (orphan: dict [str, Any], target: str = "", branch_oid: str = ""):
    """Remove one orphaned managed worktree and delete its merged branch."""
 
    with state.lock ("features"):
+      branch = str (orphan ["branch"])
+      if branch_oid and git.rev_parse (branch) != branch_oid:
+         raise state.StateError (f"Orphaned branch changed: {branch}")
       path = str (orphan.get ("path", ""))
       if path and Path (path).exists ():
          if not git.clean_at (path):
             raise state.StateError (f"Orphaned worktree has uncommitted changes: {path}")
          git.worktree_remove (path, force=True)
-      branch = str (orphan ["branch"])
-      if branch and git.ref_exists (branch) and not git.delete_branch (branch):
+      if not branch or not git.ref_exists (branch):
+         return
+      if target:
+         if not git.is_merged (branch, target):
+            raise state.StateError (f"Orphaned branch is not merged; resolve it explicitly: {branch}")
+         if branch_oid:
+            try:
+               git.delete_branch_checked (branch, branch_oid)
+            except subprocess.CalledProcessError as error:
+               raise state.StateError (f"Orphaned branch changed: {branch}") from error
+         else:
+            git.delete_branch (branch, force=True)
+         return
+      if not git.delete_branch (branch):
          raise state.StateError (f"Orphaned branch is not merged; resolve it explicitly: {branch}")
-
-

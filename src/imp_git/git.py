@@ -301,6 +301,11 @@ def delete_ref_checked (name: str, previous: str):
 
    _run ("update-ref", "-d", name, previous)
 
+
+def delete_branch_checked (name: str, previous: str):
+   delete_ref_checked (f"refs/heads/{name}", previous)
+   _run ("config", "--remove-section", f"branch.{name}", check=False)
+
 def reset_mixed (ref: str):
    """Reset the real index to a ref while preserving worktree files."""
 

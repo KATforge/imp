@@ -27,6 +27,7 @@ imp review
 imp done
 
 imp done --all
+imp cleanup
 ```
 
 Omitting an existing feature opens a picker. Review asks whether to mark the exact candidate after displaying it.
@@ -35,6 +36,10 @@ Omitting an existing feature opens a picker. Review asks whether to mark the exa
 already contains the remote tip, which is the ordinary state after integrating and before pushing.
 
 The plan creates no branch or worktree. Apply revalidates the exact base before changing Git state.
+
+`imp cleanup` reconciles expired claims, spent recovery records, closed features, merged or empty active
+features, stale state, and merged orphan worktrees. It restores a missing worktree when its branch still
+contains unique work. Dirty, claimed, or unmerged active work is preserved with the exact next command.
 
 `imp commit` plans staged changes, or all dirty changes when nothing is staged. It can split separate change sections from the same file into different commits. Apply builds the complete commit chain off-ref and moves the branch only after every commit succeeds.
 
@@ -87,7 +92,7 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `status`, `done`, `commit`, `review`, `pr`, `release`, `doctor`, and `worktree`.
+Native commands are `start`, `status`, `cleanup`, `done`, `commit`, `review`, `pr`, `release`, `doctor`, and `worktree`.
 
 ## Optional repository policy
 

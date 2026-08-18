@@ -234,6 +234,20 @@ def clear_recovery (label: str):
          path.unlink ()
 
 
+def discard_recovery (recovery_id: str):
+   directory = root () / "recovery"
+   if not directory.is_dir ():
+      return
+   for path in directory.glob ("*.json"):
+      try:
+         value = read (path, "imp.recovery.v1")
+      except StateError:
+         continue
+      if value.get ("recovery_id") == recovery_id:
+         path.unlink ()
+         return
+
+
 def _process_exists (pid: int) -> bool:
    try:
       os.kill (pid, 0)
