@@ -469,3 +469,52 @@ class TestSpentState:
       assert not (root / "plans").exists ()
 
 
+
+
+class TestIntegrateEvery:
+
+   def _feature (self, repository: Path, name: str, path: Path, work: str = "work\n"):
+      previous = Path.cwd ()
+      os.chdir (repository)
+      try:
+         from imp_git import repo as repo_mod
+         repo_mod.load.cache_clear ()
+         plan = features.plan_start (name, actor_id="actor:human:anders", path=str (path))
+         created = features.apply_start (plan)
+         commit_file (Path (created ["path"]), f"{name}.txt", work, f"feat: add {name}")
+         return created
+      finally:
+         os.chdir (previous)
+         from imp_git import repo as repo_mod
+         repo_mod.load.cache_clear ()
+
+   def test_every_ready_feature_lands_and_blocked_ones_are_skipped (self, demo, tmp_path, monkeypatch):
+      from imp_git.commands import done as done_cmd
+
+      self._feature (demo / "api", "first", tmp_path / "wt-first")
+      self._feature (demo / "api", "second", tmp_path / "wt-second")
+      dirty = self._feature (demo / "api", "third", tmp_path / "wt-third")
+      (Path (dirty ["path"]) / "loose.txt").write_text ("unsaved\n")
+      monkeypatch.chdir (demo)
+
+      data = done_cmd._promote_every (
+         "actor:human:anders", yes=True, dry_run=False,
+         skip_checks=True, strategy="squash", resolve="",
+      )
+
+      assert sorted (data ["landed"]) == [ "first", "second" ]
+      assert data ["skipped"] == [ "third" ]
+
+   def test_a_dry_run_lands_nothing (self, demo, tmp_path, monkeypatch):
+      from imp_git.commands import done as done_cmd
+
+      self._feature (demo / "api", "first", tmp_path / "wt-first")
+      monkeypatch.chdir (demo)
+
+      data = done_cmd._promote_every (
+         "actor:human:anders", yes=True, dry_run=True,
+         skip_checks=True, strategy="squash", resolve="",
+      )
+
+      assert data ["landed"] == []
+      assert data ["ready"] == [ "first" ]

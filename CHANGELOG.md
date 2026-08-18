@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added `imp done --all`, which integrates every ready feature across every repository under one approval. Each
+  feature still builds its own candidate against the trunk of the moment and lands before the next begins, so it
+  automates the loop rather than stacking unvalidated work, and it stops at the first failure saying what landed
+- Fixed integrating onto a trunk that leads its remote. A candidate is now built on local trunk whenever the
+  remote is an ancestor of it, which is the ordinary state after integrating and before pushing. Only a genuine
+  divergence is refused, where before every integration demanded a push first
+- Fixed `imp done <feature>` at a workspace root reporting "Not a git repository"
+
 - Removed `imp fleet`. Integrating every ready feature under one approval stacks unvalidated work, which is the
   opposite of landing one at a time and testing between. `imp status` finds what is ready and `imp done` lands
   one feature, across every repository it spans

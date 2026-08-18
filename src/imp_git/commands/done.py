@@ -51,6 +51,10 @@ def done (
       str,
       typer.Option ("--resolve", help="Resolve conflicts: ours, theirs, edit, ai, or ask"),
    ] = "",
+   all_ready: Annotated [
+      bool,
+      typer.Option ("--all", help="Integrate every ready feature, one after another"),
+   ] = False,
    keep: Annotated [bool, typer.Option ("--keep", help="Keep the feature worktree and branch")] = False,
    skip_checks: Annotated [bool, typer.Option ("--skip-checks", help="Explicitly bypass checks")] = False,
    approve: Annotated [
@@ -60,8 +64,8 @@ def done (
 ):
    """Validate and integrate exactly one managed feature."""
 
-   git.require ()
-   if not keep:
+   inside = git.succeeds ("rev-parse", "--git-dir")
+   if inside and not keep:
       _warn_if_standing_here ()
 
    actor_id = runtime.options.actor_id
@@ -75,7 +79,15 @@ def done (
       console.fatal (f"Unsupported conflict resolution: {resolve}")
    resolution = "resolve" if resolve == "ai" else resolve
 
+   if all_ready:
+      return _promote_every (
+         actor, yes=yes, dry_run=dry_run, skip_checks=skip_checks,
+         strategy=strategy, resolve=resolution,
+      )
+
    group = _group (feature)
+   if not group and not inside:
+      git.require ()
    if group:
       return _promote (
          group, actor, yes=yes, dry_run=dry_run,
@@ -130,6 +142,77 @@ def _warn_if_standing_here ():
       if here == path or path in here.parents:
          console.warn (f"You are standing in {path}, which this removes; run from the repository root")
          return
+
+
+def _promote_every (
+   actor: str,
+   *,
+   yes: bool,
+   dry_run: bool,
+   skip_checks: bool,
+   strategy: str,
+   resolve: str,
+):
+   """Integrate every ready feature in turn, approved once.
+
+   Each feature still builds its own candidate against the trunk of the moment and
+   lands before the next one starts, so this automates the loop rather than stacking
+   unvalidated work into a single merge. The run stops at the first failure and says
+   what landed, because continuing past one would bury it.
+   """
+
+   value = workspace.here ()
+   if not value:
+      console.fatal ("Not a git repository, and no repositories below this directory")
+
+   entries = roster.collect (value)
+   ready = roster.promotable (entries)
+   skipped = [ entry for entry in entries if entry not in ready ]
+   if not ready:
+      console.fatal (f"Nothing is ready to integrate in {value ['name']}")
+
+   console.header (f"Integrate {len (ready)} feature(s) · {value ['name']}")
+   console.table (
+      [ "Feature", "Repositories", "Age" ],
+      [ [ str (e ["name"]), " ".join (e ["repositories"]), str (e ["age"]) ] for e in ready ],
+   )
+   for entry in skipped:
+      console.muted (f"  skipping {entry ['name']} ({entry ['condition']})")
+
+   data = {
+      "landed": [],
+      "ready": [ str (entry ["name"]) for entry in ready ],
+      "skipped": [ str (entry ["name"]) for entry in skipped ],
+      "workspace": value ["name"],
+   }
+   if dry_run:
+      result.emit ("imp.promote-all.v1", "imp done", data, json_output=runtime.options.json)
+      return data
+   if not yes and not console.confirm (f"Integrate all {len (ready)} in this order?"):
+      raise typer.Exit (0)
+
+   for entry in ready:
+      group = {
+         "name": str (entry ["name"]),
+         "members": roster.ordered_members (value, entry),
+         "workspace": value,
+      }
+      try:
+         _promote (
+            group, actor, yes=True, dry_run=False,
+            skip_checks=skip_checks, strategy=strategy, resolve=resolve,
+         )
+      except (state.StateError, ValueError, typer.Exit) as error:
+         console.err (f"Stopped at {entry ['name']}: {error}")
+         break
+      data ["landed"].append (str (entry ["name"]))
+
+   if runtime.options.json:
+      result.emit ("imp.promote-all.v1", "imp done", data, json_output=True)
+      return data
+   console.success (f"Integrated {len (data ['landed'])} of {len (ready)}")
+
+   return data
 
 
 def _group (feature: str) -> dict | None:

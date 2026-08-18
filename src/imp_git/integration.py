@@ -191,6 +191,13 @@ def _resurrected (base_oid: str, target_oid: str, candidate_oid: str) -> list [s
 
 
 def _target_oids (target: str) -> tuple [str, str, str]:
+   """Resolve the commit a candidate should be built on.
+
+   Building on the remote tip while local is ahead would discard the local commits,
+   so local wins whenever it merely leads the remote, which is the ordinary state
+   after integrating and before pushing. Only a genuine divergence is refused.
+   """
+
    local_oid = git.rev_parse (target)
    if not local_oid:
       raise state.StateError (f"Cannot resolve integration target: {target}")
@@ -199,10 +206,14 @@ def _target_oids (target: str) -> tuple [str, str, str]:
    if git.remote_exists ():
       git.fetch (remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}")
       remote_oid = git.rev_parse (remote_ref)
-   target_oid = remote_oid or local_oid
-   if not git.is_merged (local_oid, target_oid):
-      raise state.StateError (f"Local {target} has commits not present in {remote_ref}")
-   return local_oid, remote_oid, target_oid
+   if not remote_oid or git.is_merged (remote_oid, local_oid):
+      return local_oid, remote_oid, local_oid
+   if git.is_merged (local_oid, remote_oid):
+      return local_oid, remote_oid, remote_oid
+
+   raise state.StateError (
+      f"Local {target} and {remote_ref} have diverged; reconcile them before integrating"
+   )
 
 
 def target_state (target: str) -> tuple [str, str, str]:

@@ -25,6 +25,8 @@ imp commit
 
 imp review
 imp done
+
+imp done --all
 ```
 
 Omitting an existing feature opens a picker. Review asks whether to mark the exact candidate after displaying it.
