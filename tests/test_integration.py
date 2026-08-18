@@ -512,3 +512,19 @@ class TestReleaseTags:
 
       assert git.tag_exists ("v1.1.0") is False
       assert source_release._latest_version (source_release._release_tags ()) == "1.1.0"
+
+
+class TestReleaseChangelog:
+   """The changelog covers the work, not the branch plumbing around it."""
+
+   def test_merge_commits_are_left_out (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
+      git.tag ("v1.0.0")
+      git_run (repo, "checkout", "-b", "topic")
+      commit_file (repo, "topic.txt", "x\n", "feat: add the topic")
+      git_run (repo, "checkout", "main")
+      git_run (repo, "merge", "--no-ff", "-m", "Merge branch 'topic' into main", "topic")
+
+      _tag, entry, _notes = source_release._entry (git.rev_parse ("main"), source_release._release_tags ())
+
+      assert entry == "- Added the topic"

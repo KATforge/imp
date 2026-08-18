@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed release changelog bullets lowercasing the first letter of whatever followed the verb, which mangled
+  ticket references and acronyms into `sPK-68493`. Only an ordinary capitalized word is lowered now
+- Fixed merge commits becoming changelog entries, so a release no longer lists the branch plumbing around
+  the work as though it were the work
+
 - Fixed `imp release` refusing to run when any local tag disagrees with the one origin published. It fetched
   every tag to read version names, and `git fetch --tags` is all-or-nothing, so one legacy tag from a re-cut
   release blocked every future release. Version discovery now takes the highest of the local and published

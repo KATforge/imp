@@ -103,6 +103,18 @@ class TestChangelogFromCommits:
       result = changelog_from_commits ("abc1234 feat: add feature")
       assert result == "- Added feature"
 
+   def test_an_identifier_keeps_its_case (self):
+      result = changelog_from_commits ("fix: SPK-68493 store page text")
+      assert result == "- Fixed SPK-68493 store page text"
+
+   def test_an_ordinary_leading_word_is_lowercased (self):
+      result = changelog_from_commits ("refactor: Trim verbose comments")
+      assert result == "- Changed trim verbose comments"
+
+   def test_an_acronym_survives_the_feature_verb_strip (self):
+      result = changelog_from_commits ("feat: add SPK-1234 support for redirects")
+      assert result == "- Added SPK-1234 support for redirects"
+
    def test_empty (self):
       result = changelog_from_commits ("")
       assert result == ""

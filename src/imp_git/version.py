@@ -33,6 +33,15 @@ _TAIL        = re.compile (
 def _capitalize (text: str) -> str:
    return text [0].upper () + text [1:] if len (text) > 1 else text
 
+def _lower_first (text: str) -> str:
+   """Lowercase a leading ordinary word, leaving acronyms and identifiers alone."""
+
+   head = text.split (" ", 1) [0]
+   if not head [:1].isupper () or head [1:] != head [1:].lower ():
+      return text
+
+   return text [0].lower () + text [1:]
+
 def normalize_line (text: str) -> str:
    """One changelog bullet, normalized to the house shape: no commit-type
    prefix, no parenthetical aside, no explanatory tail, one sentence, no
@@ -139,13 +148,13 @@ def changelog_from_commits (subjects: str) -> str:
 
       if kind == "feat":
          desc = re.sub (r"^(?:add|added)\s+", "", desc, flags=re.I)
-         entries.append (f"- Added {desc [0].lower () + desc [1:] if desc else 'the change'}")
+         entries.append (f"- Added {_lower_first (desc) if desc else 'the change'}")
       elif kind == "fix":
          desc = re.sub (r"^(?:fix|fixed|prevent|prevented)\s+", "", desc, flags=re.I)
-         entries.append (f"- Fixed {desc [0].lower () + desc [1:] if desc else 'the issue'}")
+         entries.append (f"- Fixed {_lower_first (desc) if desc else 'the issue'}")
       else:
          desc = re.sub (r"^(?:change|changed|update|updated)\s+", "", desc, flags=re.I)
-         entries.append (f"- Changed {desc [0].lower () + desc [1:] if desc else 'the implementation'}")
+         entries.append (f"- Changed {_lower_first (desc) if desc else 'the implementation'}")
 
    return "\n".join (entries)
 

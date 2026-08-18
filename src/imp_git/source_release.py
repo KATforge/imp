@@ -88,7 +88,7 @@ def _range_tag (names: list [str]) -> tuple [str, list [str]]:
 def _entry (source_oid: str, names: list [str]) -> tuple [str, str, list [str]]:
    tag, warnings = _range_tag (names)
    range_value = f"{tag}..{source_oid}" if tag else source_oid
-   subjects = git.capture ("log", "--format=%h %s", range_value)
+   subjects = git.capture ("log", "--no-merges", "--format=%h %s", range_value)
 
    return tag, version.changelog_from_commits (subjects) or "- Changed the source release", warnings
 
