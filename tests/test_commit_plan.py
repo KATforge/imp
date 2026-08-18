@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from imp_git import ai, commit_plan, git, identity, plans, prompts, state
+from imp_git import ai, commit_plan, git, identity, prompts, state
 from tests.conftest import commit_count, git_run
 
 
@@ -158,17 +158,6 @@ class TestPlans:
 
       assert git.rev_parse ("HEAD") == before
 
-   def test_mid_apply_change_keeps_the_plan_stale (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("planned\n")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
-      values = iter ([ plan ["fingerprint"], "changed", "changed" ])
-      monkeypatch.setattr (commit_plan.fingerprint, "repository", lambda: next (values))
-
-      with pytest.raises (state.StateError, match="changed while commits were prepared"):
-         commit_plan.apply (plan, _actor ())
-
-      assert plans.load (plan ["plan_id"]) ["state"] == "stale"
 
    def test_apply_rejects_older_commit_plan_names (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("planned\n")

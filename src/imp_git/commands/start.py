@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, features, git, identity, plans, result, runtime, spans, state, workspace
+from imp_git import approval, console, features, git, identity, result, runtime, spans, state, workspace
 
 
 def _show (plan: dict):
@@ -30,8 +30,6 @@ def start (
       list [str] | None,
       typer.Option ("--repo", help="Workspace repository to span; repeat as needed"),
    ] = None,
-   plan_only: Annotated [bool, typer.Option ("--plan", help="Persist the plan without applying it")] = False,
-   apply: Annotated [str, typer.Option ("--apply", help="Apply one saved plan")] = "",
 ):
    """Create and claim an isolated feature worktree."""
 
@@ -40,7 +38,6 @@ def start (
    actor_id = runtime.options.actor_id
    dry_run = runtime.options.dry_run
    json_output = runtime.options.json
-   no_input = runtime.options.no_input
    yes = runtime.options.yes
 
 
@@ -48,9 +45,6 @@ def start (
       return _span (name, repos, actor_id=identity.actor (actor_id), base=base, target=target, dry_run=dry_run)
 
    try:
-      if apply:
-         plan = plans.resolve ("start", "" if apply == "__pick__" else apply)
-      else:
          if not name:
             raise state.StateError ("Feature name is required")
          plan = features.plan_start (
@@ -60,7 +54,6 @@ def start (
             path=path,
             task=task,
             target=target,
-            persist=not dry_run,
          )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
@@ -79,11 +72,9 @@ def start (
       apply=features.apply_start,
       show=_show,
       success=_success,
-      plan_only=plan_only,
       dry_run=dry_run,
       yes=yes,
       json_output=json_output,
-      no_input=no_input,
       wrap="feature",
    )
 
@@ -110,7 +101,7 @@ def _span (
       for alias, repository in members:
          with spans.inside (repository):
             plan = features.plan_start (
-               name, actor_id=actor_id, base=base, target=target, persist=not dry_run,
+               name, actor_id=actor_id, base=base, target=target,
             )
             created.append ({ "alias": alias, **features.apply_start (plan) })
       span = spans.record (value, name, members, actor_id)

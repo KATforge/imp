@@ -288,7 +288,7 @@ def plan_start (
    ]
    items.extend ({ "action": "share", "path": value } for value in descriptor ["share"])
    items.extend ({ "action": "setup", **value } for value in descriptor ["setup"])
-   return plans.create (
+   return plans.build (
       "start",
       str (descriptor ["name"]),
       scope={ "repository": git.repo_name (), "feature": descriptor ["feature_id"] },
@@ -296,7 +296,6 @@ def plan_start (
       fingerprint=fingerprint.values (bound),
       payload_schema="imp.start-plan.v1",
       payload=descriptor,
-      persist=persist,
    )
 
 
@@ -526,7 +525,7 @@ def plan_remove (
       blockers.append (f"Worktree record is {feature.get ('worktree_state')}")
    if delete_branch and not git.is_merged (str (feature ["branch"]), str (feature ["target"])):
       blockers.append (f"Branch is not merged into {feature ['target']}")
-   return plans.create (
+   return plans.build (
       "worktree-remove",
       str (feature ["name"]),
       scope={ "feature_id": feature ["feature_id"] },
@@ -543,7 +542,6 @@ def plan_remove (
          "feature_id": feature ["feature_id"],
       },
       blockers=blockers,
-      persist=persist,
    )
 
 
@@ -734,16 +732,3 @@ def discard (orphan: dict [str, Any]):
          raise state.StateError (f"Orphaned branch is not merged; resolve it explicitly: {branch}")
 
 
-def stale_start_plans () -> list [dict [str, Any]]:
-   """List ready feature-start plans whose reserved branch or path exists."""
-
-   values = []
-   for plan in plans.all ("start"):
-      if plan.get ("state") != "ready":
-         continue
-      payload = plan.get ("payload", {})
-      branch = str (payload.get ("branch", ""))
-      path = str (payload.get ("path", ""))
-      if (branch and git.ref_exists (branch)) or (path and Path (path).exists ()):
-         values.append (plan)
-   return values

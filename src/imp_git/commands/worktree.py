@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, features, git, identity, plans, result, runtime, spans, state, workspace
+from imp_git import console, features, git, identity, result, runtime, spans, state, workspace
 from imp_git.cli import SortedCommand
 
 worktree = typer.Typer (
@@ -142,8 +142,6 @@ def remove (
    name: Annotated [str, typer.Argument (help="Managed feature name or ID")] = "",
    delete_branch: Annotated [bool, typer.Option ("--delete-branch", "-d", help="Delete a merged branch too")] = False,
    unmanaged: Annotated [bool, typer.Option ("--unmanaged", help="Remove a worktree with no feature record")] = False,
-   plan_only: Annotated [bool, typer.Option ("--plan", help="Persist without applying")] = False,
-   apply: Annotated [str, typer.Option ("--apply", help="Apply a saved plan")] = "",
 ):
    """Remove one clean worktree. Managed worktrees go through an exact plan."""
 
@@ -152,26 +150,18 @@ def remove (
 
    actor = identity.actor (actor_id)
    if unmanaged:
-      return _remove_unmanaged (name, delete_branch, plan_only, apply, yes)
+      return _remove_unmanaged (name, delete_branch, yes)
    try:
-      if apply:
-         plan = plans.resolve ("worktree-remove", "" if apply == "__pick__" else apply)
-      else:
-         feature = features.resolve (
-            name,
-            states={ "active", "awaiting-merge" },
-            title="Select worktree to remove",
-         )
-         plan = features.plan_remove (
-            feature,
-            actor_id=actor,
-            delete_branch=delete_branch,
-            persist=not runtime.options.dry_run,
-         )
+      feature = features.resolve (
+         name,
+         states={ "active", "awaiting-merge" },
+         title="Select worktree to remove",
+      )
+      plan = features.plan_remove (feature, actor_id=actor, delete_branch=delete_branch)
    except state.StateError as error:
       console.fatal (str (error))
    _show_remove (plan)
-   if plan_only or runtime.options.dry_run:
+   if runtime.options.dry_run:
       return plan
    if plan ["state"] != "ready":
       console.fatal ("Worktree removal plan is blocked")
@@ -186,10 +176,8 @@ def remove (
    return data
 
 
-def _remove_unmanaged (name: str, delete_branch: bool, plan_only: bool, apply: str, yes: bool):
+def _remove_unmanaged (name: str, delete_branch: bool, yes: bool):
    git.require ()
-   if plan_only or apply:
-      console.fatal ("Unmanaged worktrees do not support Imp plans")
    if not name:
       console.fatal ("Worktree path, branch, or directory name is required")
    resolved = str (Path (name).expanduser ().resolve ())
@@ -245,11 +233,6 @@ def prune (
    missing = [feature for feature in features.all () if feature ["worktree_state"] == "missing"]
    for feature in missing:
       console.warn (f"Retained missing feature record: {feature ['name']}")
-   failed_plans = []
-   for plan in features.stale_start_plans ():
-      plans.mark (plan, "failed", failed_at=state.now ())
-      failed_plans.append (str (plan ["plan_id"]))
-      console.warn (f"Marked stale ready start plan failed: {plan ['plan_id']}")
    found = features.orphans ()
    adopted = []
    removed = []
@@ -274,7 +257,6 @@ def prune (
    console.success ("Reconciled worktree records")
    return {
       "adopted": adopted,
-      "failed_plans": failed_plans,
       "missing_features": [feature ["feature_id"] for feature in missing],
       "orphans": found,
       "removed": removed,

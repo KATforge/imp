@@ -87,21 +87,14 @@ def _refresh_lockfiles (root: Path, manifests: list [Path]) -> tuple [list [dict
    return commands, hashes
 
 
-def _source (
-   source_plan_id: str,
-) -> tuple [str, str, str, dict [str, Any] | None]:
-   if not source_plan_id:
-      branch = git.branch ()
-      if not branch:
-         raise state.StateError ("imp release requires a branch or --source-plan")
-      return git.rev_parse (branch), branch, git.rev_parse (branch), None
-   source_plan = plans.load (source_plan_id)
-   if source_plan.get ("payload_schema") != "imp.done-plan.v1":
-      raise state.StateError ("--source-plan must name an imp done plan")
-   payload = source_plan ["payload"]
-   if source_plan.get ("state") != "ready":
-      raise state.StateError ("Source integration plan is not ready")
-   return payload ["candidate_oid"], payload ["target_ref"], payload ["local_target_oid"], source_plan
+def _source () -> tuple [str, str, str]:
+   target = git.base_branch ()
+   if not git.ref_exists (target):
+      raise state.StateError (f"No trunk branch to release from: {target}")
+   source_oid = git.rev_parse (target)
+   public = git.rev_parse (f"origin/{target}") if git.remote_exists () else ""
+
+   return source_oid, target, public
 
 
 def plan_release (
@@ -109,17 +102,16 @@ def plan_release (
    level: str = "patch",
    prerelease: bool = False,
    set_version: str = "",
-   source_plan_id: str = "",
    local: bool = False,
    persist: bool = True,
 ) -> dict [str, Any]:
    if level not in { "patch", "minor", "major" }:
       raise state.StateError (f"Unsupported version level: {level}")
-   if not source_plan_id and not git.is_clean ():
+   if not git.is_clean ():
       raise state.StateError (_DIRTY_SOURCE)
    if git.remote_exists ():
       git.fetch (tags=True)
-   source_oid, target_ref, public_target_oid, source_plan = _source (source_plan_id)
+   source_oid, target_ref, public_target_oid = _source ()
    current = _latest_version ()
    base_version = set_version or version.bump (current, level)
    if version.base_tuple (base_version) is None or "-" in base_version:
@@ -152,7 +144,6 @@ def plan_release (
       "changelog": entry,
       "commit_oid": commit_oid,
       "commit_tree_oid": git.tree (commit_oid),
-      "depends_on": [source_plan_id] if source_plan_id else [],
       "diff": diff,
       "github_release": not local and gh.available () and git.remote_exists (),
       "level": level,
@@ -165,8 +156,6 @@ def plan_release (
       "push": not local and git.remote_exists (),
       "repository": git.repo_name (),
       "source_oid": source_oid,
-      "source_plan_fingerprint": source_plan.get ("fingerprint") if source_plan else "",
-      "source_plan_id": source_plan_id,
       "local": local,
       "tag": tag,
       "target_ref": target_ref,
@@ -174,14 +163,13 @@ def plan_release (
    }
    plan_fingerprint = fingerprint.values ({
       "source_oid": source_oid,
-      "source_plan_fingerprint": payload ["source_plan_fingerprint"],
       "tag": tag,
       "target_ref": target_ref,
       "version": new_version,
       "prerelease": prerelease,
       "local": local,
    })
-   return plans.create (
+   return plans.build (
       "release", new_version,
       scope={ "repository": git.repo_name (), "target": target_ref },
       items=[
@@ -193,7 +181,6 @@ def plan_release (
       fingerprint=plan_fingerprint,
       payload_schema="imp.release-plan.v1",
       payload=payload,
-      persist=persist,
    )
 
 
@@ -212,10 +199,6 @@ def _validate (plan: dict [str, Any]) -> dict [str, Any]:
       raise state.StateError (f"Release tag points to another commit: {payload ['tag']}")
    if target_oid == payload ["source_oid"] and payload ["tag"] in git.remote_tags ():
       raise state.StateError (f"Release tag already exists remotely: {payload ['tag']}")
-   if payload ["source_plan_id"]:
-      source_plan = plans.load (payload ["source_plan_id"])
-      if source_plan.get ("fingerprint") != payload ["source_plan_fingerprint"]:
-         raise state.StateError ("Source integration plan changed")
    if not validate.publishable (str (payload ["changelog"])):
       raise state.StateError ("Release notes contain AI attribution or an actor ID")
    return payload
@@ -231,8 +214,7 @@ def _recovery (plan: dict [str, Any], completed: list [str], error: Exception):
          "completed": completed,
          "created_at": state.now (),
          "error": str (error),
-         "next": f"imp release --apply {plan ['plan_id']} --yes",
-         "plan_id": plan ["plan_id"],
+         "next": "imp release",
          "recovery_id": recovery_id,
       },
    )
@@ -290,7 +272,6 @@ def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
             "release_url": release_url,
             "manifest_versions": payload ["manifest_versions"],
             "updated_lockfiles": sorted (payload ["lockfile_hashes"]),
-            "plan_id": plan ["plan_id"],
             "prerelease": bool (payload ["prerelease"]),
          }
          state.atomic_write (
@@ -298,7 +279,7 @@ def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
             { "schema": "imp.source-release.v2", **receipt, "created_at": state.now () },
          )
          plans.mark (plan, "applied", applied_at=state.now ())
-         state.clear_recovery (str (plan ["plan_id"]))
+         state.clear_recovery (str (plan ["label"]))
          return receipt
    except Exception as error:
       _recovery (plan, completed, error)

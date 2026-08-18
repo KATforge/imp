@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, git, identity, plans, runtime, state
+from imp_git import approval, console, git, identity, runtime, state
 from imp_git import fleet as fleet_mod
 
 
@@ -34,8 +34,6 @@ def _show (plan: dict):
 def fleet (
    into: Annotated [str, typer.Option ("--into", help="Integration target; defaults to repository trunk")] = "",
    strategy: Annotated [str, typer.Option ("--strategy", help="preserve, squash, or merge")] = "squash",
-   plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact fleet only")] = False,
-   apply: Annotated [str, typer.Option ("--apply", help="Apply one saved fleet plan")] = "",
 ):
    """Consolidate every managed feature in one repository."""
 
@@ -48,14 +46,10 @@ def fleet (
 
    actor = identity.actor (actor_id)
    try:
-      if apply:
-         plan = fleet_mod.refresh (plans.resolve ("fleet", "" if apply == "__pick__" else apply))
-      else:
          plan = fleet_mod.plan_fleet (
             actor_id=actor,
             into=into,
             strategy=strategy,
-            persist=not dry_run,
          )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
@@ -69,7 +63,6 @@ def fleet (
       apply=lambda value: fleet_mod.apply_fleet (value, actor),
       show=_show,
       success=lambda data: console.success (f"Fleet completed on {data ['target']}"),
-      plan_only=plan_only,
       dry_run=dry_run,
       yes=yes,
       json_output=json_output,

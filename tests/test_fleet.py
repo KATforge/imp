@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from imp_git import features, fleet, git, identity, integration, plans
+from imp_git import features, fleet, git, identity, integration
 from imp_git import repo as repo_mod
 from tests.conftest import commit_file, git_run
 
@@ -21,8 +21,8 @@ def test_local_fleet_plans_sequential_candidates_and_cleans_every_feature (repo)
    second = _feature (repo, "second")
 
    plan = fleet.plan_fleet (actor_id=ACTOR)
-   first_plan = plans.load (plan ["payload"] ["children"] [0] ["plan_id"])
-   second_plan = plans.load (plan ["payload"] ["children"] [1] ["plan_id"])
+   first_plan = plan ["payload"] ["children"] [0] ["plan"]
+   second_plan = plan ["payload"] ["children"] [1] ["plan"]
 
    assert plan ["state"] == "ready"
    assert first_plan ["payload"] ["target_oid"] == plan ["payload"] ["start_oid"]
@@ -60,7 +60,7 @@ def test_agent_fleet_becomes_ready_after_exact_member_review (repo):
    features.release (feature, agent)
 
    plan = fleet.plan_fleet (actor_id=ACTOR)
-   child = plans.load (plan ["payload"] ["children"] [0] ["plan_id"])
+   child = plan ["payload"] ["children"] [0] ["plan"]
 
    assert plan ["state"] == "blocked"
    integration.mark_reviewed (

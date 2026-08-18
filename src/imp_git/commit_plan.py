@@ -207,7 +207,7 @@ def create (
       }
       for group in groups
    ]
-   return plans.create (
+   return plans.build (
       "commit",
       label,
       scope={ "branch": git.branch (), "feature_id": payload ["feature_id"], "mode": mode },
@@ -216,7 +216,6 @@ def create (
       payload_schema="imp.commit-plan.v2",
       payload=payload,
       warnings=warnings,
-      persist=persist,
    )
 
 
@@ -322,5 +321,4 @@ def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
       "branch": payload ["branch"],
       "commits": commits,
       "feature_id": payload ["feature_id"],
-      "plan_id": plan ["plan_id"],
    }

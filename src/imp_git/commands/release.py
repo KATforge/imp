@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import approval, console, git, plans, runtime, source_release, state
+from imp_git import approval, console, git, runtime, source_release, state
 
 
 def _level (patch: bool, minor: bool, major: bool) -> str:
@@ -41,8 +41,6 @@ def release (
    major: Annotated [bool, typer.Option ("--major", help="Bump major version")] = False,
    set_version: Annotated [str, typer.Option ("--version", help="Use an explicit semantic version")] = "",
    local: Annotated [bool, typer.Option ("--local", help="Commit and tag without pushing or publishing")] = False,
-   plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact release candidate only")] = False,
-   apply: Annotated [str, typer.Option ("--apply", help="Apply one saved source-release plan")] = "",
    prerelease: Annotated [bool, typer.Option ("--prerelease", help="Publish the next release candidate")] = False,
    rc: Annotated [bool, typer.Option ("--rc", hidden=True)] = False,
 ):
@@ -56,9 +54,9 @@ def release (
 
    prerelease = prerelease or rc
    try:
-      plan = plans.resolve ("release", "" if apply == "__pick__" else apply) if apply else source_release.plan_release (
+      plan = source_release.plan_release (
          level=_level (patch, minor, major), prerelease=prerelease, set_version=set_version,
-         local=local, persist=not dry_run,
+         local=local,
       )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
@@ -72,7 +70,6 @@ def release (
       apply=source_release.apply_release,
       show=_show,
       success=lambda data: console.success (f"Released {data ['tag']}"),
-      plan_only=plan_only,
       dry_run=dry_run,
       yes=yes,
       json_output=json_output,

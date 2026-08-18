@@ -60,7 +60,6 @@ class TestCommandsRegistered:
    def test_commit (self):
       result = self._help ("commit")
       assert result.exit_code == 0
-      assert "--plan" in self._options ("commit")
 
    def test_worktree (self):
       result = self._help ("worktree")

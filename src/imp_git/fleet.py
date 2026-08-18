@@ -79,7 +79,6 @@ def plan_fleet (
                pr=pr,
                skip_checks=not pr,
                strategy=strategy,
-               persist=persist,
                resolved_target=resolved,
                allow_configured_push=False,
             )
@@ -90,7 +89,7 @@ def plan_fleet (
             "branch": feature ["branch"],
             "feature_id": feature ["feature_id"],
             "name": feature ["name"],
-            "plan_id": child ["plan_id"],
+            "plan": child,
          })
          action = "pull_request" if pr else "integrate_and_cleanup"
          items.append ({ "action": action, "feature": feature ["name"], "target": target })
@@ -120,7 +119,7 @@ def plan_fleet (
       "start_oid": start_oid,
       "target_ref": target,
    }
-   return plans.create (
+   return plans.build (
       "fleet", git.repo_name (),
       scope={ "repository": git.repo_name () },
       items=items,
@@ -129,7 +128,6 @@ def plan_fleet (
       fingerprint=fingerprint.values (bound),
       payload_schema="imp.fleet-plan.v1",
       payload=payload,
-      persist=persist,
    )
 
 
@@ -142,7 +140,7 @@ def refresh (plan: dict [str, Any]) -> dict [str, Any]:
       return plan
    blockers = list (plan ["payload"].get ("structural_blockers", []))
    for child in plan ["payload"].get ("children", []):
-      child_plan = plans.load (str (child ["plan_id"]))
+      child_plan = child ["plan"]
       if child_plan.get ("state") in { "ready", "applied" }:
          continue
       values = child_plan.get ("blockers", []) or [ f"plan is {child_plan.get ('state')}" ]
@@ -157,12 +155,12 @@ def _recovery (plan: dict [str, Any], completed: list [str], error: Exception):
       state.root () / "recovery" / f"{identity.key (recovery_id)}.json",
       {
          "schema": "imp.recovery.v1",
+         "label": str (plan ["label"]),
          "command": "imp fleet",
          "completed": completed,
          "created_at": state.now (),
          "error": str (error),
-         "next": f"imp fleet --apply {plan ['plan_id']} --yes",
-         "plan_id": plan ["plan_id"],
+         "next": "imp fleet",
          "recovery_id": recovery_id,
       },
    )
@@ -187,14 +185,13 @@ def apply_fleet (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
             if failed:
                raise state.StateError (f"Fleet check failed: {failed [0]['name']}")
          for child in payload ["children"]:
-            child_plan = plans.load (str (child ["plan_id"]))
+            child_plan = child ["plan"]
             if child_plan.get ("state") == "applied":
                completed.append (str (child ["feature_id"]))
                continue
             receipts.append (integration.apply_done (child_plan, actor_id))
             completed.append (str (child ["feature_id"]))
          plans.mark (current, "applied", applied_at=state.now ())
-         state.clear_recovery (str (current ["plan_id"]))
    except Exception as error:
       _recovery (current, completed, error)
       raise

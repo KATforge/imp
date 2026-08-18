@@ -9,7 +9,6 @@ from imp_git import (
    features,
    git,
    identity,
-   plans,
    repo,
    result,
    runtime,
@@ -71,22 +70,19 @@ def _planned (
    actor: str,
    all_changes: bool,
    amend: bool,
-   apply: str,
    dry_run: bool,
    exclude: list [str] | None,
    json_output: bool,
-   plan_only: bool,
    whisper: str,
    yes: bool,
 ) -> dict:
    try:
-      plan = plans.resolve ("commit", "" if apply == "__pick__" else apply) if apply else commit_plan.create (
+      plan = commit_plan.create (
          actor_id=actor,
          all_changes=all_changes,
          amend=amend,
          exclude=exclude,
          whisper=whisper,
-         persist=not dry_run,
       )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
@@ -108,7 +104,6 @@ def _planned (
       apply=apply_plan,
       show=_show,
       success=success,
-      plan_only=plan_only,
       dry_run=dry_run,
       yes=yes,
       json_output=json_output,
@@ -120,8 +115,6 @@ def commit (
    exclude: Annotated [list [str] | None, typer.Option ("--exclude", "-E", help="Exclude matching paths")] = None,
    whisper: Annotated [str, typer.Option ("--whisper", "-w", help="Context for commit planning")] = "",
    message: Annotated [str, typer.Option ("--message", "-m", help="Commit staged changes without AI")] = "",
-   plan_only: Annotated [bool, typer.Option ("--plan", help="Persist the plan without applying it")] = False,
-   apply: Annotated [str, typer.Option ("--apply", help="Apply one saved commit plan")] = "",
    amend: Annotated [bool, typer.Option ("--amend", help="Replace the last unpublished commit")] = False,
    fixup: Annotated [str, typer.Option ("--fixup", help="Create a fixup commit for an unpublished ref")] = "",
 ):
@@ -137,22 +130,16 @@ def commit (
    if amend and fixup:
       console.fatal ("--amend and --fixup are mutually exclusive")
    if fixup:
-      if apply or plan_only or all or message:
-         console.fatal ("--fixup cannot be combined with other commit modes")
       return _fixup (fixup, actor, json_output)
    if message:
-      if apply or plan_only or all:
-         console.fatal ("imp commit -m cannot be combined with planning options")
       return _manual (message, actor, amend, json_output)
    return _planned (
       actor=actor,
       all_changes=all,
       amend=amend,
-      apply=apply,
       dry_run=dry_run,
       exclude=exclude,
       json_output=json_output,
-      plan_only=plan_only,
       whisper=whisper,
       yes=yes,
    )

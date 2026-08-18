@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp_git import features, git, plans, runtime, state
+from imp_git import features, git, runtime, state
 from imp_git.commands import start as start_cmd
 from imp_git.commands import worktree as worktree_cmd
 from tests.conftest import commit_file, git_run
@@ -227,22 +227,6 @@ class TestPruneReconciliation:
          features.adopt (orphan, "actor:human:test")
 
       assert not (managed / "adopt-failure").exists ()
-
-   def test_stale_ready_start_plan_is_marked_failed (self, repo_with_origin, tmp_path):
-      plan = features.plan_start (
-         "ghost",
-         actor_id="actor:human:test",
-         path=str (tmp_path / "ghost-wt"),
-      )
-      payload = plan ["payload"]
-      git_run (
-         repo_with_origin,
-         "worktree", "add", "-b", str (payload ["branch"]), str (payload ["path"]), str (payload ["base:oid"]),
-      )
-
-      worktree_cmd.prune (remove_orphans=True)
-
-      assert plans.load (plan ["plan_id"]) ["state"] == "failed"
 
 
 class TestUnmanagedRemove:

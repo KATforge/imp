@@ -21,12 +21,10 @@ imp start payment-retries --task "Improve failed-payment recovery"
 cd "$(imp worktree path payment-retries)"
 
 # Edit and test.
-imp commit --plan
-imp commit --apply --yes
+imp commit
 
 imp review
-imp done --plan
-imp done --apply --yes
+imp done
 ```
 
 Omitting an existing feature opens a picker. Review asks whether to mark the exact candidate after displaying it.
@@ -42,8 +40,7 @@ The plan creates no branch or worktree. Apply revalidates the exact base before 
 Consolidate every managed feature into the repository's native trunk and remove its clean local worktree and branch:
 
 ```bash
-imp fleet --plan
-imp fleet --apply plan:fleet:repository:1 --yes
+imp fleet
 ```
 
 `--into <branch>` overrides the target. `--strategy squash` is the default. Agent-written members retain Imp's exact human-review gate. Dirty, missing, claimed, or unmanaged feature state blocks the fleet without discarding anything.
@@ -51,8 +48,7 @@ imp fleet --apply plan:fleet:repository:1 --yes
 To preserve feature branches and publish one pull request per feature instead:
 
 ```bash
-imp fleet --pr --plan
-imp fleet --apply plan:fleet:repository:2 --yes
+imp fleet
 ```
 
 ## Direct editing
@@ -86,8 +82,8 @@ Imp resolves supported agent session identities from the environment. Other clie
 ## Automation
 
 ```bash
-imp --json --no-input commit --plan
-imp --json --no-input commit --apply plan:commit:payments:1 --yes
+imp --json --no-input --dry-run commit
+imp --json --no-input --yes commit
 imp active --path
 ```
 

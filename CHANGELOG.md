@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed the plan concept from the surface. `--plan` and `--apply` are gone from every command, along with
+  saved plan files and plan identities. A command builds its candidate, shows exactly what it will do, and asks
+  once; `--yes` answers for you and `--dry-run` stops after the display
+- Removed the `plans/` state directory. The durable half of a candidate was always the commit in the object
+  database; the JSON beside it only cached facts Git can answer
+- Changed interrupted operations to describe themselves. A record now carries the candidate and target it was
+  building, so it expires when that work lands, and its resume hint is the plain command to run again
+
 - Fixed an integration that lands but fails while tidying up leaving a permanent recovery record. The plan is
   now settled the moment the target moves, before the worktree is removed, so cleanup can no longer strand it
 - Changed interrupted operations to expire when their candidate is already reachable from the target. The commit

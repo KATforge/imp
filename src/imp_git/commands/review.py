@@ -130,9 +130,7 @@ def _patch (feature: dict, plan: dict) -> tuple [str, list [str]]:
 
 
 def _plan (feature: dict, actor_id: str) -> tuple [dict, str, list [str]]:
-   plan = integration.current_plan (feature)
-   if not plan or plan.get ("state") in { "applied", "stale" }:
-      plan = integration.plan_done (feature, actor_id=actor_id)
+   plan = integration.plan_done (feature, actor_id=actor_id)
    patch, files = _patch (feature, plan)
    return plan, patch, files
 
@@ -315,7 +313,6 @@ def _managed_review (
       "fix": fixed,
       "mark_available": not dirty,
       "path": str (feature ["path"]),
-      "plan_id": plan ["plan_id"],
       "receipt": receipt,
       "target_ref": payload ["target_ref"],
       "target_oid": payload ["target_oid"],

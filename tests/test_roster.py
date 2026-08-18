@@ -300,36 +300,29 @@ class TestHardening:
 
 class TestInterrupted:
 
-   def _record (self, repository: Path, plan_id: str, plan_state: str = "ready"):
+   def _record (self, repository: Path, candidate: str = "", target: str = "master"):
       previous = Path.cwd ()
       os.chdir (repository)
       try:
-         from imp_git import identity
          from imp_git import state as state_mod
-         root = state_mod.root ()
-         state_mod.atomic_write (root / "plans" / f"{identity.key (plan_id)}.json", {
-            "schema": "imp.plan.v1",
-            "plan_id": plan_id,
-            "operation": "done",
-            "label": "checkout",
-            "state": plan_state,
-            "items": [],
-         })
-         state_mod.atomic_write (root / "recovery" / "recovery--done--checkout--1.json", {
+         state_mod.atomic_write (state_mod.root () / "recovery" / "recovery--done--checkout--1.json", {
             "schema": "imp.recovery.v1",
             "recovery_id": "recovery:done:checkout:1",
             "command": "imp done",
-            "plan_id": plan_id,
+            "label": "checkout",
+            "candidate_oid": candidate,
+            "target_ref": target,
             "completed": [],
             "error": "Target worktree is dirty",
-            "next": f"imp done --apply {plan_id} --yes",
+            "next": "imp done checkout",
             "created_at": "2026-08-17T00:00:00Z",
          })
       finally:
          os.chdir (previous)
 
+
    def test_a_resumable_operation_is_listed (self, demo):
-      self._record (demo / "api", "plan:done:checkout:1")
+      self._record (demo / "api")
       previous = Path.cwd ()
       os.chdir (demo / "api")
       try:
@@ -339,34 +332,37 @@ class TestInterrupted:
       finally:
          os.chdir (previous)
 
-   def test_an_applied_plan_expires_its_record (self, demo):
-      self._record (demo / "api", "plan:done:checkout:1", plan_state="applied")
+
+
+   def test_a_landed_candidate_expires_its_record (self, demo):
+      from imp_git import git
+      from imp_git import state as state_mod
+
       previous = Path.cwd ()
       os.chdir (demo / "api")
       try:
-         from imp_git import state as state_mod
+         landed = git.rev_parse ("master")
+         self._record (demo / "api", candidate=landed, target="master")
 
          assert state_mod.recoveries () == []
-         assert not (state_mod.root () / "recovery" / "recovery--done--checkout--1.json").exists ()
       finally:
          os.chdir (previous)
 
-   def test_a_missing_plan_expires_its_record (self, demo):
-      self._record (demo / "api", "plan:done:checkout:1")
+   def test_an_unlanded_candidate_keeps_its_record (self, demo, tmp_path):
+      from imp_git import state as state_mod
+
       previous = Path.cwd ()
       os.chdir (demo / "api")
       try:
-         from imp_git import identity
-         from imp_git import state as state_mod
-         (state_mod.root () / "plans" / f"{identity.key ('plan:done:checkout:1')}.json").unlink ()
+         self._record (demo / "api", candidate="0" * 40, target="master")
 
-         assert state_mod.recoveries () == []
+         assert [ r ["command"] for r in state_mod.recoveries () ] == [ "imp done" ]
       finally:
          os.chdir (previous)
 
    def test_the_roster_gathers_them_across_repositories (self, demo):
-      self._record (demo / "api", "plan:done:checkout:1")
-      self._record (demo / "web", "plan:done:checkout:1")
+      self._record (demo / "api")
+      self._record (demo / "web")
 
       values = roster.interrupted (workspace.here (str (demo)))
 
@@ -470,49 +466,6 @@ class TestSpentState:
 
       assert not (root / "active.json").exists ()
       assert not (root / "contexts").exists ()
+      assert not (root / "plans").exists ()
 
-   def test_a_spent_plan_expires_once_it_is_old (self, demo):
-      from imp_git import identity
-      from imp_git import state as state_mod
 
-      root = self._repo_state (demo / "api")
-      path = root / "plans" / f"{identity.key ('plan:done:old:1')}.json"
-      state_mod.atomic_write (path, {
-         "schema": "imp.plan.v1", "plan_id": "plan:done:old:1", "operation": "done",
-         "label": "old", "state": "applied", "items": [],
-      })
-      os.utime (path, (0, 0))
-      previous = Path.cwd ()
-      os.chdir (demo / "api")
-      try:
-         state_mod.tidy ()
-      finally:
-         os.chdir (previous)
-
-      assert not path.exists ()
-
-   def test_a_recent_or_pending_plan_survives (self, demo):
-      from imp_git import identity
-      from imp_git import state as state_mod
-
-      root = self._repo_state (demo / "api")
-      fresh = root / "plans" / f"{identity.key ('plan:done:fresh:1')}.json"
-      pending = root / "plans" / f"{identity.key ('plan:done:pending:1')}.json"
-      state_mod.atomic_write (fresh, {
-         "schema": "imp.plan.v1", "plan_id": "plan:done:fresh:1", "operation": "done",
-         "label": "fresh", "state": "applied", "items": [],
-      })
-      state_mod.atomic_write (pending, {
-         "schema": "imp.plan.v1", "plan_id": "plan:done:pending:1", "operation": "done",
-         "label": "pending", "state": "ready", "items": [],
-      })
-      os.utime (pending, (0, 0))
-      previous = Path.cwd ()
-      os.chdir (demo / "api")
-      try:
-         state_mod.tidy ()
-      finally:
-         os.chdir (previous)
-
-      assert fresh.exists ()
-      assert pending.exists ()

@@ -10,7 +10,6 @@ from imp_git import (
    git,
    identity,
    integration,
-   plans,
    result,
    roster,
    runtime,
@@ -59,8 +58,6 @@ def done (
       bool,
       typer.Option ("--approve", help="Approve the exact candidate without review"),
    ] = False,
-   plan_only: Annotated [bool, typer.Option ("--plan", help="Prepare the exact candidate only")] = False,
-   apply: Annotated [str, typer.Option ("--apply", help="Apply one saved plan")] = "",
 ):
    """Validate and integrate exactly one managed feature."""
 
@@ -89,23 +86,13 @@ def done (
    if approve and dry_run:
       console.fatal ("--approve cannot be combined with --dry-run")
    try:
-      if apply:
-         plan = plans.resolve ("done", "" if apply == "__pick__" else apply)
-      else:
-         selected = _feature (feature)
-         reusable = (
-            None
-            if any ([ into, keep, skip_checks, strategy, resolve, dry_run ])
-            else integration.reusable_plan (selected)
-         )
-         plan = reusable or integration.plan_done (
-            selected, actor_id=actor, into=into, keep=keep,
-            skip_checks=skip_checks, strategy=strategy,
-            resolve=resolution, persist=not dry_run,
-         )
+      selected = _feature (feature)
+      plan = integration.plan_done (
+         selected, actor_id=actor, into=into, keep=keep,
+         skip_checks=skip_checks, strategy=strategy, resolve=resolution,
+      )
       if approve:
          integration.approve (plan, actor)
-         plan = plans.load (str (plan ["plan_id"]))
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
 
@@ -119,7 +106,6 @@ def done (
       apply=lambda value: integration.apply_done (value, actor),
       show=_show,
       success=lambda data: console.success ("Feature completed"),
-      plan_only=plan_only,
       dry_run=dry_run,
       yes=yes,
       json_output=json_output,

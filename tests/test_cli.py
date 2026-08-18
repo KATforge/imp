@@ -140,7 +140,7 @@ class TestAutomation:
       git_run (repo, "add", "file.txt")
       monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
 
-      result = runner.invoke (app, [ "--json", "commit", "--plan" ])
+      result = runner.invoke (app, [ "--json", "--dry-run", "commit" ])
 
       assert result.exit_code == 0
       value = json.loads (result.stdout)
@@ -148,17 +148,6 @@ class TestAutomation:
       assert value ["data"] ["plan"] ["state"] == "ready"
       assert commit_count (repo) == 1
 
-   def test_saved_plan_reports_its_identity_and_apply_command (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", "file.txt")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
-
-      result = runner.invoke (app, [ "commit", "--plan" ])
-
-      assert result.exit_code == 0
-      assert "Plan saved: plan:commit:" in result.stdout
-      assert "imp commit --apply plan:commit:" in result.stdout
-      assert "--yes" in result.stdout
 
    def test_ephemeral_plan_reports_no_identity (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("changed\n")
@@ -170,17 +159,6 @@ class TestAutomation:
       assert result.exit_code == 0
       assert "Plan saved" not in result.stdout
 
-   def test_apply_without_a_plan_id_uses_the_newest_ready_plan (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", "file.txt")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
-      assert runner.invoke (app, [ "commit", "--plan" ]).exit_code == 0
-
-      args = main_mod._optional_values ([ "commit", "--apply", "--yes" ])
-      result = runner.invoke (app, [ "--no-input", *args ])
-
-      assert result.exit_code == 0
-      assert git.capture ("log", "-1", "--format=%s").strip () == "fix: update value"
 
    def test_no_input_fails_closed_without_explicit_approval (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("changed\n")
@@ -215,7 +193,7 @@ class TestAutomation:
    def test_json_failure_emits_one_error_envelope (self, tmp_path, monkeypatch):
       monkeypatch.chdir (tmp_path)
 
-      result = runner.invoke (app, [ "--json", "commit", "--plan" ])
+      result = runner.invoke (app, [ "--json", "--dry-run", "commit" ])
 
       assert result.exit_code == 1
       value = json.loads (result.stdout)

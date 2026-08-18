@@ -303,7 +303,7 @@ def plan_done (
          { "action": "push", "ref": feature ["branch"] },
          { "action": "pull_request", "base": target, "head": feature ["branch"] },
       ]
-   return plans.create (
+   return plans.build (
       "done", str (feature ["name"]),
       scope={ "feature_id": feature ["feature_id"], "repository": git.repo_name () },
       items=items,
@@ -312,27 +312,7 @@ def plan_done (
       fingerprint=payload ["state_fingerprint"],
       payload_schema="imp.done-plan.v1",
       payload=payload,
-      persist=persist,
    )
-
-
-def current_plan (feature: dict [str, Any]) -> dict [str, Any] | None:
-   return next ((
-      plan for plan in plans.all ("done")
-      if plan.get ("payload", {}).get ("feature_id") == feature ["feature_id"]
-   ), None)
-
-
-def reusable_plan (feature: dict [str, Any]) -> dict [str, Any] | None:
-   """Return the current exact candidate when its bound source has not moved."""
-
-   plan = current_plan (feature)
-   if not plan or plan.get ("state") not in { "blocked", "ready" }:
-      return None
-   payload = plan.get ("payload", {})
-   if payload.get ("feature_id") != feature ["feature_id"]:
-      return None
-   return plan if _state_fingerprint (payload) == payload.get ("state_fingerprint") else None
 
 
 def _approval_path (feature_id: str) -> Path:
@@ -355,7 +335,6 @@ def approval_current (plan: dict [str, Any]) -> bool:
    receipt = approval_receipt (str (payload ["feature_id"]))
    return bool (
       receipt
-      and receipt.get ("plan_id") == plan ["plan_id"]
       and receipt.get ("target_oid") == payload ["target_oid"]
       and receipt.get ("candidate_oid") == payload ["candidate_oid"]
       and receipt.get ("state_fingerprint") == _state_fingerprint (payload)
@@ -387,7 +366,6 @@ def _acknowledge (
       "feature_id": payload ["feature_id"],
       "files": files,
       "findings": findings,
-      "plan_id": plan ["plan_id"],
       "state_fingerprint": payload ["state_fingerprint"],
       "target_oid": payload ["target_oid"],
       "target_ref": payload ["target_ref"],
@@ -439,11 +417,13 @@ def _record_recovery (plan: dict [str, Any], error: Exception, completed: list [
    record = {
       "schema": "imp.recovery.v1",
       "recovery_id": recovery_id,
+      "candidate_oid": plan ["payload"].get ("candidate_oid", ""),
       "command": "imp done",
-      "plan_id": plan ["plan_id"],
       "completed": completed,
+      "label": str (plan ["label"]),
+      "target_ref": plan ["payload"].get ("target_ref", ""),
       "error": str (error),
-      "next": f"imp done --apply {plan ['plan_id']} --yes",
+      "next": f"imp done {plan ['label']}",
       "created_at": state.now (),
    }
    state.atomic_write (state.root () / "recovery" / f"{identity.key (recovery_id)}.json", record)
@@ -467,7 +447,6 @@ def _direct_receipt (plan: dict [str, Any], payload: dict [str, Any], feature: d
       "candidate_oid": payload ["candidate_oid"],
       "feature_id": feature ["feature_id"],
       "mode": "direct",
-      "plan_id": plan ["plan_id"],
       "pushed": bool (payload ["push"]),
       "target": payload ["target_ref"],
    }
@@ -484,7 +463,7 @@ def _finish_done (plan: dict [str, Any]):
    if plan.get ("state") == "applied":
       return
    plans.mark (plan, "applied", applied_at=state.now ())
-   state.clear_recovery (str (plan ["plan_id"]))
+   state.clear_recovery (str (plan ["label"]))
 
 
 def _already_done (payload: dict [str, Any], feature: dict [str, Any], target_oid: str) -> bool:
@@ -541,7 +520,7 @@ def _apply_pr (
    completed: list [str],
 ) -> dict [str, Any]:
    title = git.subject (str (feature ["branch"])) or f"Complete {feature ['name']}"
-   body = f"Implements `{feature ['feature_id']}`.\n\nPrepared by Imp plan `{plan ['plan_id']}`."
+   body = f"Implements `{feature ['feature_id']}`."
    if not validate.publishable (f"{title}\n{body}"):
       raise state.StateError ("Pull request text contains AI attribution or an actor ID")
    git.push (set_upstream=True, target=str (feature ["branch"]))
@@ -551,7 +530,7 @@ def _apply_pr (
    )
    features.complete (feature, actor_id, keep=True, state_name="awaiting-merge")
    completed.extend ([ "push", "pull_request" ])
-   return { "feature_id": feature ["feature_id"], "mode": "pr", "plan_id": plan ["plan_id"], "url": url }
+   return { "feature_id": feature ["feature_id"], "mode": "pr", "url": url }
 
 
 def _apply_direct (

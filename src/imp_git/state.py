@@ -162,26 +162,17 @@ def read (
    raise StateError (f"Unsupported schema in {path}: {actual}")
 
 
-def _landed (plan: dict [str, Any]) -> bool:
-   """Return whether a plan's candidate is already part of its target.
-
-   An operation can fail while tidying up after the target has moved. The commit
-   is the truth, not the plan's own state, so a candidate already reachable from
-   the target means the work is done however the run ended.
-   """
+def _landed (candidate: str, target: str) -> bool:
+   """Return whether one candidate commit is already part of its target branch."""
 
    from imp_git import git
 
-   payload = plan.get ("payload") or {}
-   candidate = str (payload.get ("candidate_oid") or "")
-   target = str (payload.get ("target_ref") or "")
    if not candidate or not target:
       return False
 
    return git.succeeds ("merge-base", "--is-ancestor", candidate, target)
 
 
-SPENT_AFTER = 24 * 60 * 60
 
 
 def tidy ():
@@ -191,27 +182,16 @@ def tidy ():
    (directory / "active.json").unlink (missing_ok=True)
    shutil.rmtree (directory / "contexts", ignore_errors=True)
 
-   plans_directory = directory / "plans"
-   if not plans_directory.is_dir ():
-      return
-   for path in plans_directory.glob ("*.json"):
-      try:
-         if time.time () - path.stat ().st_mtime < SPENT_AFTER:
-            continue
-         if read (path).get ("state") == "applied":
-            path.unlink (missing_ok=True)
-      except (OSError, StateError):
-         continue
+   shutil.rmtree (directory / "plans", ignore_errors=True)
 
 
 def recoveries () -> list [dict [str, Any]]:
-   """List interrupted operations, expiring records whose plan is settled.
+   """List interrupted operations, dropping any whose work has since landed.
 
-   A record is only useful while its plan can still be resumed. Once the plan is
-   applied or gone, the operation was finished another way and the record is noise.
+   A record carries the candidate it was building and the target it was building
+   onto. When the target already contains that candidate the operation finished,
+   however the run ended, so the record is noise.
    """
-
-   from imp_git import plans
 
    directory = root () / "recovery"
    if not directory.is_dir ():
@@ -224,12 +204,7 @@ def recoveries () -> list [dict [str, Any]]:
       except StateError:
          path.unlink (missing_ok=True)
          continue
-      try:
-         plan = plans.load (str (record ["plan_id"]))
-      except (StateError, ValueError):
-         path.unlink (missing_ok=True)
-         continue
-      if plan.get ("state") == "applied" or _landed (plan):
+      if _landed (record.get ("candidate_oid", ""), record.get ("target_ref", "")):
          path.unlink (missing_ok=True)
          continue
       values.append (record)
@@ -237,8 +212,8 @@ def recoveries () -> list [dict [str, Any]]:
    return sorted (values, key=lambda value: str (value.get ("created_at", "")))
 
 
-def clear_recovery (plan_id: str):
-   """Remove recovery records resolved by a successful plan retry."""
+def clear_recovery (label: str):
+   """Remove recovery records for one operation that has since succeeded."""
 
    directory = root () / "recovery"
    if not directory.is_dir ():
@@ -248,7 +223,7 @@ def clear_recovery (plan_id: str):
          value = read (path)
       except StateError:
          continue
-      if value.get ("plan_id") == plan_id:
+      if value.get ("label") == label:
          path.unlink ()
 
 

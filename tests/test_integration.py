@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp_git import ai, console, features, git, identity, integration, plans, runtime, source_release, state
+from imp_git import ai, console, features, git, identity, integration, runtime, source_release, state
 from imp_git.commands import done as done_cmd
 from imp_git.commands import review as review_cmd
 from tests.conftest import commit_file, git_run
@@ -52,30 +52,8 @@ class TestIntegration:
       with pytest.raises (state.StateError, match="explicit feature"):
          features.resolve ("", title="Select feature to complete")
 
-   def test_omitted_plan_uses_the_newest_ready_plan (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      oldest = integration.plan_done (feature, actor_id=ACTOR, keep=True)
-      monkeypatch.setattr (state, "now", lambda: "2999-01-01T00:00:00Z")
-      newest = integration.plan_done (feature, actor_id=ACTOR, keep=True)
-      assert newest ["plan_id"] != oldest ["plan_id"]
-      monkeypatch.setattr (runtime, "options", runtime.Options ())
-      monkeypatch.setattr (console, "choose", lambda title, values: pytest.fail ("Plans must not prompt"))
 
-      assert plans.resolve ("done") ["plan_id"] == newest ["plan_id"]
 
-   def test_omitted_plan_resolves_without_input (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
-      monkeypatch.setattr (runtime, "options", runtime.Options (no_input=True))
-
-      assert plans.resolve ("done") ["plan_id"] == plan ["plan_id"]
-
-   def test_omitted_plan_fails_closed_without_a_ready_plan (self, repo, tmp_path, monkeypatch):
-      _feature (repo, tmp_path)
-      monkeypatch.setattr (runtime, "options", runtime.Options (no_input=True))
-
-      with pytest.raises (state.StateError, match="No ready imp done plan"):
-         plans.resolve ("done")
 
    def test_failed_checks_leave_target_and_feature_unchanged (self, repo, tmp_path, monkeypatch):
       feature = _feature (repo, tmp_path)
@@ -181,30 +159,26 @@ class TestIntegration:
          files=[ "checkout.txt" ],
          findings={ "blocker": 0, "warning": 0, "note": 0 },
       )
-      reviewed = plans.load (plan ["plan_id"])
+      reviewed = plan
 
       assert receipt ["candidate_oid"] == plan ["payload"] ["candidate_oid"]
       assert receipt ["decision"] == "reviewed"
       assert reviewed ["state"] == "ready"
       assert reviewed ["reviewed_at"] == receipt ["reviewed_at"]
       assert integration.approval_current (reviewed)
-      assert integration.reusable_plan (feature) ["plan_id"] == plan ["plan_id"]
+      assert reviewed ["state"] == "ready"
 
    def test_human_can_explicitly_approve_without_review (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)
       features.release (feature, ACTOR)
       features.claim (feature, identity.resource ("actor", "codex", "session-1"))
 
-      plan = done_cmd.done (
-         feature ["feature_id"],
-         approve=True,
-         plan_only=True)
+      done_cmd.done (feature ["feature_id"], approve=True)
       receipt = integration.approval_receipt (feature ["feature_id"])
 
-      assert plan ["state"] == "ready"
       assert receipt ["decision"] == "approved_without_review"
       assert "reviewed_at" not in receipt
-      assert integration.approval_current (plan)
+      assert receipt ["acknowledged_by"].startswith ("actor:human:")
 
    def test_agent_cannot_use_explicit_approval_override (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)
@@ -212,7 +186,7 @@ class TestIntegration:
       runtime.configure (actor_id=identity.resource ("actor", "codex", "session-1"), yes=True)
 
       with pytest.raises (typer.Exit):
-         done_cmd.done (feature ["feature_id"], approve=True, plan_only=True)
+         done_cmd.done (feature ["feature_id"], approve=True)
 
    def test_machine_review_includes_the_complete_diff (self, repo, tmp_path):
       feature = _feature (repo, tmp_path)
@@ -409,26 +383,6 @@ class TestSourceRelease:
       with pytest.raises (state.StateError, match="GitHub release creation failed"):
          source_release.apply_release (plan)
 
-   def test_github_release_failure_can_resume_the_same_plan (self, repo, monkeypatch):
-      plan = source_release.plan_release (level="patch")
-      plan ["payload"] ["github_release"] = True
-      attempts = []
-
-      def create (*_args, **_kwargs):
-         attempts.append (True)
-         return len (attempts) > 1
-
-      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
-      monkeypatch.setattr (source_release.gh, "release_create", create)
-
-      with pytest.raises (state.StateError, match="GitHub release creation failed"):
-         source_release.apply_release (plan)
-
-      receipt = source_release.apply_release (plan)
-
-      assert receipt ["tag"] == "v0.0.1"
-      assert attempts == [ True, True ]
-      assert not list ((state.root () / "recovery").glob ("*.json"))
 
    def test_dirty_source_reports_exact_next_steps (self, repo):
       (repo / "file.txt").write_text ("changed\n")
