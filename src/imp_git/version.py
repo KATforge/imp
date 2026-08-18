@@ -118,8 +118,15 @@ def next_rc (ver: str, existing: list [str]) -> str:
 
    return f"{ver}-rc.{highest + 1}"
 
+_MAJOR = { "feat", "fix" }
+
+
 def changelog_from_commits (subjects: str) -> str:
-   entries = []
+   """Release notes: one short line per change, features and fixes only.
+   That is what a release is read for. Everything else appears only when
+   there is nothing major, so an all-chore release still says something."""
+
+   entries: list [tuple [str, str]] = []
    seen = set ()
 
    for line in subjects.splitlines ():
@@ -138,15 +145,17 @@ def changelog_from_commits (subjects: str) -> str:
 
       if kind == "feat":
          desc = re.sub (r"^(?:add|added)\s+", "", desc, flags=re.I)
-         entries.append (f"- Added {_lower_first (desc) if desc else 'the change'}")
+         entries.append ((kind, f"- Added {_lower_first (desc) if desc else 'the change'}"))
       elif kind == "fix":
          desc = re.sub (r"^(?:fix|fixed|prevent|prevented)\s+", "", desc, flags=re.I)
-         entries.append (f"- Fixed {_lower_first (desc) if desc else 'the issue'}")
+         entries.append ((kind, f"- Fixed {_lower_first (desc) if desc else 'the issue'}"))
       else:
          desc = re.sub (r"^(?:change|changed|update|updated)\s+", "", desc, flags=re.I)
-         entries.append (f"- Changed {_lower_first (desc) if desc else 'the implementation'}")
+         entries.append ((kind, f"- Changed {_lower_first (desc) if desc else 'the implementation'}"))
 
-   return "\n".join (entries)
+   major = [ line for kind, line in entries if kind in _MAJOR ]
+
+   return "\n".join (major or [ line for _kind, line in entries ])
 
 _PKG_VERSION = re.compile (r'("version"\s*:\s*")([^"]*)(")')
 _PYPROJECT_VERSION = re.compile (r'^(version\s*=\s*")([^"]*)(")', re.MULTILINE)

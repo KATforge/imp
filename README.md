@@ -121,6 +121,9 @@ Release notes come from the history, not from a file. Integrating with `squash` 
 subject names the feature and whose body lists the work it discards, so trunk describes itself and the
 GitHub release for each tag is the changelog.
 
+Notes are one short line per change and carry features and fixes only, since that is what a release is read
+for. A release with nothing major to report falls back to everything it does contain.
+
 `imp release --local` stops after the commit and the tag, touching no remote. Use it when you want a version cut locally and will publish later.
 
 `imp pr --into main` pushes the current branch and opens or updates its pull request. It never tags or bumps a version, so it is the promotion path rather than a release.

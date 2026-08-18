@@ -90,10 +90,20 @@ class TestChangelogFromCommits:
       result = changelog_from_commits ("refactor: simplify auth flow")
       assert result == "- Changed simplify auth flow"
 
-   def test_mixed (self):
+   def test_mixed_keeps_only_the_major_points (self):
       subjects = "feat: add dark mode\nfix: resolve null pointer\nchore: update deps"
       result = changelog_from_commits (subjects)
-      assert result.splitlines () == [ "- Added dark mode", "- Fixed resolve null pointer", "- Changed deps" ]
+      assert result.splitlines () == [ "- Added dark mode", "- Fixed resolve null pointer" ]
+
+   def test_an_all_chore_release_still_says_what_happened (self):
+      subjects = "chore: update deps\nrefactor: simplify auth flow"
+      result = changelog_from_commits (subjects)
+      assert result.splitlines () == [ "- Changed deps", "- Changed simplify auth flow" ]
+
+   def test_every_entry_is_one_line (self):
+      subjects = "feat: add a very long subject that keeps going and going past any sane width"
+      result = changelog_from_commits (subjects)
+      assert len (result.splitlines ()) == 1
 
    def test_non_conventional (self):
       result = changelog_from_commits ("some random commit")

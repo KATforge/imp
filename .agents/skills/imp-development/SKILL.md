@@ -37,6 +37,8 @@ description: Use for source-code changes in Git repositories. Route every Git op
    - Changing a remote needs approval first. Pushing and the QA release that follows are one grant; production is a second grant, often given in the same breath.
    - Read intent, not wording. Any plain request to send work up grants the push and QA bundle. Without the production grant, stop at QA and say so.
    - `imp done` lands a feature on trunk locally. `imp pr` proposes a branch for review. `imp release` cuts a version, and `--local` keeps it off the remote.
+   - Release notes are built from commit subjects, so write every subject as the line you want published.
+   - Anything that reaches a changelog or release notes is one short line each, major points only. Never a wrapped paragraph, never an entry per incidental commit.
 
 5. Keep authorship human.
 

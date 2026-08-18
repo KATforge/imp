@@ -7,6 +7,9 @@ carries its notes, built from the commits it contains.
 
 ## [Unreleased]
 
+- Changed release notes to carry features and fixes only, one short line each, falling back to everything
+  when a release has nothing major in it
+
 - Removed the `CHANGELOG.md` mechanism. A release no longer writes a file, and `[Unreleased]` is no longer a
   hot section every parallel feature has to edit. Notes are built from the history and published on each tag's
   GitHub release
