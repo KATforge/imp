@@ -440,3 +440,79 @@ class TestDiscovery:
       assert members [0] ["branch"] == "main"
       assert members [0] ["dirty"] == 1
       assert members [0] ["tracked"] is False
+
+
+class TestSpentState:
+
+   def _repo_state (self, repository: Path):
+      from imp_git import state as state_mod
+      previous = Path.cwd ()
+      os.chdir (repository)
+      try:
+         return state_mod.root ()
+      finally:
+         os.chdir (previous)
+
+   def test_orphaned_state_from_removed_features_is_dropped (self, demo):
+      from imp_git import state as state_mod
+
+      root = self._repo_state (demo / "api")
+      root.mkdir (parents=True, exist_ok=True)
+      (root / "active.json").write_text ("{}")
+      (root / "contexts").mkdir (parents=True, exist_ok=True)
+      (root / "contexts" / "feature--old.md").write_text ("stale\n")
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         state_mod.tidy ()
+      finally:
+         os.chdir (previous)
+
+      assert not (root / "active.json").exists ()
+      assert not (root / "contexts").exists ()
+
+   def test_a_spent_plan_expires_once_it_is_old (self, demo):
+      from imp_git import identity
+      from imp_git import state as state_mod
+
+      root = self._repo_state (demo / "api")
+      path = root / "plans" / f"{identity.key ('plan:done:old:1')}.json"
+      state_mod.atomic_write (path, {
+         "schema": "imp.plan.v1", "plan_id": "plan:done:old:1", "operation": "done",
+         "label": "old", "state": "applied", "items": [],
+      })
+      os.utime (path, (0, 0))
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         state_mod.tidy ()
+      finally:
+         os.chdir (previous)
+
+      assert not path.exists ()
+
+   def test_a_recent_or_pending_plan_survives (self, demo):
+      from imp_git import identity
+      from imp_git import state as state_mod
+
+      root = self._repo_state (demo / "api")
+      fresh = root / "plans" / f"{identity.key ('plan:done:fresh:1')}.json"
+      pending = root / "plans" / f"{identity.key ('plan:done:pending:1')}.json"
+      state_mod.atomic_write (fresh, {
+         "schema": "imp.plan.v1", "plan_id": "plan:done:fresh:1", "operation": "done",
+         "label": "fresh", "state": "applied", "items": [],
+      })
+      state_mod.atomic_write (pending, {
+         "schema": "imp.plan.v1", "plan_id": "plan:done:pending:1", "operation": "done",
+         "label": "pending", "state": "ready", "items": [],
+      })
+      os.utime (pending, (0, 0))
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         state_mod.tidy ()
+      finally:
+         os.chdir (previous)
+
+      assert fresh.exists ()
+      assert pending.exists ()

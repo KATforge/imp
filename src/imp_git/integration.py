@@ -474,6 +474,15 @@ def _direct_receipt (plan: dict [str, Any], payload: dict [str, Any], feature: d
 
 
 def _finish_done (plan: dict [str, Any]):
+   """Settle the plan as soon as the target moves, before any cleanup can fail.
+
+   Everything after this point is tidying: removing the worktree and the branch.
+   Marking the plan applied first means a cleanup failure cannot strand a recovery
+   record for work that already landed.
+   """
+
+   if plan.get ("state") == "applied":
+      return
    plans.mark (plan, "applied", applied_at=state.now ())
    state.clear_recovery (str (plan ["plan_id"]))
 
@@ -562,6 +571,7 @@ def _apply_direct (
    if payload ["push"]:
       git.push (ref=str (payload ["target_ref"]))
       completed.append ("push")
+   _finish_done (plan)
    features.complete (feature, actor_id, keep=bool (payload ["keep"]))
    completed.append ("cleanup")
    return _direct_receipt (plan, payload, feature)
@@ -582,6 +592,7 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
             plan, payload, feature, actor_id, target_oid, completed
          )
          _finish_done (plan)
+
          return data
    except Exception as error:
       _record_recovery (plan, error, completed)

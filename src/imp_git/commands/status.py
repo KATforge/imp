@@ -245,6 +245,8 @@ def status (
 
    git.require ()
 
+   state.tidy ()
+
    name = git.repo_name ()
    branch = git.branch ()
    tag = git.last_tag ()

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import socket
 import tempfile
 import time
@@ -161,6 +162,48 @@ def read (
    raise StateError (f"Unsupported schema in {path}: {actual}")
 
 
+def _landed (plan: dict [str, Any]) -> bool:
+   """Return whether a plan's candidate is already part of its target.
+
+   An operation can fail while tidying up after the target has moved. The commit
+   is the truth, not the plan's own state, so a candidate already reachable from
+   the target means the work is done however the run ended.
+   """
+
+   from imp_git import git
+
+   payload = plan.get ("payload") or {}
+   candidate = str (payload.get ("candidate_oid") or "")
+   target = str (payload.get ("target_ref") or "")
+   if not candidate or not target:
+      return False
+
+   return git.succeeds ("merge-base", "--is-ancestor", candidate, target)
+
+
+SPENT_AFTER = 24 * 60 * 60
+
+
+def tidy ():
+   """Drop state that is spent or orphaned by a removed feature."""
+
+   directory = root ()
+   (directory / "active.json").unlink (missing_ok=True)
+   shutil.rmtree (directory / "contexts", ignore_errors=True)
+
+   plans_directory = directory / "plans"
+   if not plans_directory.is_dir ():
+      return
+   for path in plans_directory.glob ("*.json"):
+      try:
+         if time.time () - path.stat ().st_mtime < SPENT_AFTER:
+            continue
+         if read (path).get ("state") == "applied":
+            path.unlink (missing_ok=True)
+      except (OSError, StateError):
+         continue
+
+
 def recoveries () -> list [dict [str, Any]]:
    """List interrupted operations, expiring records whose plan is settled.
 
@@ -186,7 +229,7 @@ def recoveries () -> list [dict [str, Any]]:
       except (StateError, ValueError):
          path.unlink (missing_ok=True)
          continue
-      if plan.get ("state") == "applied":
+      if plan.get ("state") == "applied" or _landed (plan):
          path.unlink (missing_ok=True)
          continue
       values.append (record)

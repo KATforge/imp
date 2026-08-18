@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed an integration that lands but fails while tidying up leaving a permanent recovery record. The plan is
+  now settled the moment the target moves, before the worktree is removed, so cleanup can no longer strand it
+- Changed interrupted operations to expire when their candidate is already reachable from the target. The commit
+  is the truth, so work that landed stops being reported however the run ended
+- Added a sweep of spent repository state on `imp status`: applied plans older than a day, plus `active.json`
+  and `contexts/` orphaned by the removed `imp use` and `imp context` commands
+
 - Removed the workspace manifest. Imp read `workspace.yaml` only to learn which paths are members, a short alias
   for each, and an integration order, and it refused any file not declaring a hardcoded platform schema. Members
   now come from scanning, aliases from a unique path suffix, and order from the `--repo` flags you type

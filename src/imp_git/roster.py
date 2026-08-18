@@ -142,6 +142,7 @@ def interrupted (value: dict [str, Any]) -> list [dict [str, Any]]:
       if not Path (repository, ".git").exists ():
          continue
       with spans.inside (repository):
+         state.tidy ()
          values.extend ({ "alias": alias, **record } for record in state.recoveries ())
 
    return sorted (values, key=lambda record: str (record.get ("created_at", "")))
