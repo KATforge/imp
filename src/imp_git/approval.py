@@ -21,6 +21,7 @@ def run (
    yes: bool,
    json_output: bool,
    wrap: str = "",
+   warnings: list [str] | None = None,
 ) -> dict [str, Any]:
    """Display exactly what will happen, gate on approval, then do it.
 
@@ -31,11 +32,14 @@ def run (
    """
 
    machine = json_output or runtime.options.json
+   notes = warnings or []
    if not machine:
       show (plan)
+      for note in notes:
+         console.warn (note)
    if dry_run:
       if machine:
-         result.emit (plan_schema, command, { "plan": plan }, json_output=True)
+         result.emit (plan_schema, command, { "plan": plan }, json_output=True, warnings=notes)
       return plan
    if plan.get ("state") != "ready":
       console.fatal (f"{noun.capitalize ()} is blocked")
@@ -49,7 +53,7 @@ def run (
    except state.StateError as error:
       console.fatal (str (error))
    if machine:
-      result.emit (result_schema, command, { wrap: data } if wrap else data, json_output=True)
+      result.emit (result_schema, command, { wrap: data } if wrap else data, json_output=True, warnings=notes)
    else:
       success (data)
 

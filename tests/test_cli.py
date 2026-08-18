@@ -1,9 +1,11 @@
 import json
 import sys
 
+import pytest
+import typer
 from typer.testing import CliRunner
 
-from imp_git import ai, git, runtime
+from imp_git import ai, console, git, runtime
 from imp_git import main as main_mod
 from imp_git.main import app
 from tests.conftest import commit_count, git_run
@@ -57,7 +59,7 @@ class TestSurface:
       assert seen == commands
 
    def test_bare_optional_values_reach_the_native_command (self):
-      assert main_mod._optional_values ([ "commit", "--apply" ]) == [ "commit", "--apply=__pick__" ]
+      assert main_mod._optional_values ([ "commit", "--fixup" ]) == [ "commit", "--fixup=__pick__" ]
       assert main_mod._optional_values ([ "commit", "--fixup", "HEAD~2" ]) == [ "commit", "--fixup", "HEAD~2" ]
 
    def test_review_help_hides_internal_marking_option (self):
@@ -106,7 +108,22 @@ class TestErrorBoundary:
       assert value ["schema"] == "imp.error.v1"
       assert value ["command"] == "imp status"
       assert value ["ok"] is False
+      assert value ["data"] ["message"] == "exploded"
       assert value ["error"] == { "message": "exploded", "type": "RuntimeError" }
+
+   def test_usage_error_emits_versioned_error_envelope (self, monkeypatch, capsys, tmp_path):
+      monkeypatch.chdir (tmp_path)
+      monkeypatch.setattr (sys, "argv", [ "imp", "--json", "done", "--nope" ])
+      monkeypatch.setattr (runtime, "options", runtime.Options ())
+
+      code = main_mod.run ()
+      value = json.loads (capsys.readouterr ().out)
+
+      assert code == 2
+      assert value ["schema"] == "imp.error.v1"
+      assert value ["command"] == "imp done"
+      assert value ["ok"] is False
+      assert "--nope" in value ["data"] ["message"]
 
    def test_uncaught_exception_prints_concise_line_without_json (self, monkeypatch, capsys):
       monkeypatch.setattr (main_mod, "app", self._boom)
@@ -233,3 +250,23 @@ class TestHelpOrdering:
 
       assert options [-1] == "--help"
       assert options [:-1] == sorted (options [:-1])
+
+
+class TestPrompts:
+   """A machine invocation must fail loudly rather than wait for a person."""
+
+   def test_machine_output_never_prompts (self, capsys):
+      runtime.configure (json=True)
+
+      with pytest.raises (typer.Exit):
+         console.choose ("Pick one", [ "a", "b" ])
+
+      value = json.loads (capsys.readouterr ().out)
+      assert value ["schema"] == "imp.error.v1"
+      assert value ["ok"] is False
+
+   def test_refused_input_never_prompts (self):
+      runtime.configure (no_input=True)
+
+      with pytest.raises (typer.Exit):
+         console.choose ("Pick one", [ "a", "b" ])

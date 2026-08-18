@@ -169,11 +169,50 @@ def _optional_values (args: list [str]) -> list [str]:
 
    values = list (args)
    for index, value in enumerate (values):
-      if value not in { "--apply", "--fixup" }:
+      if value != "--fixup":
          continue
       if index + 1 == len (values) or values [index + 1].startswith ("-"):
          values [index] = f"{value}=__pick__"
    return values
+
+
+def _machine () -> bool:
+   """Return whether this invocation asked for machine output, however far it parsed."""
+
+   return runtime.options.json or "--json" in sys.argv [1:]
+
+
+def _subcommand () -> str:
+   """Return the native command from argv, skipping global flags and their values."""
+
+   args = sys.argv [1:]
+   index = 0
+   while index < len (args):
+      if args [index] in _GLOBAL_VALUED:
+         index += 2
+         continue
+      if args [index].startswith ("-"):
+         index += 1
+         continue
+      return args [index]
+
+   return ""
+
+
+def _envelope (error: Exception, *, unexpected: bool):
+   """Write one versioned failure envelope, so machine clients never scrape."""
+
+   subcommand = _subcommand ()
+   value = {
+      "schema": "imp.error.v1",
+      "command": f"imp {subcommand}".strip (),
+      "ok": False,
+      "data": { "message": str (error) },
+      "warnings": [],
+   }
+   if unexpected:
+      value ["error"] = { "message": str (error), "type": type (error).__name__ }
+   sys.stdout.write (json.dumps (value, indent=3, sort_keys=True) + "\n")
 
 
 def _fail (error: Exception) -> int:
@@ -181,16 +220,8 @@ def _fail (error: Exception) -> int:
 
    if os.environ.get ("IMP_DEBUG"):
       traceback.print_exc ()
-   subcommand = next ((value for value in sys.argv [1:] if not value.startswith ("-")), "")
-   if runtime.options.json or "--json" in sys.argv [1:]:
-      sys.stdout.write (json.dumps ({
-         "schema": "imp.error.v1",
-         "command": f"imp {subcommand}".strip (),
-         "ok": False,
-         "error": { "message": str (error), "type": type (error).__name__ },
-         "data": {},
-         "warnings": [],
-      }, indent=3, sort_keys=True) + "\n")
+   if _machine ():
+      _envelope (error, unexpected=True)
       return 1
 
    console.err (f"imp failed: {error}")
@@ -209,9 +240,15 @@ def run () -> int:
       if args and not _native_request (args):
          return passthrough.run (args)
 
+      if _machine ():
+         _envelope (error, unexpected=False)
+         return error.exit_code
       error.show ()
       return error.exit_code
    except click.ClickException as error:
+      if _machine ():
+         _envelope (error, unexpected=False)
+         return error.exit_code
       error.show ()
       return error.exit_code
    except click.exceptions.Exit as error:

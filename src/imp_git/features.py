@@ -200,6 +200,7 @@ def _descriptor (
    branch: str = "",
    change_id: str = "",
    path: str = "",
+   span: list [str] | None = None,
    task: str = "",
    target: str = "",
    claim_writer: bool = True,
@@ -244,6 +245,7 @@ def _descriptor (
       "created_by": actor_id,
       "change_id": change_id,
       "claim_writer": claim_writer,
+      "span": list (span or []),
       "setup": _commands (),
       "share": _shares (),
    }
@@ -257,6 +259,7 @@ def plan_start (
    branch: str = "",
    change_id: str = "",
    path: str = "",
+   span: list [str] | None = None,
    task: str = "",
    target: str = "",
    claim_writer: bool = True,
@@ -271,6 +274,7 @@ def plan_start (
       branch=branch,
       change_id=change_id,
       path=path,
+      span=span,
       task=task,
       target=target,
       claim_writer=claim_writer,
@@ -409,6 +413,7 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
             "writers": [ descriptor ["created_by"] ] if descriptor ["claim_writer"] else [],
             "created_at": state.now (),
             "change_id": descriptor ["change_id"],
+            "span": list (descriptor.get ("span") or []),
             "state": "active",
          }
          _share (record, list (descriptor ["share"]))
@@ -427,6 +432,12 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
       raise
    plans.mark (plan, "applied", applied_at=state.now ())
    return { **record, "claim": claim_record, "worktree_state": "live" }
+
+
+def discard_start (feature: dict [str, Any]):
+   """Undo one applied feature start, so a partial span leaves nothing behind."""
+
+   _discard_start (str (feature ["path"]), str (feature ["branch"]), str (feature ["feature_id"]))
 
 
 def claim (feature: dict [str, Any], actor_id: str, ttl: str = "") -> dict [str, Any]:

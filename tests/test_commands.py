@@ -257,12 +257,10 @@ class TestStandingWarning:
 
       start_cmd.start (name="standing", path=str (tmp_path / "standing-wt"))
       feature = features.find ("standing")
-      warnings = []
-      monkeypatch.setattr (done_cmd.console, "warn", lambda text: warnings.append (text))
       previous = Path.cwd ()
       os.chdir (feature ["path"])
       try:
-         done_cmd._warn_if_standing_here ()
+         warnings = done_cmd._standing_here ()
       finally:
          os.chdir (previous)
 
@@ -273,9 +271,5 @@ class TestStandingWarning:
       from imp_git.commands import start as start_cmd
 
       start_cmd.start (name="standing", path=str (tmp_path / "standing-wt"))
-      warnings = []
-      monkeypatch.setattr (done_cmd.console, "warn", lambda text: warnings.append (text))
 
-      done_cmd._warn_if_standing_here ()
-
-      assert warnings == []
+      assert done_cmd._standing_here () == []

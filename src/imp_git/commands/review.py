@@ -11,11 +11,11 @@ _FIX = "Fix recommendations with smart AI"
 _MARK = "Mark this exact candidate reviewed"
 _LEAVE = "Leave unmarked"
 
-_DIRTY_AUTOMATION = """Dirty feature requires a separately approved commit plan.
+_DIRTY_AUTOMATION = """Dirty feature requires a separately approved commit.
 
 Next:
-  imp -C {path} commit --all --plan
-  imp -C {path} commit --apply <plan-id> --yes
+  imp -C {path} --json --no-input --dry-run commit --all
+  imp -C {path} --json --no-input --yes commit --all
   imp -C {path} review {feature_id}"""
 
 

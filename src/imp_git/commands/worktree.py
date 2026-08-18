@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import console, features, git, identity, result, runtime, spans, state, workspace
+from imp_git import console, features, git, identity, result, runtime, state, workspace
 from imp_git.cli import SortedCommand
 
 worktree = typer.Typer (
@@ -43,7 +43,7 @@ def _across_workspace (json_output: bool):
    for alias, repository in sorted (workspace.repositories (value).items ()):
       if not Path (repository, ".git").exists ():
          continue
-      with spans.inside (repository):
+      with workspace.inside (repository):
          values.extend (entry for entry in _collect (alias) if entry ["name"] != "trunk")
 
    if json_output:
@@ -172,7 +172,7 @@ def remove (
    if plan ["state"] != "ready":
       console.fatal ("Worktree removal plan is blocked")
    if runtime.options.no_input and not yes:
-      console.fatal ("Non-interactive worktree removal requires --apply <plan-id> --yes")
+      console.fatal ("Non-interactive worktree removal requires --yes")
    console.confirm_or_exit ("Remove this clean worktree?", yes)
    try:
       data = features.apply_remove (plan, actor)

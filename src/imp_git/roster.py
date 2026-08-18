@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from imp_git import features, git, repo, spans, state, workspace
+from imp_git import features, git, repo, state, workspace
 
 READY = "ready"
 CHECKS = "checks"
@@ -73,12 +73,11 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
    """Every open managed feature across the workspace, grouped by name."""
 
    grouped: dict [str, dict [str, Any]] = {}
-   recorded = { str (span ["name"]): span for span in spans.all (value) }
 
    for alias, repository in sorted (workspace.repositories (value).items ()):
       if not Path (repository, ".git").exists ():
          continue
-      with spans.inside (repository):
+      with workspace.inside (repository):
          for feature in features.all ():
             if feature.get ("state") not in { "active", "awaiting-merge" }:
                continue
@@ -87,8 +86,9 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
                "name": name,
                "created_at": feature.get ("created_at", ""),
                "members": [],
-               "spanned": name in recorded,
+               "span": [],
             })
+            entry ["span"] = entry ["span"] or list (feature.get ("span") or [])
             entry ["members"].append (_member (feature, alias, repository))
             if str (feature.get ("created_at", "")) < str (entry ["created_at"]):
                entry ["created_at"] = feature.get ("created_at", "")
@@ -103,7 +103,7 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
       entry ["age"] = _age (str (entry ["created_at"]))
       entry ["repositories"] = sorted (member ["alias"] for member in entry ["members"])
       entry ["writers"] = sorted ({ member ["writer"] for member in entry ["members"] if member ["writer"] })
-      entry ["members"] = sorted (entry ["members"], key=lambda member: member ["alias"])
+      entry ["members"] = ordered_members (entry)
       values.append (entry)
 
    return sorted (values, key=lambda entry: (_ORDER.get (entry ["condition"], 9), str (entry ["created_at"])))
@@ -116,7 +116,7 @@ def repositories (value: dict [str, Any]) -> list [dict [str, Any]]:
    for alias, repository in sorted (workspace.repositories (value).items ()):
       if not Path (repository, ".git").exists ():
          continue
-      with spans.inside (repository):
+      with workspace.inside (repository):
          branch = git.branch ()
          upstream = f"origin/{branch}"
          tracked = bool (git.rev_parse (upstream))
@@ -141,7 +141,7 @@ def interrupted (value: dict [str, Any]) -> list [dict [str, Any]]:
    for alias, repository in sorted (workspace.repositories (value).items ()):
       if not Path (repository, ".git").exists ():
          continue
-      with spans.inside (repository):
+      with workspace.inside (repository):
          state.tidy ()
          values.extend ({ "alias": alias, **record } for record in state.recoveries ())
 
@@ -152,11 +152,15 @@ def promotable (values: list [dict [str, Any]]) -> list [dict [str, Any]]:
    return [ entry for entry in values if entry ["condition"] == READY ]
 
 
-def ordered_members (_value: dict [str, Any], entry: dict [str, Any]) -> list [dict [str, Any]]:
-   """Return one feature's members, stably ordered.
+def ordered_members (entry: dict [str, Any]) -> list [dict [str, Any]]:
+   """Return one feature's members in the order its span named, then by alias.
 
-   Integrations are independent, so this order is presentational rather than a
-   dependency guarantee. A span carries the order its caller named.
+   A spanning feature records that order in every member, so integration follows the
+   dependency the caller declared. Anything unnamed sorts after it.
    """
 
-   return sorted (entry ["members"], key=lambda member: str (member ["alias"]))
+   rank = { alias: index for index, alias in enumerate (entry.get ("span") or []) }
+
+   return sorted (entry ["members"], key=lambda member: (
+      rank.get (str (member ["alias"]), len (rank)), str (member ["alias"]),
+   ))

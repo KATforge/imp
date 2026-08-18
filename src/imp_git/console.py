@@ -115,8 +115,10 @@ def confirm_or_exit (msg: str, yes: bool = False):
    raise typer.Exit (0)
 
 def _noninteractive () -> bool:
-   """Return whether prompting is unavailable."""
+   """Return whether prompting is unavailable, refused up front, or machine-driven."""
 
+   if runtime.options.json or runtime.options.no_input:
+      return True
    try:
       return not sys.stdin.isatty ()
    except (ValueError, OSError):
@@ -127,7 +129,7 @@ def interactive () -> bool:
 
 def choose (title: str, options: list [str]) -> str:
    if _noninteractive ():
-      fatal (f"Cannot prompt for '{title}' without a terminal; pass an explicit option")
+      fatal (f"Cannot prompt for '{title}'; name the choice explicitly, or pass --yes to approve")
 
    result = questionary.select (
       title,
@@ -140,7 +142,8 @@ def choose (title: str, options: list [str]) -> str:
    ).ask ()
 
    if result is None:
-      return options [-1]
+      muted ("Cancelled")
+      raise typer.Exit (0)
 
    return result
 

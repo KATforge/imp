@@ -404,6 +404,19 @@ def mark_reviewed (
    )
 
 
+def waive_review (plan: dict [str, Any]) -> dict [str, Any]:
+   """Drop the human-approval blocker from a candidate the caller intends to approve.
+
+   Planning must show what approving would allow without recording it, because the
+   caller can still decline at the confirm gate. The receipt is written when the
+   integration is applied.
+   """
+
+   blockers = [value for value in plan.get ("blockers", []) if value not in _HUMAN_APPROVAL_BLOCKERS]
+
+   return plans.mark (plan, "blocked" if blockers else "ready", blockers=blockers)
+
+
 def approve (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
    """Explicitly approve an exact candidate without recording a review."""
 

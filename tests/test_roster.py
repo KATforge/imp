@@ -1,9 +1,11 @@
+import json
 import os
 from pathlib import Path
 
 import pytest
+import typer
 
-from imp_git import conflicts, features, git, roster, state, workspace
+from imp_git import config, conflicts, features, git, roster, runtime, state, workspace
 from tests.conftest import commit_file, git_run
 
 
@@ -28,10 +30,13 @@ def demo (tmp_path, monkeypatch):
    _repo (root, "api")
    _repo (root, "web")
    monkeypatch.setenv ("XDG_STATE_HOME", str (tmp_path / "state"))
+   monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path / "config"))
+   config.save ({ "worktree:root": str (tmp_path / "worktrees") })
    previous = Path.cwd ()
    os.chdir (root)
    yield root
    os.chdir (previous)
+   config.load.cache_clear ()
 
 
 def _start (repository: Path, name: str, path: Path):
@@ -85,12 +90,11 @@ class TestRoster:
          feature = _start (demo / alias, "checkout", tmp_path / f"wt-{alias}")
          commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
 
-      value = workspace.here (str (demo))
-      entries = roster.collect (value)
+      entries = roster.collect (workspace.here (str (demo)))
 
       assert len (entries) == 1
       assert entries [0] ["repositories"] == [ "api", "web" ]
-      assert [ member ["alias"] for member in roster.ordered_members (value, entries [0]) ] == [ "api", "web" ]
+      assert [ member ["alias"] for member in roster.ordered_members (entries [0]) ] == [ "api", "web" ]
 
    def test_the_worst_member_decides_the_grouped_condition (self, demo, tmp_path):
       ready = _start (demo / "api", "checkout", tmp_path / "wt-api")
@@ -498,8 +502,8 @@ class TestIntegrateEvery:
       monkeypatch.chdir (demo)
 
       data = done_cmd._promote_every (
-         "actor:human:anders", yes=True, dry_run=False,
-         skip_checks=True, strategy="squash", resolve="",
+         "actor:human:anders", yes=True, dry_run=False, approve=False,
+         skip_checks=True, strategy="squash", resolve="", warnings=[],
       )
 
       assert sorted (data ["landed"]) == [ "first", "second" ]
@@ -512,8 +516,8 @@ class TestIntegrateEvery:
       monkeypatch.chdir (demo)
 
       data = done_cmd._promote_every (
-         "actor:human:anders", yes=True, dry_run=True,
-         skip_checks=True, strategy="squash", resolve="",
+         "actor:human:anders", yes=True, dry_run=True, approve=False,
+         skip_checks=True, strategy="squash", resolve="", warnings=[],
       )
 
       assert data ["landed"] == []
@@ -538,3 +542,172 @@ class TestIntegrateEvery:
          assert state_mod.recoveries () == []
       finally:
          os.chdir (previous)
+
+
+class TestSpan:
+   """One feature across several checkouts, discovered rather than declared."""
+
+   def _ready (self, demo: Path):
+      from imp_git.commands import start as start_cmd
+
+      start_cmd.start (name="checkout", repos=[ "web", "api" ])
+      for entry in roster.collect (workspace.here (str (demo))) [0] ["members"]:
+         commit_file (Path (entry ["path"]), "new.txt", "work\n", "feat: work")
+
+   def test_a_span_starts_from_a_directory_of_checkouts (self, demo, tmp_path):
+      from imp_git.commands import start as start_cmd
+
+      data = start_cmd.start (name="checkout", repos=[ "web", "api" ])
+
+      assert [ member ["alias"] for member in data ["members"] ] == [ "web", "api" ]
+      entry = roster.collect (workspace.here (str (demo))) [0]
+      assert entry ["span"] == [ "web", "api" ]
+      assert [ member ["alias"] for member in roster.ordered_members (entry) ] == [ "web", "api" ]
+
+   def test_a_span_carries_the_task_to_every_member (self, demo, tmp_path):
+      from imp_git.commands import start as start_cmd
+
+      start_cmd.start (name="checkout", repos=[ "api", "web" ], task="Ship checkout")
+
+      for alias in [ "api", "web" ]:
+         with workspace.inside (str (demo / alias)):
+            assert features.find ("checkout") ["task"] == "Ship checkout"
+
+   def test_a_span_dry_run_creates_nothing (self, demo, tmp_path):
+      from imp_git.commands import start as start_cmd
+
+      runtime.configure (dry_run=True, yes=True)
+      start_cmd.start (name="checkout", repos=[ "api", "web" ])
+
+      assert roster.collect (workspace.here (str (demo))) == []
+      assert not (tmp_path / "worktrees").exists ()
+      assert "checkout" not in git_run (demo / "api", "branch", "--list").stdout
+
+   def test_a_span_refuses_to_prompt_without_approval (self, demo):
+      from imp_git.commands import start as start_cmd
+
+      runtime.configure (no_input=True)
+      with pytest.raises (typer.Exit):
+         start_cmd.start (name="checkout", repos=[ "api", "web" ])
+
+      assert roster.collect (workspace.here (str (demo))) == []
+
+   def test_a_failed_member_unwinds_the_whole_span (self, demo, monkeypatch):
+      from imp_git.commands import start as start_cmd
+
+      applied = []
+      real = features.apply_start
+
+      def flaky (plan):
+         applied.append (plan)
+         if len (applied) == 2:
+            raise state.StateError ("second repository failed")
+         return real (plan)
+
+      monkeypatch.setattr (start_cmd.features, "apply_start", flaky)
+      with pytest.raises (typer.Exit):
+         start_cmd.start (name="checkout", repos=[ "api", "web" ])
+
+      assert roster.collect (workspace.here (str (demo))) == []
+      assert "checkout" not in git_run (demo / "api", "branch", "--list").stdout
+
+   def test_integrating_a_span_emits_one_json_document (self, demo, capsys):
+      from imp_git.commands import done as done_cmd
+
+      self._ready (demo)
+      runtime.configure (json=True, yes=True)
+      capsys.readouterr ()
+      done_cmd.done ("checkout", skip_checks=True)
+
+      value = json.loads (capsys.readouterr ().out)
+      assert value ["schema"] == "imp.promote.v2"
+      assert value ["data"] ["order"] == [ "web", "api" ]
+      assert value ["data"] ["completed"] == [ "web", "api" ]
+
+   def test_integrating_a_span_refuses_to_prompt_without_approval (self, demo, capsys):
+      from imp_git.commands import done as done_cmd
+
+      self._ready (demo)
+      runtime.configure (json=True, no_input=True)
+      capsys.readouterr ()
+      with pytest.raises (typer.Exit):
+         done_cmd.done ("checkout", skip_checks=True)
+
+      value = json.loads (capsys.readouterr ().out)
+      assert value ["schema"] == "imp.error.v1"
+      assert value ["ok"] is False
+
+   def test_integrating_every_feature_emits_one_json_document (self, demo, capsys):
+      from imp_git.commands import done as done_cmd
+
+      self._ready (demo)
+      runtime.configure (json=True, yes=True)
+      capsys.readouterr ()
+      done_cmd.done (all_ready=True, skip_checks=True)
+
+      value = json.loads (capsys.readouterr ().out)
+      assert value ["schema"] == "imp.promote-all.v1"
+      assert value ["data"] ["landed"] == [ "checkout" ]
+
+   def _require_review (self, demo: Path):
+      from imp_git import repo as repo_mod
+
+      for alias in [ "api", "web" ]:
+         commit_file (demo / alias, ".imp", '{ "review:required": true }\n', "chore: require review")
+      repo_mod.load.cache_clear ()
+
+   def test_an_unreviewed_span_is_blocked (self, demo, capsys):
+      from imp_git.commands import done as done_cmd
+
+      self._require_review (demo)
+      self._ready (demo)
+      runtime.configure (json=True, yes=True)
+      capsys.readouterr ()
+
+      with pytest.raises (typer.Exit):
+         done_cmd.done ("checkout", skip_checks=True)
+
+      assert json.loads (capsys.readouterr ().out) ["schema"] == "imp.error.v1"
+
+   def test_approving_clears_the_review_blocker (self, demo, capsys):
+      from imp_git.commands import done as done_cmd
+
+      self._require_review (demo)
+      self._ready (demo)
+      runtime.configure (json=True, yes=True)
+      capsys.readouterr ()
+
+      done_cmd.done ("checkout", skip_checks=True, approve=True)
+
+      value = json.loads (capsys.readouterr ().out)
+      assert value ["schema"] == "imp.promote.v2"
+      assert value ["data"] ["completed"] == [ "web", "api" ]
+
+   def test_declining_records_no_approval (self, demo, monkeypatch):
+      from imp_git import integration
+      from imp_git.commands import done as done_cmd
+
+      self._ready (demo)
+      runtime.configure ()
+      monkeypatch.setattr (done_cmd.console, "confirm", lambda message: False)
+
+      with pytest.raises (typer.Exit):
+         done_cmd.done ("checkout", skip_checks=True, approve=True)
+
+      for alias in [ "api", "web" ]:
+         with workspace.inside (str (demo / alias)):
+            assert integration.approval_receipt ("feature:checkout") is None
+
+   def test_a_lone_checkout_is_a_workspace_of_one (self, repo_with_origin):
+      value = workspace.here ()
+
+      assert value is not None
+      assert list (value ["services"]) == [ Path (value ["root"]).name ]
+
+   def test_a_workspace_of_one_follows_the_path_it_was_given (self, demo, monkeypatch):
+      monkeypatch.chdir (demo / "web")
+
+      value = workspace.here (str (demo / "api"))
+
+      assert list (value ["services"]) == [ "api" ]
+      assert value ["root"] == str (demo / "api")

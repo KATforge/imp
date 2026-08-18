@@ -1,7 +1,10 @@
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from imp_git import state
+from imp_git import git, repo, state
 
 SKIP = {
    ".git", ".venv", "__pycache__", "build", "dist", "node_modules", "obsolete",
@@ -33,18 +36,35 @@ def _repositories_below (root: Path, depth: int) -> dict [str, str]:
    return found
 
 
-def here (start: str = "", depth: int = DEPTH) -> dict [str, Any] | None:
-   """Return the repositories below one directory, or None where there are none.
+def _containing (root: Path) -> dict [str, Any] | None:
+   """Return the repository holding one directory as a workspace of one."""
 
-   A directory holding several checkouts is a workspace in practice. Imp declares
-   nothing and reads no manifest: membership is what is on disk, and integration
-   order is whatever the caller named when the feature started.
+   if not root.is_dir ():
+      return None
+   value = git.run_at (str (root), "rev-parse", "--show-toplevel", check=False).stdout.strip ()
+   if not value:
+      return None
+   path = Path (value).resolve ()
+
+   return {
+      "name": path.name,
+      "root": str (path),
+      "services": { path.name: { "path": str (path) } },
+   }
+
+
+def here (start: str = "", depth: int = DEPTH) -> dict [str, Any] | None:
+   """Return the repositories in scope, or None where there are none.
+
+   A directory holding several checkouts is a workspace in practice, and a single
+   checkout is a workspace of one. Imp declares nothing and reads no manifest, so
+   membership is what is on disk and order is whatever the caller named.
    """
 
    root = Path (start).resolve () if start else Path.cwd ().resolve ()
    found = _repositories_below (root, depth)
    if not found:
-      return None
+      return _containing (root)
 
    return {
       "name": root.name.lstrip (".") or root.name,
@@ -80,3 +100,17 @@ def match (value: dict [str, Any], name: str) -> str:
       raise state.StateError (f"Ambiguous repository {name}: {', '.join (candidates)}")
 
    raise state.StateError (f"Unknown repository: {name} (known: {', '.join (sorted (available))})")
+
+
+@contextmanager
+def inside (repository: str) -> Iterator [None]:
+   """Run a block with one member repository as the working repository."""
+
+   previous = Path.cwd ()
+   os.chdir (repository)
+   repo.load.cache_clear ()
+   try:
+      yield
+   finally:
+      os.chdir (previous)
+      repo.load.cache_clear ()

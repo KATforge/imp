@@ -21,10 +21,9 @@ _LOCK_COMMANDS = {
 _DIRTY_SOURCE = """Uncommitted changes cannot be shipped.
 
 Next:
-  imp commit --all --plan
-
-After the exact commit plan is approved and applied:
-  imp release --plan"""
+  imp --dry-run commit --all
+  imp --yes commit --all
+  imp release"""
 
 
 def _hash (path: Path) -> str:

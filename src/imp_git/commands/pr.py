@@ -84,6 +84,8 @@ def pr (
          [ "Mode", "update" if existing else "create" ],
       ],
    )
+   if runtime.options.no_input and not runtime.options.yes:
+      console.fatal ("Non-interactive pull request requires --yes")
    if not runtime.options.yes and not console.confirm (f"Push {head} and open this pull request?"):
       raise typer.Exit (0)
 

@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed `imp start <name> --repo <a> --repo <b>` refusing to run from a directory of checkouts. Spanning a
+  feature is exactly the case where the caller stands above the repositories rather than inside one, and the
+  command required a repository under the cursor before it looked at `--repo` at all
+- Fixed `imp start --repo` ignoring `--dry-run`. It created every branch, worktree, and claim, and dropped
+  `--task` on the way. It now builds one plan, shows it, honours `--dry-run`, `--no-input`, and `--yes` through
+  the shared approval spine, and unwinds every member if one fails
+- Fixed `imp done` writing human tables to standard output under `--json` when a feature spans repositories or
+  `--all` is passed, so a machine client could not parse the result it was given
+- Fixed `--no-input` still prompting wherever a command asked directly. It now makes every prompt fail loudly,
+  as `imp done` across repositories, `imp done --all`, `imp pr`, and conflict resolution all did
+- Fixed cancelling a picker silently choosing its last option, which selected "let the model resolve it" when a
+  merge conflict prompt was interrupted. Cancelling now cancels
+- Fixed `imp done --approve` being ignored for a feature that spans repositories
+- Removed the recorded span. A feature spans the repositories that manage its name, which is what the roster
+  already reported, so nothing is declared and no sidecar can drift from the checkouts. The integration order
+  the caller named lives on each member's own feature record
+- Changed a lone checkout to read as a workspace of one, so `imp done --all` and the roster behave the same
+  whether the caller stands in a repository or above several
+- Added a versioned envelope to usage errors under `--json`, and the failure message to `data.message` for
+  unexpected failures, so one field always carries it
+- Added the standing-in-the-worktree warning to the result envelope, which never carried warnings before
+- Changed `--json` to imply non-interactive, because a machine invocation that stops at a picker is a hang
+- Fixed `imp done --approve` recording the approval while planning, so declining the confirm still left every
+  member approved. Planning now only shows what approving would allow, and the receipt is written on apply
+
 - Fixed recovery records written before they described themselves being reported forever. They name no candidate
   and their resume hint points at a saved plan that no longer exists, so they are dropped rather than kept
 

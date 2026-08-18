@@ -352,8 +352,8 @@ class TestSourceRelease:
          source_release.plan_release (level="patch")
 
       assert "Uncommitted changes cannot be shipped" in str (error.value)
-      assert "imp commit --all --plan" in str (error.value)
-      assert "imp release --plan" in str (error.value)
+      assert "imp --yes commit --all" in str (error.value)
+      assert "imp release" in str (error.value)
 
 
    def test_apply_revalidates_release_notes (self, repo):

@@ -41,7 +41,6 @@ The plan creates no branch or worktree. Apply revalidates the exact base before 
 
 Humans and agents may use the current checkout for focused work when the user allows it. Use a managed worktree for parallel, large, risky, or clean-checkout work.
 
-Existing checkouts still support incremental Imp adoption:
 Repositories that must move together share one feature:
 
 ```bash
@@ -50,8 +49,10 @@ imp review checkout
 imp done checkout
 ```
 
-Imp finds the members by scanning for repositories below you. Nothing is declared, and
-outside a directory of checkouts it is simply the single-repository tool.
+Run it from the directory holding the checkouts. Imp finds the members by scanning below you
+and integrates them in the order you named. Nothing is declared and nothing is recorded on the
+side: a feature spans the repositories that manage its name. A lone checkout is a workspace of
+one, so the same commands mean the same thing either way.
 
 Agent clients use the provider-neutral [Imp development skill](.agents/skills/imp-development/SKILL.md). Imp requires no hooks or adapters.
 
@@ -59,7 +60,7 @@ Agent clients use the provider-neutral [Imp development skill](.agents/skills/im
 
 See the [Imp documentation](https://docs.katforge.com/packages/imp/) for direct editing, parallel workstreams, repository policy, releases, and automation.
 
-Imp stores feature records, plans, claims, and active selection under the repository's common Git directory. Nothing is written to project-level agent instruction files.
+Imp stores feature records, claims, and active selection under the repository's common Git directory. Nothing is written to project-level agent instruction files, and nothing about a feature is kept outside the repositories it lives in.
 
 Repositories need no `.imp` file for built-in policy. Imp creates local state when an operation needs it. Adding tracked policy remains an explicit source change.
 
@@ -70,10 +71,9 @@ Imp resolves supported agent session identities from the environment. Other clie
 ```bash
 imp --json --no-input --dry-run commit
 imp --json --no-input --yes commit
-imp active --path
 ```
 
-Persisted JSON and command results declare independent schemas. Saved plans bind exact Git and file fingerprints and become stale when their inputs change. See the [JSON protocol](docs/json-protocol.md).
+Persisted JSON and command results declare independent schemas. A plan lives only for the invocation that built it: `--dry-run` shows exactly what would happen, `--yes` approves it, and `--no-input` makes a missing answer fail instead of wait. See the [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
 
 ## Git passthrough
 
