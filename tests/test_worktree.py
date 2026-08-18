@@ -25,16 +25,11 @@ class TestStartSafeBase:
    def test_defaults_to_origin_master_not_head (self, repo_with_origin, tmp_path, mock_spin):
       """HEAD is on feat/wip; new branch MUST root at origin/master, not feat/wip."""
 
-      wt_path = tmp_path / "new-wt"
-
       assert git.branch () == "feat/wip"
 
       start_cmd.start (
          name="KAT-99-thing",
-         base="",
-         path=str (wt_path))
-
-      assert wt_path.exists ()
+         base="")
 
       origin_master_sha = git.rev_parse ("origin/master")
       new_branch_sha = git.rev_parse ("feature/kat-99-thing")
@@ -47,9 +42,22 @@ class TestStartSafeBase:
       head_sha = git.rev_parse ("HEAD")
       assert new_branch_sha != head_sha
 
-   def test_default_fetches_origin (self, repo_with_origin, tmp_path, mock_spin, monkeypatch):
-      """Default path calls git.fetch with origin + trunk refspec."""
+   def _advance_origin (self, tmp_path) -> str:
+      """Move origin/master ahead of the local clone, as a teammate's push would."""
 
+      other = tmp_path / "other"
+      git_run (tmp_path, "clone", str (tmp_path / "origin.git"), str (other))
+      git_run (other, "config", "user.email", "t@t.com")
+      git_run (other, "config", "user.name", "T")
+      commit_file (other, "remote.txt", "remote\n", "feat: remote work")
+      git_run (other, "push", "origin", "master")
+
+      return git_run (other, "rev-parse", "HEAD").stdout.strip ()
+
+   def test_a_leading_remote_is_fetched_and_used (self, repo_with_origin, tmp_path, mock_spin, monkeypatch):
+      """Someone else pushed: fetch origin and root at the tip we did not have."""
+
+      advanced = self._advance_origin (tmp_path)
       fetched = []
       real_fetch = git.fetch
 
@@ -61,25 +69,55 @@ class TestStartSafeBase:
 
       start_cmd.start (
          name="KAT-99-fetched",
-         base="",
-         path=str (tmp_path / "fetched-wt"))
+         base="")
 
       assert any (
          kwargs.get ("remote") == "origin"
          and kwargs.get ("refspec") == "+refs/heads/master:refs/remotes/origin/master"
          for _args, kwargs in fetched
       ), f"expected fetch(origin, master); got {fetched}"
+      assert git.rev_parse ("feature/kat-99-fetched") == advanced
+
+   def test_a_missing_local_trunk_falls_back_to_the_remote (self, repo_with_origin, tmp_path, mock_spin, monkeypatch):
+      """A clone without a local trunk branch must still branch from the remote."""
+
+      clone = tmp_path / "clone"
+      git_run (tmp_path, "clone", str (tmp_path / "origin.git"), str (clone))
+      git_run (clone, "config", "user.email", "t@t.com")
+      git_run (clone, "config", "user.name", "T")
+      git_run (clone, "checkout", "-b", "other")
+      git_run (clone, "branch", "-D", "master")
+      monkeypatch.chdir (clone)
+
+      assert git.rev_parse ("master") == ""
+
+      start_cmd.start (name="KAT-99-no-local-trunk", base="")
+
+      assert git.rev_parse ("feature/kat-99-no-local-trunk") == git.rev_parse ("origin/master")
+
+   def test_local_trunk_that_leads_the_remote_is_the_base (self, repo_with_origin, mock_spin):
+      """Trunk ahead of origin is the ordinary state after integrating; do not drop it."""
+
+      git_run (repo_with_origin, "checkout", "master")
+      commit_file (repo_with_origin, "landed.txt", "landed\n", "feat: integrated but unpushed")
+      local = git.rev_parse ("master")
+
+      assert local != git.rev_parse ("origin/master")
+
+      start_cmd.start (
+         name="KAT-99-unpushed",
+         base="")
+
+      assert git.rev_parse ("feature/kat-99-unpushed") == local
 
    def test_explicit_base_uses_that_ref (self, repo_with_origin, tmp_path, mock_spin):
       """--base <ref> roots at that ref exactly, regardless of HEAD or origin."""
 
       target_sha = git.rev_parse ("feat/wip")
-      wt_path = tmp_path / "explicit-wt"
 
       start_cmd.start (
          name="KAT-99-explicit",
-         base="feat/wip",
-         path=str (wt_path))
+         base="feat/wip")
 
       assert git.rev_parse ("feature/kat-99-explicit") == target_sha
 
@@ -91,8 +129,7 @@ class TestStartSafeBase:
 
       start_cmd.start (
          name="KAT-99-explicit-no-fetch",
-         base="feat/wip",
-         path=str (tmp_path / "explicit-no-fetch-wt"))
+         base="feat/wip")
 
       assert fetched == []
 
@@ -104,12 +141,9 @@ class TestStartSafeBase:
       git_run (repo, "remote", "add", "origin", str (origin))
       git_run (repo, "push", "-u", "origin", "main")
 
-      wt_path = tmp_path / "main-wt"
-
       start_cmd.start (
          name="KAT-99-main-base",
-         base="",
-         path=str (wt_path))
+         base="")
 
       assert git.rev_parse ("feature/kat-99-main-base") == git.rev_parse ("origin/main")
 
@@ -124,12 +158,9 @@ class TestStartSafeBase:
       head_sha = git.rev_parse ("HEAD")
       assert main_sha != head_sha
 
-      wt_path = tmp_path / "no-remote-wt"
-
       start_cmd.start (
          name="KAT-99-no-remote",
-         base="",
-         path=str (wt_path))
+         base="")
 
       assert git.rev_parse ("feature/kat-99-no-remote") == main_sha
 
@@ -147,8 +178,7 @@ class TestStartSafeBase:
       with pytest.raises (typer.Exit):
          start_cmd.start (
             name="KAT-99-doomed",
-            base="",
-            path=str (tmp_path / "doomed-wt"))
+            base="")
 
 
 class TestRefExists:
@@ -244,8 +274,7 @@ class TestUnmanagedRemove:
 
    def test_unmanaged_remove_refuses_managed_worktrees (self, repo_with_origin, tmp_path, mock_spin):
       start_cmd.start (
-         name="managed-one",
-         path=str (tmp_path / "managed-wt"))
+         name="managed-one")
 
       with pytest.raises (typer.Exit):
          worktree_cmd.remove (name="managed-one", unmanaged=True)
@@ -256,8 +285,7 @@ class TestLockScoping:
    def test_worktree_remove_ignores_the_global_features_lock (self, repo_with_origin, tmp_path, mock_spin):
       runtime.configure (actor_id="actor:human:test", yes=True)
       start_cmd.start (
-         name="scoped",
-         path=str (tmp_path / "scoped-wt"))
+         name="scoped")
       feature = features.find ("scoped")
       child = subprocess.Popen ([ sys.executable, "-c", "import time; time.sleep(60)" ])
       path = state.root () / "locks" / "features.json"

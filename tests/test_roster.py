@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp_git import config, conflicts, features, git, roster, runtime, state, workspace
+from imp_git import conflicts, features, git, roster, runtime, state, workspace
 from tests.conftest import commit_file, git_run
 
 
@@ -29,23 +29,19 @@ def demo (tmp_path, monkeypatch):
    root.mkdir ()
    _repo (root, "api")
    _repo (root, "web")
-   monkeypatch.setenv ("XDG_STATE_HOME", str (tmp_path / "state"))
-   monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path / "config"))
-   config.save ({ "worktree:root": str (tmp_path / "worktrees") })
    previous = Path.cwd ()
    os.chdir (root)
    yield root
    os.chdir (previous)
-   config.load.cache_clear ()
 
 
-def _start (repository: Path, name: str, path: Path):
+def _start (repository: Path, name: str):
    previous = Path.cwd ()
    os.chdir (repository)
    try:
       from imp_git import repo as repo_mod
       repo_mod.load.cache_clear ()
-      plan = features.plan_start (name, actor_id="actor:human:anders", path=str (path))
+      plan = features.plan_start (name, actor_id="actor:human:anders")
       return features.apply_start (plan)
    finally:
       os.chdir (previous)
@@ -56,7 +52,7 @@ def _start (repository: Path, name: str, path: Path):
 class TestRoster:
 
    def test_an_untouched_feature_reads_as_empty (self, demo, tmp_path):
-      _start (demo / "api", "checkout", tmp_path / "wt-api")
+      _start (demo / "api", "checkout")
 
       entries = roster.collect (workspace.here (str (demo)))
 
@@ -66,7 +62,7 @@ class TestRoster:
       assert roster.promotable (entries) == []
 
    def test_a_committed_feature_reads_as_ready (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
 
       entries = roster.collect (workspace.here (str (demo)))
@@ -77,7 +73,7 @@ class TestRoster:
       assert len (roster.promotable (entries)) == 1
 
    def test_uncommitted_work_reads_as_dirty (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
       (Path (feature ["path"]) / "loose.txt").write_text ("unsaved\n")
 
@@ -87,7 +83,7 @@ class TestRoster:
 
    def test_one_name_in_two_repositories_groups_and_orders (self, demo, tmp_path):
       for alias in [ "web", "api" ]:
-         feature = _start (demo / alias, "checkout", tmp_path / f"wt-{alias}")
+         feature = _start (demo / alias, "checkout")
          commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
 
       entries = roster.collect (workspace.here (str (demo)))
@@ -97,9 +93,9 @@ class TestRoster:
       assert [ member ["alias"] for member in roster.ordered_members (entries [0]) ] == [ "api", "web" ]
 
    def test_the_worst_member_decides_the_grouped_condition (self, demo, tmp_path):
-      ready = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      ready = _start (demo / "api", "checkout")
       commit_file (Path (ready ["path"]), "new.txt", "work\n", "feat: work")
-      _start (demo / "web", "checkout", tmp_path / "wt-web")
+      _start (demo / "web", "checkout")
 
       entries = roster.collect (workspace.here (str (demo)))
 
@@ -109,7 +105,7 @@ class TestRoster:
 class TestConflictResolution:
 
    def _diverged (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "file.txt", "feature side\n", "feat: change the line")
       commit_file (demo / "api", "file.txt", "trunk side\n", "fix: change the same line")
       previous = Path.cwd ()
@@ -149,7 +145,7 @@ class TestConflictResolution:
          os.chdir (previous)
 
    def test_a_clean_merge_records_no_decisions (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "only-here.txt", "work\n", "feat: work")
       scratch = tmp_path / "scratch"
       previous = Path.cwd ()
@@ -180,7 +176,7 @@ class TestConflictResolution:
          os.chdir (previous)
 
    def test_a_deletion_beats_a_stale_edit_by_default (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "file.txt", "edited\n", "feat: edit the file")
       git_run (demo / "api", "rm", "file.txt")
       git_run (demo / "api", "commit", "-m", "chore: drop the file")
@@ -199,7 +195,7 @@ class TestConflictResolution:
          os.chdir (previous)
 
    def test_theirs_restores_a_file_trunk_deleted (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "file.txt", "edited\n", "feat: edit the file")
       git_run (demo / "api", "rm", "file.txt")
       git_run (demo / "api", "commit", "-m", "chore: drop the file")
@@ -220,7 +216,7 @@ class TestConflictResolution:
 class TestHardening:
 
    def test_a_candidate_that_restores_a_deleted_path_is_blocked (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "file.txt", "still wanted\n", "feat: keep editing the file")
       git_run (demo / "api", "rm", "file.txt")
       git_run (demo / "api", "commit", "-m", "chore: drop the file")
@@ -243,7 +239,7 @@ class TestHardening:
          os.chdir (previous)
 
    def test_honouring_a_deletion_leaves_nothing_to_block (self, demo, tmp_path):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "file.txt", "still wanted\n", "feat: keep editing the file")
       git_run (demo / "api", "rm", "file.txt")
       git_run (demo / "api", "commit", "-m", "chore: drop the file")
@@ -266,7 +262,7 @@ class TestHardening:
          os.chdir (previous)
 
    def test_an_undeletable_worktree_leaves_the_integration_landed (self, demo, tmp_path, monkeypatch):
-      feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
+      feature = _start (demo / "api", "checkout")
       commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
       previous = Path.cwd ()
       os.chdir (demo / "api")
@@ -479,13 +475,13 @@ class TestSpentState:
 
 class TestIntegrateEvery:
 
-   def _feature (self, repository: Path, name: str, path: Path, work: str = "work\n"):
+   def _feature (self, repository: Path, name: str, work: str = "work\n"):
       previous = Path.cwd ()
       os.chdir (repository)
       try:
          from imp_git import repo as repo_mod
          repo_mod.load.cache_clear ()
-         plan = features.plan_start (name, actor_id="actor:human:anders", path=str (path))
+         plan = features.plan_start (name, actor_id="actor:human:anders")
          created = features.apply_start (plan)
          commit_file (Path (created ["path"]), f"{name}.txt", work, f"feat: add {name}")
          return created
@@ -497,9 +493,9 @@ class TestIntegrateEvery:
    def test_every_ready_feature_lands_and_blocked_ones_are_skipped (self, demo, tmp_path, monkeypatch):
       from imp_git.commands import done as done_cmd
 
-      self._feature (demo / "api", "first", tmp_path / "wt-first")
-      self._feature (demo / "api", "second", tmp_path / "wt-second")
-      dirty = self._feature (demo / "api", "third", tmp_path / "wt-third")
+      self._feature (demo / "api", "first")
+      self._feature (demo / "api", "second")
+      dirty = self._feature (demo / "api", "third")
       (Path (dirty ["path"]) / "loose.txt").write_text ("unsaved\n")
       monkeypatch.chdir (demo)
 
@@ -514,7 +510,7 @@ class TestIntegrateEvery:
    def test_a_dry_run_lands_nothing (self, demo, tmp_path, monkeypatch):
       from imp_git.commands import done as done_cmd
 
-      self._feature (demo / "api", "first", tmp_path / "wt-first")
+      self._feature (demo / "api", "first")
       monkeypatch.chdir (demo)
 
       data = done_cmd._promote_every (

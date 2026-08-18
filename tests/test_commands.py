@@ -255,7 +255,7 @@ class TestStandingWarning:
       from imp_git.commands import done as done_cmd
       from imp_git.commands import start as start_cmd
 
-      start_cmd.start (name="standing", path=str (tmp_path / "standing-wt"))
+      start_cmd.start (name="standing")
       feature = features.find ("standing")
       previous = Path.cwd ()
       os.chdir (feature ["path"])
@@ -264,12 +264,12 @@ class TestStandingWarning:
       finally:
          os.chdir (previous)
 
-      assert any ("standing-wt" in text for text in warnings)
+      assert any (str (feature ["path"]) in text for text in warnings)
 
    def test_done_stays_quiet_from_the_repository_root (self, repo_with_origin, tmp_path, monkeypatch):
       from imp_git.commands import done as done_cmd
       from imp_git.commands import start as start_cmd
 
-      start_cmd.start (name="standing", path=str (tmp_path / "standing-wt"))
+      start_cmd.start (name="standing")
 
       assert done_cmd._standing_here () == []

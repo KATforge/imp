@@ -14,8 +14,8 @@ def _actor (kind: str, name: str) -> str:
    return identity.resource ("actor", kind, name)
 
 
-def _start (name, actor_id, path):
-   plan = features.plan_start (name, actor_id=actor_id, path=str (path))
+def _start (name, actor_id):
+   plan = features.plan_start (name, actor_id=actor_id)
    return plan, features.apply_start (plan)
 
 
@@ -25,7 +25,7 @@ class TestFeatures:
       actor_id = _actor ("codex", "payments")
       path = tmp_path / "payments"
 
-      plan = features.plan_start ("payments", actor_id=actor_id, path=str (path))
+      plan = features.plan_start ("payments", actor_id=actor_id)
 
       assert not path.exists ()
       assert not git.ref_exists ("feature/payments")
@@ -40,13 +40,11 @@ class TestFeatures:
 
    def test_temper_can_create_an_initially_unclaimed_feature (self, repo_with_origin, tmp_path):
       actor_id = _actor ("temper", "checkout")
-      path = tmp_path / "checkout"
       plan = features.plan_start (
          "checkout",
          actor_id=actor_id,
          change_id="change:checkout",
          claim_writer=False,
-         path=str (path),
          target="master",
       )
 
@@ -59,8 +57,8 @@ class TestFeatures:
    def test_two_agents_commit_in_isolated_worktrees (self, repo_with_origin, tmp_path, monkeypatch):
       first_actor = _actor ("codex", "payments")
       second_actor = _actor ("claude", "profile")
-      _first_plan, first = _start ("payments", first_actor, tmp_path / "payments")
-      _second_plan, second = _start ("profile", second_actor, tmp_path / "profile")
+      _first_plan, first = _start ("payments", first_actor)
+      _second_plan, second = _start ("profile", second_actor)
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add isolated marker")
 
       monkeypatch.chdir (first ["path"])
@@ -81,7 +79,7 @@ class TestFeatures:
    def test_claim_prevents_a_second_writer (self, repo_with_origin, tmp_path, monkeypatch):
       owner = _actor ("codex", "owner")
       intruder = _actor ("claude", "intruder")
-      _plan, feature = _start ("claimed", owner, tmp_path / "claimed")
+      _plan, feature = _start ("claimed", owner)
       monkeypatch.chdir (feature ["path"])
 
       with pytest.raises (state.StateError, match="claimed by"):
@@ -92,7 +90,7 @@ class TestFeatures:
    def test_expired_claim_allows_a_new_writer (self, repo_with_origin, tmp_path):
       owner = _actor ("codex", "owner")
       intruder = _actor ("claude", "intruder")
-      _plan, feature = _start ("claimed", owner, tmp_path / "claimed")
+      _plan, feature = _start ("claimed", owner)
       claim_path = features._claim_path (feature ["feature_id"])
       record = state.read (claim_path, "imp.claim.v1")
       record ["expires_at"] = "2000-01-01T00:00:00Z"
@@ -106,7 +104,7 @@ class TestFeatures:
    def test_feature_worktree_does_not_disturb_the_current_branch (self, repo_with_origin, tmp_path):
       original_branch = git.branch ()
 
-      _plan, feature = _start ("payments", _actor ("human", "anders"), tmp_path / "payments")
+      _plan, feature = _start ("payments", _actor ("human", "anders"))
 
       assert Path (feature ["path"]).is_dir ()
       assert git.branch () == original_branch
@@ -125,9 +123,9 @@ class TestFeatures:
       git_run (repo_with_origin, "commit", "-m", "chore: configure worktrees")
       git_run (repo_with_origin, "push", "origin", "master")
       repo_mod.load.cache_clear ()
-      target = tmp_path / "shared"
 
-      plan, feature = _start ("shared", _actor ("human", "anders"), target)
+      plan, feature = _start ("shared", _actor ("human", "anders"))
+      target = Path (feature ["path"])
 
       assert {item ["action"] for item in plan ["items"]} >= { "setup", "share" }
       assert (target / ".env.local").is_symlink ()
@@ -137,7 +135,7 @@ class TestFeatures:
 
    def test_clean_worktree_removal_is_planned_and_retains_feature_record (self, repo_with_origin, tmp_path):
       actor_id = _actor ("human", "anders")
-      _start_plan, feature = _start ("temporary", actor_id, tmp_path / "temporary")
+      _start_plan, feature = _start ("temporary", actor_id)
 
       plan = features.plan_remove (feature, actor_id=actor_id)
 
@@ -153,7 +151,7 @@ class TestFeatures:
 
    def test_completing_from_inside_the_worktree_leaves_a_live_directory (self, repo_with_origin, tmp_path):
       actor_id = _actor ("human", "anders")
-      _plan, feature = _start ("stepping", actor_id, tmp_path / "stepping")
+      _plan, feature = _start ("stepping", actor_id)
       os.chdir (feature ["path"])
 
       features.complete (feature, actor_id)
@@ -166,7 +164,7 @@ class TestFeatureMigration:
    """An existing record must survive the loss of a field no command read."""
 
    def test_a_v1_record_migrates_and_forgets_its_task (self, repo_with_origin, tmp_path):
-      _, feature = _start ("payments", _actor ("codex", "payments"), tmp_path / "payments")
+      _, feature = _start ("payments", _actor ("codex", "payments"))
       path = state.root () / "features" / f"{identity.key (feature ['feature_id'])}.json"
       record = json.loads (path.read_text ())
       record ["schema"] = "imp.feature.v1"

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed `imp start` branching from the remote when local trunk already leads it. Under commit-straight-to-trunk
+  that is the ordinary state, so every feature started after an integration and before a push silently came up
+  without the work already landed. The remote is still read live, and a genuine divergence still uses it
+- Removed `imp start --path`. Placement is already settable per repository and per machine with `worktree:root`,
+  the flag was never wired into `--repo` spans, and pointing it below a scan root made the new worktree read as
+  a member repository of the workspace
+
 - Removed `imp start --task` and the `task` field it wrote. No command ever read it and no display ever
   showed it, so the intent it captured was reachable only by parsing JSON or opening the state file. The
   feature name is the label. Existing records migrate to `imp.feature.v2` on read

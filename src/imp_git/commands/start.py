@@ -25,7 +25,6 @@ def start (
    name: Annotated [str, typer.Argument (help="Readable feature or lane name")] = "",
    base: Annotated [str, typer.Option ("--base", help="Explicit base ref")] = "",
    target: Annotated [str, typer.Option ("--target", help="Integration target branch")] = "",
-   path: Annotated [str, typer.Option ("--path", help="Explicit worktree path")] = "",
    repos: Annotated [
       list [str] | None,
       typer.Option ("--repo", help="Workspace repository to span; repeat as needed"),
@@ -53,7 +52,6 @@ def start (
          name,
          actor_id=identity.actor (actor_id),
          base=base,
-         path=path,
          target=target,
       )
    except (state.StateError, ValueError) as error:

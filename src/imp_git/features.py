@@ -182,6 +182,21 @@ def _default_path (name: str) -> Path:
    return _managed_root () / identity.slug (name)
 
 
+def _trunk_base (trunk: str) -> tuple [str, str]:
+   """Prefer local trunk when it merely leads the remote, the ordinary state after integrating.
+
+   Basing on the remote there would silently drop every feature already integrated and not
+   yet pushed. Anything else, including a genuine divergence, still branches from the remote.
+   """
+
+   remote_oid = _remote_oid (trunk)
+   local_oid = git.rev_parse (trunk)
+   if local_oid and remote_oid and git.is_merged (remote_oid, local_oid):
+      return trunk, local_oid
+
+   return f"origin/{trunk}", remote_oid
+
+
 def _remote_oid (trunk: str) -> str:
    output = git.capture ("ls-remote", "origin", f"refs/heads/{trunk}")
    lines = output.strip ().splitlines ()
@@ -211,7 +226,6 @@ def _descriptor (
    base: str = "",
    branch: str = "",
    change_id: str = "",
-   path: str = "",
    span: list [str] | None = None,
    target: str = "",
    claim_writer: bool = True,
@@ -223,7 +237,7 @@ def _descriptor (
    branch_name = branch or f"{repo.get ('branch:prefix', 'feature/')}{slug}"
    if git.ref_exists (branch_name):
       raise state.StateError (f"Branch already exists: {branch_name}")
-   feature_path = Path (path).expanduser ().resolve () if path else _default_path (slug).resolve ()
+   feature_path = _default_path (slug).resolve ()
    if feature_path.exists ():
       raise state.StateError (f"Worktree path already exists: {feature_path}")
    trunk = target or str (repo.get ("done:target", "")) or git.base_branch ()
@@ -233,8 +247,7 @@ def _descriptor (
       base_ref = base
       base_oid = git.rev_parse (base)
    elif git.remote_exists ():
-      base_ref = f"origin/{trunk}"
-      base_oid = _remote_oid (trunk)
+      base_ref, base_oid = _trunk_base (trunk)
    else:
       if not git.ref_exists (trunk):
          raise state.StateError (f"No remote and no local trunk branch: {trunk}")
@@ -268,7 +281,6 @@ def plan_start (
    base: str = "",
    branch: str = "",
    change_id: str = "",
-   path: str = "",
    span: list [str] | None = None,
    target: str = "",
    claim_writer: bool = True,
@@ -282,7 +294,6 @@ def plan_start (
       base=base,
       branch=branch,
       change_id=change_id,
-      path=path,
       span=span,
       target=target,
       claim_writer=claim_writer,

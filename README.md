@@ -31,7 +31,8 @@ imp done --all
 
 Omitting an existing feature opens a picker. Review asks whether to mark the exact candidate after displaying it.
 
-`imp start` branches from freshly verified remote trunk by default.
+`imp start` branches from freshly verified remote trunk by default, or from local trunk when local
+already contains the remote tip, which is the ordinary state after integrating and before pushing.
 
 The plan creates no branch or worktree. Apply revalidates the exact base before changing Git state.
 

@@ -34,15 +34,26 @@ def commit_count (repo):
 
 
 @pytest.fixture (autouse=True)
-def _reset_process_state ():
-   """Prevent cached repository and invocation state from leaking between tests."""
+def _reset_process_state (tmp_path_factory, monkeypatch):
+   """Isolate cached state, machine configuration, and managed worktrees per test.
+
+   The home sits outside any test's `tmp_path`, because several fixtures make that
+   directory the repository itself and would see the config file as dirty work.
+   """
+   from imp_git import config
    from imp_git import repo as repo_mod
 
+   home = tmp_path_factory.mktemp ("imp-home")
+   monkeypatch.setenv ("XDG_CONFIG_HOME", str (home / "config"))
+   monkeypatch.setenv ("XDG_STATE_HOME", str (home / "state"))
+   config.load.cache_clear ()
+   config.save ({ "worktree:root": str (home / "worktrees") })
    repo_mod.load.cache_clear ()
    runtime.configure (yes=True)
    try:
       yield
    finally:
+      config.load.cache_clear ()
       repo_mod.load.cache_clear ()
       runtime.reset ()
 

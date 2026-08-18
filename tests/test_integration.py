@@ -13,8 +13,7 @@ ACTOR = identity.resource ("actor", "human", "anders")
 
 
 def _feature (repo: Path, tmp_path: Path, name: str = "checkout") -> dict:
-   path = repo.parent / f"{repo.name}-{name}-worktree"
-   plan = features.plan_start (name, actor_id=ACTOR, path=str (path))
+   plan = features.plan_start (name, actor_id=ACTOR)
    feature = features.apply_start (plan)
    commit_file (Path (feature ["path"]), f"{name}.txt", f"{name}\n", f"feat: add {name}")
    return features.find (feature ["feature_id"])
