@@ -3,7 +3,7 @@ import subprocess
 import pytest
 import typer
 
-from imp_git import git
+from imp_git import git, version
 from tests.conftest import commit_file, git_run, last_commit_subject
 
 
@@ -89,30 +89,22 @@ class TestLastTag:
       assert git.last_tag () == "v1.0.0"
 
 
-class TestHighestTag:
+class TestHighestRelease:
 
-   def test_no_tags (self, repo):
-      assert git.highest_tag () == ""
+   def test_no_tags (self):
+      assert version.highest ([]) == ""
 
-   def test_highest (self, repo):
-      git_run (repo, "tag", "v0.1.0")
-      commit_file (repo, "file.txt", "v2\n", "second")
-      git_run (repo, "tag", "v0.2.0")
-      assert git.highest_tag () == "v0.2.0"
+   def test_highest (self):
+      assert version.highest ([ "v0.1.0", "v0.2.0" ]) == "v0.2.0"
 
-   def test_stable_skips_rc (self, repo):
-      git_run (repo, "tag", "v0.1.0")
-      commit_file (repo, "f.txt", "x\n", "c")
-      git_run (repo, "tag", "v0.2.0-rc.1")
-      assert git.highest_tag (stable=True) == "v0.1.0"
+   def test_orders_by_number_not_text (self):
+      assert version.highest ([ "v0.9.0", "v0.10.0" ]) == "v0.10.0"
 
-   def test_stable_skips_non_semver (self, repo):
-      git_run (repo, "tag", "v0.1.0")
-      commit_file (repo, "f.txt", "x\n", "c")
-      git_run (repo, "tag", "v2024.5.1.3")
-      commit_file (repo, "f2.txt", "y\n", "c2")
-      git_run (repo, "tag", "v1.2")
-      assert git.highest_tag (stable=True) == "v0.1.0"
+   def test_skips_rc (self):
+      assert version.highest ([ "v0.1.0", "v0.2.0-rc.1" ]) == "v0.1.0"
+
+   def test_skips_non_semver (self):
+      assert version.highest ([ "v0.1.0", "v2024.5.1.3", "v1.2", "vpatch" ]) == "v0.1.0"
 
 
 class TestTagOperations:

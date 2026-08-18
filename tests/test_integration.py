@@ -476,3 +476,39 @@ class TestSourceRelease:
       git.tag ("v1.3.0", git.rev_parse ("HEAD"))
 
       assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == ""
+
+
+class TestReleaseTags:
+   """A release must not depend on local tags agreeing with the ones origin published."""
+
+   def _diverged (self, repo_with_origin, monkeypatch):
+      git_run (repo_with_origin, "checkout", "master")
+      git.tag ("v1.0.0")
+      git_run (repo_with_origin, "push", "origin", "v1.0.0")
+      git_run (repo_with_origin, "push", "origin", "feat/wip:refs/tags/v1.1.0")
+      git_run (repo_with_origin, "tag", "-f", "v1.0.0", "feat/wip")
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
+
+   def test_a_tag_that_disagrees_with_origin_does_not_block_a_release (self, repo_with_origin, monkeypatch):
+      self._diverged (repo_with_origin, monkeypatch)
+
+      plan = source_release.plan_release (level="patch")
+
+      assert plan ["payload"] ["version"] == "1.1.1"
+      assert plan ["state"] == "ready"
+
+   def test_a_release_never_moves_a_local_tag (self, repo_with_origin, monkeypatch):
+      self._diverged (repo_with_origin, monkeypatch)
+      before = git.rev_parse ("v1.0.0^{}")
+
+      source_release.plan_release (level="patch")
+
+      assert git.rev_parse ("v1.0.0^{}") == before
+      assert before == git.rev_parse ("feat/wip")
+
+   def test_a_published_tag_the_clone_lacks_still_counts (self, repo_with_origin, monkeypatch):
+      self._diverged (repo_with_origin, monkeypatch)
+
+      assert git.tag_exists ("v1.1.0") is False
+      assert source_release._latest_version (source_release._release_tags ()) == "1.1.0"

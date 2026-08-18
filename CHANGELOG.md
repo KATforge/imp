@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed `imp release` refusing to run when any local tag disagrees with the one origin published. It fetched
+  every tag to read version names, and `git fetch --tags` is all-or-nothing, so one legacy tag from a re-cut
+  release blocked every future release. Version discovery now takes the highest of the local and published
+  tag names, which `ls-remote` already answers for, and the only tag fetched is the single one bounding the
+  changelog. No local tag is ever moved, and the trunk fetch no longer follows tags
+
 - Fixed `imp start` branching from the remote when local trunk already leads it. Under commit-straight-to-trunk
   that is the ordinary state, so every feature started after an integration and before a push silently came up
   without the work already landed. The remote is still read live, and a genuine divergence still uses it

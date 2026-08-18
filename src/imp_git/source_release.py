@@ -50,16 +50,47 @@ def _temporary_worktree (ref: str) -> tuple [Path, Any]:
    return path, cleanup
 
 
-def _latest_version () -> str:
-   highest = git.highest_tag (stable=True)
+def _release_tags () -> list [str]:
+   """Every release tag this repository knows of, local and published.
+
+   Names are all that version discovery needs, and the remote already answers for
+   them, so a local tag that disagrees with origin can never decide a release.
+   """
+
+   names = set (git.tags ())
+   if git.remote_exists ():
+      names.update (git.remote_tags ())
+
+   return sorted (names)
+
+
+def _latest_version (names: list [str]) -> str:
+   highest = version.highest (names)
    return highest.lstrip ("v") if highest else "0.0.0"
 
 
-def _entry (source_oid: str) -> tuple [str, str]:
-   tag = git.highest_tag (stable=True)
+def _range_tag (names: list [str]) -> tuple [str, list [str]]:
+   """Return the tag bounding the changelog, fetching only that one when it is missing.
+
+   This is the sole place a release needs a tag as an object rather than a name, so
+   it is the only tag fetched. Nothing else in the repository is touched or moved.
+   """
+
+   tag = version.highest (names)
+   if not tag or git.tag_exists (tag):
+      return tag, []
+   if git.remote_exists () and git.fetch_tag (tag):
+      return tag, []
+
+   return "", [ f"Could not read {tag} locally, so the changelog covers every commit" ]
+
+
+def _entry (source_oid: str, names: list [str]) -> tuple [str, str, list [str]]:
+   tag, warnings = _range_tag (names)
    range_value = f"{tag}..{source_oid}" if tag else source_oid
    subjects = git.capture ("log", "--format=%h %s", range_value)
-   return tag, version.changelog_from_commits (subjects) or "- Changed the source release"
+
+   return tag, version.changelog_from_commits (subjects) or "- Changed the source release", warnings
 
 
 def _refresh_lockfiles (root: Path, manifests: list [Path]) -> tuple [list [dict [str, Any]], dict [str, str]]:
@@ -90,6 +121,10 @@ def _source () -> tuple [str, str, str]:
    target = git.base_branch ()
    if not git.ref_exists (target):
       raise state.StateError (f"No trunk branch to release from: {target}")
+   if git.remote_exists ():
+      git.fetch (
+         no_tags=True, remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}",
+      )
    source_oid = git.rev_parse (target)
    public = git.rev_parse (f"origin/{target}") if git.remote_exists () else ""
 
@@ -139,10 +174,9 @@ def plan_release (
       raise state.StateError (f"Unsupported version level: {level}")
    if not git.is_clean ():
       raise state.StateError (_DIRTY_SOURCE)
-   if git.remote_exists ():
-      git.fetch (tags=True)
    source_oid, target_ref, public_target_oid = _source ()
-   current = _latest_version ()
+   names = _release_tags ()
+   current = _latest_version (names)
    resumed = "" if set_version else _resumable (f"v{current}", source_oid)
    if resumed:
       new_version = current
@@ -150,13 +184,12 @@ def plan_release (
       base_version = set_version or version.bump (current, level)
       if version.base_tuple (base_version) is None or "-" in base_version:
          raise state.StateError (f"Release version must be X.Y.Z: {base_version}")
-      existing = git.rc_tags (base_version)
-      existing.extend (tag for tag in git.remote_tags () if tag.startswith (f"v{base_version}-rc."))
+      existing = [ name for name in names if name.startswith (f"v{base_version}-rc.") ]
       new_version = version.next_rc (base_version, existing) if prerelease else base_version
    tag = f"v{new_version}"
-   if not resumed and (git.tag_exists (tag) or tag in git.remote_tags ()):
+   if not resumed and tag in names:
       raise state.StateError (f"Release tag already exists: {tag}")
-   previous_tag, entry = _entry (source_oid)
+   previous_tag, entry, notes = _entry (source_oid, names)
    worktree, cleanup = _temporary_worktree (source_oid)
    try:
       changed = version.sync_manifests (worktree, new_version)
@@ -214,6 +247,7 @@ def plan_release (
          *([ { "action": "github_release", "tag": tag } ] if payload ["github_release"] else []),
       ],
       fingerprint=plan_fingerprint,
+      warnings=notes,
       payload_schema="imp.release-plan.v1",
       payload=payload,
    )

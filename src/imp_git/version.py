@@ -95,6 +95,15 @@ def base_tuple (ref: str) -> tuple [int, int, int] | None:
       return None
    return tuple (int (x) for x in match.groups ())
 
+_STABLE_TAG = re.compile (r"^v\d+\.\d+\.\d+$")
+
+def highest (names: list [str]) -> str:
+   """Return the highest stable release tag among names, ignoring anything else."""
+
+   ranked = [ (base_tuple (name), name) for name in names if _STABLE_TAG.match (name) ]
+
+   return max (ranked) [1] if ranked else ""
+
 def next_rc (ver: str, existing: list [str]) -> str:
    if not existing:
       return f"{ver}-rc.1"

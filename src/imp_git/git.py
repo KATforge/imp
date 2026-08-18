@@ -1,11 +1,9 @@
 import os
-import re
 import subprocess
 from pathlib import Path
 
 from imp_git import console
 
-_SEMVER_TAG_RE = re.compile (r"^v\d+\.\d+\.\d+$")
 
 def _run (
    *args: str,
@@ -193,22 +191,16 @@ def last_tag () -> str:
    result = _run ("describe", "--tags", "--abbrev=0", check=False)
    return result.stdout.strip ()
 
-def highest_tag (stable: bool = False) -> str:
-   result = _run ("tag", "-l", "v*", "--sort=-v:refname", check=False)
-
-   for line in result.stdout.strip ().splitlines ():
-      t = line.strip ()
-      if not t:
-         continue
-      if stable and not _SEMVER_TAG_RE.match (t):
-         continue
-      return t
-
-   return ""
-
-def rc_tags (ver: str) -> list [str]:
-   result = _run ("tag", "-l", f"v{ver}-rc.*", "--sort=-v:refname", check=False)
+def tags () -> list [str]:
+   result = _run ("tag", "-l", "v*", check=False)
    return [ line.strip () for line in result.stdout.splitlines () if line.strip () ]
+
+def fetch_tag (name: str, remote: str = "origin") -> bool:
+   """Fetch exactly one tag, disturbing no other and never moving it by force."""
+
+   result = _run ("fetch", remote, f"refs/tags/{name}:refs/tags/{name}", check=False)
+
+   return result.returncode == 0
 
 def remote_tags (remote: str = "origin") -> list [str]:
    result = _run ("ls-remote", "--tags", remote, check=False)
@@ -249,12 +241,20 @@ def log_oneline (count: int = 10, rev_range: str = "") -> str:
    result = _run (*args, check=False)
    return result.stdout.strip ()
 
-def fetch (prune: bool = False, tags: bool = False, remote: str = "", refspec: str = ""):
+def fetch (
+   prune: bool = False,
+   tags: bool = False,
+   no_tags: bool = False,
+   remote: str = "",
+   refspec: str = "",
+):
    args = [ "fetch" ]
    if prune:
       args.append ("--prune")
    if tags:
       args.append ("--tags")
+   if no_tags:
+      args.append ("--no-tags")
    if remote:
       args.append (remote)
    if refspec:
