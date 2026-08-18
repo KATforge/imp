@@ -7,6 +7,9 @@ description: Use for source-code changes in Git repositories. Route every Git op
 
 1. Discover before changing anything.
 
+   - Every command takes `--json` and answers with one versioned envelope; failures use `imp.error.v1` and a nonzero exit.
+   - Pass `--no-input` so a missing answer fails loudly instead of waiting, and `--yes` to approve what you already decided.
+   - Run `imp doctor --json` when the environment looks wrong; it reports tools, provider, and configuration.
    - Outside Git, edit directly. Do not initialize Git or Imp.
    - Inside Git, run `imp status --json`. Run it from a directory of checkouts to cover every repository below it.
    - Never create `.imp` automatically.

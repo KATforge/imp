@@ -113,6 +113,12 @@ def path (
    except state.StateError as error:
       console.fatal (str (error))
    if feature:
+      if runtime.options.json:
+         return result.emit (
+            "imp.worktree-path.v1", "imp worktree path",
+            { "feature_id": feature ["feature_id"], "name": feature ["name"], "path": feature ["path"] },
+            json_output=True,
+         )
       console.out.print (feature ["path"])
       return feature ["path"]
    branch_ref = f"refs/heads/{name}"

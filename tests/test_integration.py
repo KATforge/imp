@@ -456,3 +456,28 @@ class TestSourceRelease:
       assert plan ["payload"] ["local"] is False
       actions = { item ["action"] for item in plan ["items"] }
       assert actions == { "update_ref", "tag", "push", "github_release" }
+
+   def test_an_interrupted_release_resumes_instead_of_refusing (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
+      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
+      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
+      first = source_release.plan_release (level="minor")
+      payload = first ["payload"]
+      git.tag (str (payload ["tag"]), str (payload ["commit_oid"]))
+
+      assert source_release._resumable (str (payload ["tag"]), str (payload ["source_oid"])) == payload ["commit_oid"]
+
+      second = source_release.plan_release (level="minor")
+
+      assert second ["payload"] ["resumed"] is True
+      assert second ["payload"] ["commit_oid"] == payload ["commit_oid"]
+
+   def test_an_explicit_version_that_already_exists_is_refused (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
+      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
+      git.tag ("v1.2.3")
+
+      with pytest.raises (state.StateError, match="already exists"):
+         source_release.plan_release (set_version="1.2.3")

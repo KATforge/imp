@@ -97,6 +97,23 @@ def _source () -> tuple [str, str, str]:
    return source_oid, target, public
 
 
+def _resumable (tag: str, source_oid: str) -> str:
+   """Return the release commit an interrupted run already made for this tag.
+
+   A release builds its commit and tags it before moving the target, so a run that
+   dies partway leaves a tag sitting one commit ahead of the target. That, and only
+   that, is an unfinished release. A tag on the target itself is the ordinary state
+   after a release that completed, and must still bump to the next version.
+   """
+
+   if not git.tag_exists (tag):
+      return ""
+   tagged = git.rev_parse (tag)
+   parents = git.capture ("rev-list", "--parents", "-n", "1", tagged).split () [1:]
+
+   return tagged if parents == [ source_oid ] else ""
+
+
 def plan_release (
    *,
    level: str = "patch",
@@ -113,14 +130,18 @@ def plan_release (
       git.fetch (tags=True)
    source_oid, target_ref, public_target_oid = _source ()
    current = _latest_version ()
-   base_version = set_version or version.bump (current, level)
-   if version.base_tuple (base_version) is None or "-" in base_version:
-      raise state.StateError (f"Release version must be X.Y.Z: {base_version}")
-   existing = git.rc_tags (base_version)
-   existing.extend (tag for tag in git.remote_tags () if tag.startswith (f"v{base_version}-rc."))
-   new_version = version.next_rc (base_version, existing) if prerelease else base_version
+   resumed = "" if set_version else _resumable (f"v{current}", source_oid)
+   if resumed:
+      new_version = current
+   else:
+      base_version = set_version or version.bump (current, level)
+      if version.base_tuple (base_version) is None or "-" in base_version:
+         raise state.StateError (f"Release version must be X.Y.Z: {base_version}")
+      existing = git.rc_tags (base_version)
+      existing.extend (tag for tag in git.remote_tags () if tag.startswith (f"v{base_version}-rc."))
+      new_version = version.next_rc (base_version, existing) if prerelease else base_version
    tag = f"v{new_version}"
-   if git.tag_exists (tag) or tag in git.remote_tags ():
+   if not resumed and (git.tag_exists (tag) or tag in git.remote_tags ()):
       raise state.StateError (f"Release tag already exists: {tag}")
    previous_tag, entry = _entry (source_oid)
    worktree, cleanup = _temporary_worktree (source_oid)
@@ -136,7 +157,7 @@ def plan_release (
       lock_commands, lock_hashes = _refresh_lockfiles (worktree, changed)
       git.run_at (str (worktree), "add", "-A")
       tree_oid = git.run_at (str (worktree), "write-tree").stdout.strip ()
-      commit_oid = git.commit_tree_parents (tree_oid, [ source_oid ], f"chore: release {tag}")
+      commit_oid = resumed or git.commit_tree_parents (tree_oid, [ source_oid ], f"chore: release {tag}")
       diff = git.capture ("diff", "--binary", source_oid, commit_oid)
    finally:
       cleanup ()
@@ -146,6 +167,7 @@ def plan_release (
       "commit_tree_oid": git.tree (commit_oid),
       "diff": diff,
       "github_release": not local and gh.available () and git.remote_exists (),
+      "resumed": bool (resumed),
       "level": level,
       "lock_commands": lock_commands,
       "lockfile_hashes": lock_hashes,

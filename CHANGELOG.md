@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added `--json` to `imp doctor` and `imp worktree path`, so every command now answers with one versioned
+  envelope and nothing an agent needs has to be scraped from human output
+- Fixed a release that tags and then fails leaving no way to finish it. A tag sitting one commit ahead of the
+  target is now recognised as unfinished and resumed, rather than being bumped past or refused
+
 - Removed the plan concept from the surface. `--plan` and `--apply` are gone from every command, along with
   saved plan files and plan identities. A command builds its candidate, shows exactly what it will do, and asks
   once; `--yes` answers for you and `--dry-run` stops after the display
