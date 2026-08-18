@@ -17,7 +17,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
 2. Choose the smallest safe editing surface.
 
    - Edit focused changes in the current checkout.
-   - Use `imp start <name> --task <intent> --yes --json` for parallel, large, risky, or clean-checkout work.
+   - Use `imp start <name> --yes --json` for parallel, large, risky, or clean-checkout work.
    - Reuse a managed feature only when it matches the task.
    - Never create a provider-owned worktree or edit another actor's claimed worktree.
 

@@ -17,7 +17,7 @@ imp doctor
 ## Workflow
 
 ```bash
-imp start payment-retries --task "Improve failed-payment recovery"
+imp start payment-retries
 cd "$(imp worktree path payment-retries)"
 
 # Edit and test.

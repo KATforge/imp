@@ -160,3 +160,21 @@ class TestFeatures:
 
       assert Path.cwd ().exists ()
       assert not Path (feature ["path"]).exists ()
+
+
+class TestFeatureMigration:
+   """An existing record must survive the loss of a field no command read."""
+
+   def test_a_v1_record_migrates_and_forgets_its_task (self, repo_with_origin, tmp_path):
+      _, feature = _start ("payments", _actor ("codex", "payments"), tmp_path / "payments")
+      path = state.root () / "features" / f"{identity.key (feature ['feature_id'])}.json"
+      record = json.loads (path.read_text ())
+      record ["schema"] = "imp.feature.v1"
+      record ["task"] = "Improve failed-payment recovery"
+      path.write_text (json.dumps (record, indent=3, sort_keys=True) + "\n")
+
+      stored = features.find ("payments")
+
+      assert stored ["schema"] == "imp.feature.v2"
+      assert "task" not in stored
+      assert json.loads (path.read_text ()) ["schema"] == "imp.feature.v2"

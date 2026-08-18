@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed `imp start --task` and the `task` field it wrote. No command ever read it and no display ever
+  showed it, so the intent it captured was reachable only by parsing JSON or opening the state file. The
+  feature name is the label. Existing records migrate to `imp.feature.v2` on read
+- Fixed `imp start --repo <shorthand>` recording the name the caller typed rather than the workspace alias,
+  so an order given in shorthand did not line up with what discovery reports and members integrated in the
+  wrong order
+
 - Fixed `imp start <name> --repo <a> --repo <b>` refusing to run from a directory of checkouts. Spanning a
   feature is exactly the case where the caller stands above the repositories rather than inside one, and the
   command required a repository under the cursor before it looked at `--repo` at all

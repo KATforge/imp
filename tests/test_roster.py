@@ -398,9 +398,11 @@ class TestDiscovery:
       monkeypatch.chdir (root)
       value = workspace.here ()
 
-      assert workspace.match (value, "api") == str (root / "group" / "api.example.com")
-      assert workspace.match (value, "api.example.com") == str (root / "group" / "api.example.com")
-      assert workspace.match (value, "group/api.example.com") == str (root / "group" / "api.example.com")
+      expected = ( "group/api.example.com", str (root / "group" / "api.example.com") )
+
+      assert workspace.match (value, "api") == expected
+      assert workspace.match (value, "api.example.com") == expected
+      assert workspace.match (value, "group/api.example.com") == expected
 
    def test_an_ambiguous_name_is_refused_rather_than_guessed (self, tmp_path, monkeypatch):
       root = tmp_path / "projects"
@@ -554,6 +556,21 @@ class TestSpan:
       for entry in roster.collect (workspace.here (str (demo))) [0] ["members"]:
          commit_file (Path (entry ["path"]), "new.txt", "work\n", "feat: work")
 
+   def test_a_span_records_workspace_aliases_not_shorthand (self, demo, tmp_path, monkeypatch):
+      from imp_git.commands import start as start_cmd
+
+      nested = demo / "group"
+      nested.mkdir ()
+      _repo (nested, "api.example.com")
+      _repo (nested, "web.example.com")
+      monkeypatch.chdir (demo)
+
+      data = start_cmd.start (name="nested", repos=[ "web.example.com", "api.example.com" ])
+
+      assert data ["span"] == [ "group/web.example.com", "group/api.example.com" ]
+      entry = next (e for e in roster.collect (workspace.here (str (demo))) if e ["name"] == "nested")
+      assert [ member ["alias"] for member in roster.ordered_members (entry) ] == data ["span"]
+
    def test_a_span_starts_from_a_directory_of_checkouts (self, demo, tmp_path):
       from imp_git.commands import start as start_cmd
 
@@ -563,15 +580,6 @@ class TestSpan:
       entry = roster.collect (workspace.here (str (demo))) [0]
       assert entry ["span"] == [ "web", "api" ]
       assert [ member ["alias"] for member in roster.ordered_members (entry) ] == [ "web", "api" ]
-
-   def test_a_span_carries_the_task_to_every_member (self, demo, tmp_path):
-      from imp_git.commands import start as start_cmd
-
-      start_cmd.start (name="checkout", repos=[ "api", "web" ], task="Ship checkout")
-
-      for alias in [ "api", "web" ]:
-         with workspace.inside (str (demo / alias)):
-            assert features.find ("checkout") ["task"] == "Ship checkout"
 
    def test_a_span_dry_run_creates_nothing (self, demo, tmp_path):
       from imp_git.commands import start as start_cmd

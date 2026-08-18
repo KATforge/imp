@@ -83,19 +83,23 @@ def repositories (value: dict [str, Any]) -> dict [str, str]:
    }
 
 
-def match (value: dict [str, Any], name: str) -> str:
-   """Resolve one member by alias, by its final path segment, or by suffix."""
+def match (value: dict [str, Any], name: str) -> tuple [str, str]:
+   """Resolve one member to its workspace alias and path, by alias, segment, or suffix.
+
+   The alias returned is what the workspace calls the repository, never what the caller
+   typed, so an order named in shorthand still lines up with what discovery reports.
+   """
 
    available = repositories (value)
    if name in available:
-      return available [name]
+      return name, available [name]
 
    candidates = sorted (
       alias for alias in available
       if Path (alias).name == name or alias.endswith (f"/{name}") or Path (alias).name.startswith (f"{name}.")
    )
    if len (candidates) == 1:
-      return available [candidates [0]]
+      return candidates [0], available [candidates [0]]
    if candidates:
       raise state.StateError (f"Ambiguous repository {name}: {', '.join (candidates)}")
 

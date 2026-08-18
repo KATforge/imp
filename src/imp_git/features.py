@@ -9,6 +9,18 @@ from typing import Any
 from imp_git import config, console, fingerprint, git, identity, plans, repo, runtime, state
 
 
+def _drop_task (value: dict [str, Any]) -> dict [str, Any]:
+   """Forget the free-text intent no command ever read."""
+
+   value.pop ("task", None)
+   value ["schema"] = "imp.feature.v2"
+
+   return value
+
+
+_MIGRATIONS: dict [str, state.Migration] = { "imp.feature.v1": _drop_task }
+
+
 def _directory () -> Path:
    return state.root () / "features"
 
@@ -82,7 +94,7 @@ def all () -> list [dict [str, Any]]:
    values = []
    for path in directory.glob ("feature--*.json"):
       try:
-         feature = state.read (path, "imp.feature.v1")
+         feature = state.read (path, "imp.feature.v2", _MIGRATIONS)
          feature ["claim"] = _read_claim (str (feature ["feature_id"]))
          feature ["worktree_state"] = _worktree_state (feature)
          values.append (feature)
@@ -201,7 +213,6 @@ def _descriptor (
    change_id: str = "",
    path: str = "",
    span: list [str] | None = None,
-   task: str = "",
    target: str = "",
    claim_writer: bool = True,
 ) -> dict [str, Any]:
@@ -241,7 +252,6 @@ def _descriptor (
       "base:ref": base_ref,
       "base:oid": base_oid,
       "target": trunk,
-      "task": task.strip (),
       "created_by": actor_id,
       "change_id": change_id,
       "claim_writer": claim_writer,
@@ -260,7 +270,6 @@ def plan_start (
    change_id: str = "",
    path: str = "",
    span: list [str] | None = None,
-   task: str = "",
    target: str = "",
    claim_writer: bool = True,
    persist: bool = True,
@@ -275,7 +284,6 @@ def plan_start (
       change_id=change_id,
       path=path,
       span=span,
-      task=task,
       target=target,
       claim_writer=claim_writer,
    )
@@ -400,7 +408,7 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
       try:
          git.worktree_add (path, branch, str (descriptor ["base:oid"]))
          record = {
-            "schema": "imp.feature.v1",
+            "schema": "imp.feature.v2",
             "feature_id": feature_id,
             "name": descriptor ["name"],
             "branch": branch,
@@ -408,7 +416,6 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
             "base:ref": descriptor ["base:ref"],
             "base:oid": descriptor ["base:oid"],
             "target": descriptor ["target"],
-            "task": descriptor ["task"],
             "created_by": descriptor ["created_by"],
             "writers": [ descriptor ["created_by"] ] if descriptor ["claim_writer"] else [],
             "created_at": state.now (),
@@ -575,7 +582,7 @@ def apply_remove (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
       release (feature, actor_id)
       if payload ["delete_branch"] and not git.delete_branch (str (feature ["branch"])):
          raise state.StateError (f"Could not delete branch {feature ['branch']}")
-      stored = state.read (_path (str (feature ["feature_id"])), "imp.feature.v1")
+      stored = state.read (_path (str (feature ["feature_id"])), "imp.feature.v2", _MIGRATIONS)
       stored ["state"] = "removed"
       stored ["removed_at"] = state.now ()
       state.atomic_write (_path (str (feature ["feature_id"])), stored)
@@ -625,7 +632,7 @@ def complete (
 
    feature_id = str (feature ["feature_id"])
    with state.lock (f"feature-{identity.key (feature_id)}"):
-      record = state.read (_path (feature_id), "imp.feature.v1")
+      record = state.read (_path (feature_id), "imp.feature.v2", _MIGRATIONS)
       record ["state"] = state_name
       record ["completed_at"] = state.now ()
       state.atomic_write (_path (feature_id), record)
@@ -706,7 +713,7 @@ def adopt (orphan: dict [str, Any], actor_id: str) -> dict [str, Any]:
             target = base_ref if git.ref_exists (base_ref) else trunk
             base_oid = git.capture ("merge-base", branch, target).strip () or base_oid
          record = {
-            "schema": "imp.feature.v1",
+            "schema": "imp.feature.v2",
             "feature_id": feature_id,
             "name": name,
             "branch": branch,
@@ -714,7 +721,6 @@ def adopt (orphan: dict [str, Any], actor_id: str) -> dict [str, Any]:
             "base:ref": base_ref,
             "base:oid": base_oid,
             "target": trunk,
-            "task": "adopted by imp worktree prune",
             "created_by": actor_id,
             "writers": [],
             "created_at": state.now (),

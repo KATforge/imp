@@ -55,7 +55,7 @@ class TestCommandsRegistered:
    def test_start (self):
       result = self._help ("start")
       assert result.exit_code == 0
-      assert "--task" in self._options ("start")
+      assert "--repo" in self._options ("start")
 
    def test_commit (self):
       result = self._help ("commit")
