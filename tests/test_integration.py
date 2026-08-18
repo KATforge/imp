@@ -297,45 +297,6 @@ class TestIntegration:
       assert (Path (feature ["path"]) / "file.txt").read_text () == "hello\n"
       assert git.clean_at (str (feature ["path"]))
 
-   def test_pull_request_keeps_worktree_until_merge_is_observed (
-      self,
-      repo_with_origin,
-      tmp_path,
-      monkeypatch,
-   ):
-      feature = _feature (repo_with_origin, tmp_path, "profile")
-      monkeypatch.setattr (integration.gh, "pr_view", lambda _head: {})
-      monkeypatch.setattr (
-         integration.gh,
-         "pr_create",
-         lambda _title, _body, _base, _head: "https://github.com/katforge/demo/pull/1",
-      )
-      plan = integration.plan_done (feature, actor_id=ACTOR, pr=True)
-
-      receipt = integration.apply_done (plan, ACTOR)
-
-      retained = features.find (feature ["feature_id"])
-      assert receipt ["mode"] == "pr"
-      assert retained ["state"] == "awaiting-merge"
-      assert Path (feature ["path"]).is_dir ()
-
-   def test_pull_request_rejects_attribution_before_push (self, repo_with_origin, tmp_path, monkeypatch):
-      feature = _feature (repo_with_origin, tmp_path, "profile")
-      commit_file (
-         Path (feature ["path"]),
-         "extra.txt",
-         "extra\n",
-         "Generated with Claude Code",
-      )
-      plan = integration.plan_done (feature, actor_id=ACTOR, pr=True)
-      pushed = []
-      monkeypatch.setattr (integration.git, "push", lambda *args, **kwargs: pushed.append (True))
-
-      with pytest.raises (state.StateError, match="Pull request text"):
-         integration.apply_done (plan, ACTOR)
-
-      assert pushed == []
-      assert features.find (feature ["feature_id"]) ["state"] == "active"
 
 
 class TestSourceRelease:

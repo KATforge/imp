@@ -37,7 +37,6 @@ def _show (plan: dict):
          [ "Target", str (payload ["target_ref"]) ],
          [ "Strategy", str (payload ["strategy"]) ],
          [ "Candidate", str (payload ["candidate_oid"]) [:12] ],
-         [ "Mode", "pull request" if payload ["pr"] else "direct" ],
       ],
    )
    for blocker in plan.get ("blockers", []):

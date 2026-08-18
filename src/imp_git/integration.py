@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from imp_git import conflicts, features, fingerprint, gh, git, identity, plans, repo, state, validate
+from imp_git import conflicts, features, fingerprint, git, identity, plans, repo, state
 
 _HUMAN_APPROVAL_BLOCKERS = {
    "Human review required",
@@ -237,7 +237,6 @@ def plan_done (
    actor_id: str,
    into: str = "",
    keep: bool = False,
-   pr: bool = False,
    push: bool = False,
    skip_checks: bool = False,
    strategy: str = "",
@@ -282,7 +281,6 @@ def plan_done (
       "feature_oid": git.rev_parse (str (feature ["branch"])),
       "keep": keep,
       "local_target_oid": local_oid,
-      "pr": pr,
       "push": push or (allow_configured_push and bool (repo.get ("done:push", False))),
       "remote_target_oid": remote_oid,
       "rewrites": rewrites,
@@ -298,11 +296,6 @@ def plan_done (
       *([ { "action": "push", "ref": target } ] if payload ["push"] else []),
       *([ { "action": "cleanup", "feature_id": feature ["feature_id"] } ] if not keep else []),
    ]
-   if pr:
-      items = [
-         { "action": "push", "ref": feature ["branch"] },
-         { "action": "pull_request", "base": target, "head": feature ["branch"] },
-      ]
    return plans.build (
       "done", str (feature ["name"]),
       scope={ "feature_id": feature ["feature_id"], "repository": git.repo_name () },
@@ -468,8 +461,7 @@ def _finish_done (plan: dict [str, Any]):
 
 def _already_done (payload: dict [str, Any], feature: dict [str, Any], target_oid: str) -> bool:
    return bool (
-      not payload ["pr"]
-      and feature.get ("state") == "completed"
+      feature.get ("state") == "completed"
       and target_oid == payload ["candidate_oid"]
       and not Path (str (feature ["path"])).exists ()
       and not git.ref_exists (str (feature ["branch"]))
@@ -512,27 +504,6 @@ def _validate_candidate (
       )
 
 
-def _apply_pr (
-   plan: dict [str, Any],
-   payload: dict [str, Any],
-   feature: dict [str, Any],
-   actor_id: str,
-   completed: list [str],
-) -> dict [str, Any]:
-   title = git.subject (str (feature ["branch"])) or f"Complete {feature ['name']}"
-   body = f"Implements `{feature ['feature_id']}`."
-   if not validate.publishable (f"{title}\n{body}"):
-      raise state.StateError ("Pull request text contains AI attribution or an actor ID")
-   git.push (set_upstream=True, target=str (feature ["branch"]))
-   existing = gh.pr_view (str (feature ["branch"]))
-   url = gh.pr_edit (int (existing ["number"]), title, body) if existing else gh.pr_create (
-      title, body, str (payload ["target_ref"]), str (feature ["branch"])
-   )
-   features.complete (feature, actor_id, keep=True, state_name="awaiting-merge")
-   completed.extend ([ "push", "pull_request" ])
-   return { "feature_id": feature ["feature_id"], "mode": "pr", "url": url }
-
-
 def _apply_direct (
    plan: dict [str, Any],
    payload: dict [str, Any],
@@ -567,9 +538,7 @@ def apply_done (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
             _finish_done (plan)
             return receipt
          _validate_candidate (plan, payload, feature, target_oid)
-         data = _apply_pr (plan, payload, feature, actor_id, completed) if payload ["pr"] else _apply_direct (
-            plan, payload, feature, actor_id, target_oid, completed
-         )
+         data = _apply_direct (plan, payload, feature, actor_id, target_oid, completed)
          _finish_done (plan)
 
          return data

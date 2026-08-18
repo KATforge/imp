@@ -35,22 +35,6 @@ The plan creates no branch or worktree. Apply revalidates the exact base before 
 
 `imp commit` plans staged changes, or all dirty changes when nothing is staged. It can split separate change sections from the same file into different commits. Apply builds the complete commit chain off-ref and moves the branch only after every commit succeeds.
 
-## Repository fleet
-
-Consolidate every managed feature into the repository's native trunk and remove its clean local worktree and branch:
-
-```bash
-imp fleet
-```
-
-`--into <branch>` overrides the target. `--strategy squash` is the default. Agent-written members retain Imp's exact human-review gate. Dirty, missing, claimed, or unmanaged feature state blocks the fleet without discarding anything.
-
-To preserve feature branches and publish one pull request per feature instead:
-
-```bash
-imp fleet
-```
-
 ## Direct editing
 
 Humans and agents may use the current checkout for focused work when the user allows it. Use a managed worktree for parallel, large, risky, or clean-checkout work.
@@ -100,7 +84,7 @@ imp push
 imp restore src/auth.py
 ```
 
-Native commands are `start`, `status`, `done`, `fleet`, `commit`, `review`, `pr`, `release`, `doctor`, and `worktree`.
+Native commands are `start`, `status`, `done`, `commit`, `review`, `pr`, `release`, `doctor`, and `worktree`.
 
 ## Optional repository policy
 

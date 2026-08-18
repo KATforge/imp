@@ -14,7 +14,6 @@ from imp_git.cli import SortedCommand, ordered
 from imp_git.commands.commit import commit
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
-from imp_git.commands.fleet import fleet
 from imp_git.commands.pr import pr
 from imp_git.commands.release import release
 from imp_git.commands.review import review
@@ -101,7 +100,7 @@ def main (
    )
 
 _commands = [
-   commit, doctor, done, fleet, pr,
+   commit, doctor, done, pr,
    release, review, start, status,
 ]
 

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed `imp fleet`. Integrating every ready feature under one approval stacks unvalidated work, which is the
+  opposite of landing one at a time and testing between. `imp status` finds what is ready and `imp done` lands
+  one feature, across every repository it spans
+- Removed the pull-request integration path from `imp done`, unreachable since pull requests became `imp pr`
+
 - Fixed a release that tagged but never finished publishing being bumped past on the next run. A tag that has
   not reached the remote, or has no GitHub release, is now recognised as unfinished and resumed. Every step of
   applying a release was already idempotent; only the version choice was not

@@ -17,11 +17,11 @@ class TestSurface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "status", "commit", "review", "fleet", "release", "pr", "worktree" ]:
+      for command in [ "start", "status", "commit", "review", "release", "pr", "worktree" ]:
          assert command in result.output
       removed_commands = [
          "active", "amend", "bisect", "changelog", "context", "guard",
-         "config", "init", "recover", "resolve", "revert", "ship", "split", "tidy", "undo", "use",
+         "config", "fleet", "init", "recover", "resolve", "revert", "ship", "split", "tidy", "undo", "use",
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
@@ -222,7 +222,7 @@ class TestHelpOrdering:
       assert options [:-1] == sorted (options [:-1])
 
    def test_every_command_orders_its_options_alphabetically (self):
-      for command in [ "commit", "done", "start", "release", "pr", "review", "fleet" ]:
+      for command in [ "commit", "done", "start", "release", "pr", "review" ]:
          options = self._options (command)
 
          assert options [-1] == "--help", command
