@@ -300,7 +300,7 @@ class TestHardening:
 
 class TestInterrupted:
 
-   def _record (self, repository: Path, candidate: str = "", target: str = "master"):
+   def _record (self, repository: Path, candidate: str = "0" * 40, target: str = "master"):
       previous = Path.cwd ()
       os.chdir (repository)
       try:
@@ -518,3 +518,23 @@ class TestIntegrateEvery:
 
       assert data ["landed"] == []
       assert data ["ready"] == [ "first" ]
+
+   def test_a_record_that_names_no_candidate_is_dropped (self, demo):
+      from imp_git import state as state_mod
+
+      previous = Path.cwd ()
+      os.chdir (demo / "api")
+      try:
+         state_mod.atomic_write (state_mod.root () / "recovery" / "recovery--done--legacy--1.json", {
+            "schema": "imp.recovery.v1",
+            "recovery_id": "recovery:done:legacy:1",
+            "command": "imp done",
+            "completed": [],
+            "error": "Target worktree is dirty",
+            "next": "imp done --apply plan:done:legacy:4 --yes",
+            "created_at": "2026-08-16T00:00:00Z",
+         })
+
+         assert state_mod.recoveries () == []
+      finally:
+         os.chdir (previous)

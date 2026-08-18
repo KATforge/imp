@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed recovery records written before they described themselves being reported forever. They name no candidate
+  and their resume hint points at a saved plan that no longer exists, so they are dropped rather than kept
+
 - Added `imp done --all`, which integrates every ready feature across every repository under one approval. Each
   feature still builds its own candidate against the trunk of the moment and lands before the next begins, so it
   automates the loop rather than stacking unvalidated work, and it stops at the first failure saying what landed

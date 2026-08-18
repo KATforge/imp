@@ -191,6 +191,10 @@ def recoveries () -> list [dict [str, Any]]:
    A record carries the candidate it was building and the target it was building
    onto. When the target already contains that candidate the operation finished,
    however the run ended, so the record is noise.
+
+   Records written before that became true describe nothing actionable: they name no
+   candidate, and their resume hint points at a saved plan that no longer exists. They
+   are dropped rather than reported forever.
    """
 
    directory = root () / "recovery"
@@ -202,6 +206,9 @@ def recoveries () -> list [dict [str, Any]]:
       try:
          record = read (path, "imp.recovery.v1")
       except StateError:
+         path.unlink (missing_ok=True)
+         continue
+      if not record.get ("candidate_oid") or "--apply" in str (record.get ("next", "")):
          path.unlink (missing_ok=True)
          continue
       if _landed (record.get ("candidate_oid", ""), record.get ("target_ref", "")):
