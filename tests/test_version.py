@@ -99,9 +99,9 @@ class TestChangelogFromCommits:
       result = changelog_from_commits ("some random commit")
       assert result == "- Changed some random commit"
 
-   def test_strips_hash_prefix (self):
-      result = changelog_from_commits ("abc1234 feat: add feature")
-      assert result == "- Added feature"
+   def test_a_hex_looking_first_word_survives (self):
+      result = changelog_from_commits ("add the search box")
+      assert result == "- Changed add the search box"
 
    def test_an_identifier_keeps_its_case (self):
       result = changelog_from_commits ("fix: SPK-68493 store page text")

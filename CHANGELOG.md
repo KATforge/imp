@@ -2,7 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+Releases after the last entry below are published from the history itself. Each tag's GitHub release
+carries its notes, built from the commits it contains.
+
 ## [Unreleased]
+
+- Removed the `CHANGELOG.md` mechanism. A release no longer writes a file, and `[Unreleased]` is no longer a
+  hot section every parallel feature has to edit. Notes are built from the history and published on each tag's
+  GitHub release
+- Added a body to the squash integration commit listing the subjects it discards. Squashing kept only
+  `feat: integrate <name>`, so the work that landed left no trace in trunk and notes derived from it said
+  nothing. Trunk now describes itself
 
 - Added workflow diagrams to `imp --help`: the feature loop and where the worktree sits in it, the two shapes
   a repository can take, and what approval means. Reading the command list never showed how the commands relate

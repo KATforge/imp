@@ -366,9 +366,8 @@ class TestSourceRelease:
       assert git.rev_parse ("main") == before
       assert not git.tag_exists ("v0.0.1")
 
-   def test_plan_bumps_manifest_and_changelog_before_exact_apply (self, repo):
+   def test_plan_bumps_manifests_before_exact_apply (self, repo):
       (repo / "pyproject.toml").write_text ('[project]\nname = "demo"\nversion = "1.2.3"\n')
-      commit_file (repo, "CHANGELOG.md", "# Changelog\n", "chore: add release files")
       git_run (repo, "add", "pyproject.toml")
       git_run (repo, "commit", "-m", "feat: add package metadata")
       before = git.rev_parse ("main")
@@ -385,7 +384,7 @@ class TestSourceRelease:
       assert receipt ["tag"] == "v0.0.1"
       assert git.rev_parse ("v0.0.1") == git.rev_parse ("main")
       assert 'version = "0.0.1"' in (repo / "pyproject.toml").read_text ()
-      assert "- Added package metadata" in (repo / "CHANGELOG.md").read_text ()
+      assert not (repo / "CHANGELOG.md").exists ()
 
    def test_local_release_commits_and_tags_without_reaching_a_remote (self, repo, monkeypatch):
       git.tag ("v1.2.3")
@@ -528,3 +527,50 @@ class TestReleaseChangelog:
       _tag, entry, _notes = source_release._entry (git.rev_parse ("main"), source_release._release_tags ())
 
       assert entry == "- Added the topic"
+
+
+class TestGitNativeNotes:
+   """Trunk carries what landed, so release notes need no file beside it."""
+
+   def _landed (self, repo: Path, tmp_path: Path) -> dict:
+      plan = features.plan_start ("checkout", actor_id=ACTOR)
+      feature = features.apply_start (plan)
+      commit_file (Path (feature ["path"]), "one.txt", "1\n", "feat: add the search box")
+      commit_file (Path (feature ["path"]), "two.txt", "2\n", "fix: stop the crash on submit")
+      done = integration.plan_done (features.find (feature ["feature_id"]), actor_id=ACTOR, strategy="squash")
+      return integration.apply_done (done, ACTOR)
+
+   def test_a_squash_carries_the_subjects_it_discards (self, repo, tmp_path):
+      self._landed (repo, tmp_path)
+
+      message = git.capture ("log", "-1", "--format=%B", "main")
+
+      assert message.splitlines () [0] == "feat: integrate checkout"
+      assert "- feat: add the search box" in message
+      assert "- fix: stop the crash on submit" in message
+
+   def test_release_notes_read_the_squash_body (self, repo, tmp_path, monkeypatch):
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
+      git.tag ("v1.0.0")
+      self._landed (repo, tmp_path)
+
+      _tag, entry, _notes = source_release._entry (
+         git.rev_parse ("main"), source_release._release_tags (),
+      )
+
+      assert "- Added the search box" in entry
+      assert "- Fixed stop the crash on submit" in entry
+      assert "integrate checkout" not in entry
+
+   def test_a_stray_bullet_in_an_ordinary_commit_is_not_carried (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
+      git.tag ("v1.0.0")
+      (repo / "note.txt").write_text ("x\n")
+      git_run (repo, "add", "note.txt")
+      git_run (repo, "commit", "-m", "feat: add a note\n\n- an aside a reader wrote")
+
+      _tag, entry, _notes = source_release._entry (
+         git.rev_parse ("main"), source_release._release_tags (),
+      )
+
+      assert entry == "- Added a note"

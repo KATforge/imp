@@ -4,17 +4,10 @@ from pathlib import Path
 from imp_git import validate
 from imp_git.validate import COMMIT_RE, TYPES_PATTERN
 
-# The Keep-a-Changelog preamble, defined once. Every path that writes a fresh
-# CHANGELOG.md reuses it so the header never drifts between generators.
-HEADER = (
-   "# Changelog\n\n"
-   "All notable changes to this project will be documented in this file.\n"
-)
-
 MAX_WORDS = 8
 
 # Every release bullet is squeezed through `normalize_line` before it reaches
-# the changelog. Uniform one-liners keep release notes easy to scan.
+# the release notes. Uniform one-liners keep them easy to scan.
 _TYPE_PREFIX = re.compile (
    rf"^(?:(?:{TYPES_PATTERN})(\(.+?\))?!?"
    r"|added|changed|deprecated|removed|fixed|security)"
@@ -134,9 +127,6 @@ def changelog_from_commits (subjects: str) -> str:
       if not line:
          continue
 
-      if re.match (r"^[0-9a-f]+ ", line):
-         line = line.split (" ", 1) [1]
-
       match = COMMIT_RE.match (line)
       kind = match.group (1) if match else ""
       desc = normalize_line (match.group (3) if match else line)
@@ -192,33 +182,3 @@ def sync_manifests (root: Path, new_version: str) -> list [Path]:
    left alone — keeps imp git-generic."""
    return [ p for p in manifest_paths (root) if _write_version (p, new_version) ]
 
-def consume_unreleased (path: Path, new_version: str, date: str, fallback_entry: str) -> str:
-   """Promotes CHANGELOG.md's [Unreleased] section into the new release,
-   replacing its heading instead of leaving a stale, duplicate section
-   behind. Falls back to `fallback_entry` when there is no [Unreleased]
-   section or it is empty."""
-   heading = f"## [{new_version}] - {date}"
-
-   if not path.is_file ():
-      return f"{HEADER}\n{heading}\n\n{fallback_entry}\n"
-
-   lines = path.read_text ().splitlines (keepends=True)
-   headings = [ i for i, line in enumerate (lines) if line.lstrip ().startswith ("## ") ]
-
-   if not headings:
-      return "".join (lines) + "\n" + heading + "\n\n" + fallback_entry + "\n"
-
-   start = headings [0]
-
-   if lines [start].lstrip ().startswith ("## [Unreleased]"):
-      end = headings [1] if len (headings) > 1 else len (lines)
-      body = "".join (lines [start + 1:end]).strip ("\n")
-      entry = body if body else fallback_entry
-   else:
-      end = start
-      entry = fallback_entry
-
-   before = "".join (lines [:start])
-   after = "".join (lines [end:])
-
-   return before + heading + "\n\n" + entry + "\n\n" + after

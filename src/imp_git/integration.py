@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from imp_git import conflicts, features, fingerprint, git, identity, plans, repo, state
+from imp_git import conflicts, features, fingerprint, git, identity, plans, repo, state, summary
 
 _HUMAN_APPROVAL_BLOCKERS = {
    "Human review required",
@@ -167,9 +167,22 @@ def _candidate (
       tree_oid, decisions = _resolved_tree (target_oid, feature_oid, "" if resolve == "ask" else resolve)
    message = f"Merge {feature ['branch']} into {feature ['target']}"
    if strategy == "squash":
-      message = f"feat: integrate {feature ['name']}"
+      message = _squash_message (feature, target_oid, feature_oid)
       return git.commit_tree_parents (tree_oid, [ target_oid ], message), [], decisions
    return git.commit_tree_parents (tree_oid, [ target_oid, feature_oid ], message), [], decisions
+
+
+def _squash_message (feature: dict [str, Any], target_oid: str, feature_oid: str) -> str:
+   """Name the feature, then carry the work it squashes away.
+
+   A squash keeps one commit and discards the branch, so without a body the only
+   record of what landed is the feature name. Release notes read this back.
+   """
+
+   lines = summary.bullets (target_oid, feature_oid)
+   header = f"{summary.INTEGRATE}{feature ['name']}"
+
+   return f"{header}\n\n" + "\n".join (f"- {value}" for value in lines) + "\n"
 
 
 def _resurrected (base_oid: str, target_oid: str, candidate_oid: str) -> list [str]:

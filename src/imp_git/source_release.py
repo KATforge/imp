@@ -2,11 +2,10 @@ import hashlib
 import shutil
 import subprocess
 import tempfile
-from datetime import date
 from pathlib import Path
 from typing import Any
 
-from imp_git import fingerprint, gh, git, identity, plans, state, validate, version
+from imp_git import fingerprint, gh, git, identity, plans, state, summary, validate, version
 
 _LOCK_COMMANDS = {
    "bun.lock": [ "bun", "install", "--lockfile-only", "--ignore-scripts" ],
@@ -17,6 +16,8 @@ _LOCK_COMMANDS = {
    "uv.lock": [ "uv", "lock" ],
    "yarn.lock": [ "yarn", "install", "--mode=update-lockfile", "--ignore-scripts" ],
 }
+
+_FALLBACK = "- Changed the source release"
 
 _DIRTY_SOURCE = """Uncommitted changes cannot be shipped.
 
@@ -88,9 +89,27 @@ def _range_tag (names: list [str]) -> tuple [str, list [str]]:
 def _entry (source_oid: str, names: list [str]) -> tuple [str, str, list [str]]:
    tag, warnings = _range_tag (names)
    range_value = f"{tag}..{source_oid}" if tag else source_oid
-   subjects = git.capture ("log", "--no-merges", "--format=%h %s", range_value)
 
-   return tag, version.changelog_from_commits (subjects) or "- Changed the source release", warnings
+   return tag, version.changelog_from_commits (_described (range_value)) or _FALLBACK, warnings
+
+
+def _described (range_value: str) -> str:
+   """Every described change in a range, reading a squash body as the work it carries.
+
+   Integrating with `squash` keeps one commit whose subject names the feature and whose
+   body lists what landed. The body is the record; the subject alone says nothing.
+   """
+
+   lines: list [str] = []
+   raw = git.capture ("log", "--no-merges", "--format=%s%x1f%b%x1e", range_value)
+   for record in raw.split ("\x1e"):
+      subject, _, body = record.strip ().partition ("\x1f")
+      carried = [
+         value.strip () [2:] for value in body.splitlines () if value.strip ().startswith ("- ")
+      ] if subject.strip ().startswith (summary.INTEGRATE) else []
+      lines.extend (carried or ([ subject.strip () ] if subject.strip () else []))
+
+   return "\n".join (lines)
 
 
 def _refresh_lockfiles (root: Path, manifests: list [Path]) -> tuple [list [dict [str, Any]], dict [str, str]]:
@@ -196,10 +215,6 @@ def plan_release (
       manifest_versions = {
          str (path.relative_to (worktree)): new_version for path in changed
       }
-      changelog = worktree / "CHANGELOG.md"
-      changelog.write_text (
-         version.consume_unreleased (changelog, new_version, date.today ().isoformat (), entry)
-      )
       lock_commands, lock_hashes = _refresh_lockfiles (worktree, changed)
       git.run_at (str (worktree), "add", "-A")
       tree_oid = git.run_at (str (worktree), "write-tree").stdout.strip ()
