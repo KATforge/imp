@@ -113,9 +113,9 @@ Project overrides live in `.imp`:
 
 Setup commands are argv arrays. Shared paths must be explicitly allowed, ignored, untracked, and inside the primary repository.
 
-`imp release --minor` reads the highest existing tag, steps the version, then updates package versions and
-lockfiles before committing, tagging, pushing, and publishing the GitHub release. `--prerelease` cuts the
-next `-rc.N` instead.
+`imp release --minor` releases the checked-out trunk branch. It reads the highest existing tag, steps the
+version, then updates package versions and lockfiles before committing, tagging, pushing that branch, and
+publishing the GitHub release. `--prerelease` cuts the next `-rc.N` instead.
 
 Release notes come from the history, not from a file. Integrating with `squash` keeps one commit whose
 subject names the feature and whose body lists the work it discards, so trunk describes itself and the

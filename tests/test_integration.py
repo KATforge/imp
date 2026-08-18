@@ -300,6 +300,32 @@ class TestIntegration:
 
 class TestSourceRelease:
 
+   def test_release_uses_the_checked_out_trunk_branch (self, repo_with_origin, monkeypatch):
+      git_run (repo_with_origin, "checkout", "-b", "develop", "master")
+      git_run (repo_with_origin, "push", "-u", "origin", "develop")
+      commit_file (repo_with_origin, "develop.txt", "develop\n", "feat: advance develop")
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+
+      plan = source_release.plan_release ()
+
+      assert plan ["payload"] ["target_ref"] == "develop"
+      assert plan ["payload"] ["source_oid"] == git.rev_parse ("develop")
+      assert plan ["payload"] ["public_target_oid"] == git.rev_parse ("origin/develop")
+      assert { commit ["subject"] for commit in plan ["payload"] ["push_commits"] } == {
+         "feat: advance develop",
+         "chore: release v0.0.1",
+      }
+
+   def test_release_refuses_a_trunk_behind_its_remote (self, repo_with_origin):
+      git_run (repo_with_origin, "checkout", "master")
+      git_run (repo_with_origin, "checkout", "-b", "remote-ahead")
+      commit_file (repo_with_origin, "remote.txt", "remote\n", "feat: advance remote")
+      git_run (repo_with_origin, "push", "origin", "remote-ahead:master")
+      git_run (repo_with_origin, "checkout", "master")
+
+      with pytest.raises (state.StateError, match="behind origin/master"):
+         source_release.plan_release ()
+
    def test_prerelease_is_exact_and_increments_candidates (self, repo, monkeypatch):
       git.tag ("v1.2.3")
       releases = []
@@ -398,6 +424,7 @@ class TestSourceRelease:
 
       assert plan ["payload"] ["local"] is True
       assert plan ["payload"] ["push"] is False
+      assert plan ["payload"] ["push_commits"] == []
       assert plan ["payload"] ["github_release"] is False
       actions = { item ["action"] for item in plan ["items"] }
       assert actions == { "update_ref", "tag" }
@@ -413,8 +440,14 @@ class TestSourceRelease:
       plan = source_release.plan_release (level="minor", persist=False)
 
       assert plan ["payload"] ["local"] is False
+      assert [ commit ["subject"] for commit in plan ["payload"] ["push_commits"] ] == [
+         "Initial commit",
+      ]
       actions = { item ["action"] for item in plan ["items"] }
       assert actions == { "update_ref", "tag", "push", "github_release" }
+      push = next (item for item in plan ["items"] if item ["action"] == "push")
+      assert push ["refs"] == [ "main", plan ["payload"] ["tag"] ]
+      assert push ["commits"] == plan ["payload"] ["push_commits"]
 
    def test_an_interrupted_release_resumes_instead_of_refusing (self, repo, monkeypatch):
       monkeypatch.setattr (source_release.gh, "available", lambda: False)

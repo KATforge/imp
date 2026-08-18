@@ -137,15 +137,20 @@ def _refresh_lockfiles (root: Path, manifests: list [Path]) -> tuple [list [dict
 
 
 def _source () -> tuple [str, str, str]:
-   target = git.base_branch ()
-   if not git.ref_exists (target):
-      raise state.StateError (f"No trunk branch to release from: {target}")
+   target = git.branch ()
+   if not target or not git.ref_exists (target):
+      raise state.StateError ("No checked-out trunk branch to release from")
+   source_oid = git.rev_parse (target)
+   public = ""
    if git.remote_exists ():
       git.fetch (
          no_tags=True, remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}",
       )
-   source_oid = git.rev_parse (target)
-   public = git.rev_parse (f"origin/{target}") if git.remote_exists () else ""
+      public = git.rev_parse (f"origin/{target}")
+   if public and not git.is_merged (public, source_oid):
+      if git.is_merged (source_oid, public):
+         raise state.StateError (f"Local {target} is behind origin/{target}; update it before releasing")
+      raise state.StateError (f"Local {target} and origin/{target} have diverged; reconcile them before releasing")
 
    return source_oid, target, public
 
@@ -179,6 +184,17 @@ def _resumable (tag: str, source_oid: str) -> str:
       return tagged
 
    return tagged if tagged == source_oid and not _published (tag) else ""
+
+
+def _push_commits (public_target_oid: str, commit_oid: str) -> list [dict [str, str]]:
+   rev_range = f"{public_target_oid}..{commit_oid}" if public_target_oid else commit_oid
+   raw = git.capture ("log", "--format=%H%x1f%s", rev_range)
+   commits = []
+   for line in raw.splitlines ():
+      oid, separator, subject = line.partition ("\x1f")
+      if separator:
+         commits.append ({ "oid": oid, "subject": subject })
+   return commits
 
 
 def plan_release (
@@ -222,6 +238,7 @@ def plan_release (
       diff = git.capture ("diff", "--binary", source_oid, commit_oid)
    finally:
       cleanup ()
+   push = not local and git.remote_exists ()
    payload = {
       "changelog": entry,
       "commit_oid": commit_oid,
@@ -236,7 +253,8 @@ def plan_release (
       "previous_tag": previous_tag,
       "prerelease": prerelease,
       "public_target_oid": public_target_oid,
-      "push": not local and git.remote_exists (),
+      "push": push,
+      "push_commits": _push_commits (public_target_oid, commit_oid) if push else [],
       "repository": git.repo_name (),
       "source_oid": source_oid,
       "local": local,
@@ -258,7 +276,11 @@ def plan_release (
       items=[
          { "action": "update_ref", "ref": target_ref, "oid": commit_oid },
          { "action": "tag", "tag": tag, "oid": commit_oid },
-         *([ { "action": "push", "refs": [ target_ref, tag ] } ] if payload ["push"] else []),
+         *([ {
+            "action": "push",
+            "refs": [ target_ref, tag ],
+            "commits": payload ["push_commits"],
+         } ] if payload ["push"] else []),
          *([ { "action": "github_release", "tag": tag } ] if payload ["github_release"] else []),
       ],
       fingerprint=plan_fingerprint,

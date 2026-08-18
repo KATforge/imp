@@ -26,10 +26,21 @@ def _show (plan: dict):
          [ "Release", "prerelease" if payload ["prerelease"] else "stable" ],
          [ "Target", str (payload ["target_ref"]) ],
          [ "Candidate", str (payload ["commit_oid"]) [:12] ],
+         [
+            "Push",
+            f"origin: {payload ['target_ref']}, {payload ['tag']}" if payload ["push"] else "No",
+         ],
          [ "Manifests", str (len (payload ["manifest_versions"])) ],
          [ "Lockfiles", str (len (payload ["lockfile_hashes"])) ],
       ],
    )
+   if payload ["push"]:
+      console.out.print ()
+      console.label ("Commits to push")
+      console.table (
+         [ "Commit", "Subject" ],
+         [ [ commit ["oid"] [:12], commit ["subject"] ] for commit in payload ["push_commits"] ],
+      )
    console.divider ()
    console.out.print (payload ["diff"])
    console.divider ()

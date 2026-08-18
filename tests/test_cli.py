@@ -5,7 +5,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from imp_git import ai, console, git, runtime
+from imp_git import ai, console, git, runtime, source_release
 from imp_git import main as main_mod
 from imp_git.main import app
 from tests.conftest import commit_count, git_run
@@ -14,6 +14,25 @@ runner = CliRunner ()
 
 
 class TestSurface:
+
+   def test_release_preview_names_pushed_refs_and_commits (self, repo_with_origin, monkeypatch):
+      git_run (repo_with_origin, "checkout", "-b", "develop", "master")
+      git_run (repo_with_origin, "push", "-u", "origin", "develop")
+      for index in range (1, 4):
+         path = repo_with_origin / f"change-{index}.txt"
+         path.write_text (f"{index}\n")
+         git_run (repo_with_origin, "add", path.name)
+         git_run (repo_with_origin, "commit", "-m", f"feat: add change {index}")
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+
+      result = runner.invoke (app, [ "--dry-run", "release" ])
+
+      assert result.exit_code == 0
+      assert "origin: develop, v0.0.1" in result.output
+      assert "Commits to push" in result.output
+      for index in range (1, 4):
+         assert f"feat: add change {index}" in result.output
+      assert "chore: release v0.0.1" in result.output
 
    def test_help_contains_only_the_small_native_surface (self):
       result = runner.invoke (app, [ "--help" ])
