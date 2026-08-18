@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed a release that tagged but never finished publishing being bumped past on the next run. A tag that has
+  not reached the remote, or has no GitHub release, is now recognised as unfinished and resumed. Every step of
+  applying a release was already idempotent; only the version choice was not
+
 - Added `--json` to `imp doctor` and `imp worktree path`, so every command now answers with one versioned
   envelope and nothing an agent needs has to be scraped from human output
 - Fixed a release that tags and then fails leaving no way to finish it. A tag sitting one commit ahead of the

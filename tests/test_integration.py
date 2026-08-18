@@ -481,3 +481,38 @@ class TestSourceRelease:
 
       with pytest.raises (state.StateError, match="already exists"):
          source_release.plan_release (set_version="1.2.3")
+
+   def test_a_tag_that_never_reached_the_remote_is_resumed (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
+      monkeypatch.setattr (source_release.git, "fetch", lambda **_kwargs: None)
+      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
+      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
+      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
+
+      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == git.rev_parse ("HEAD")
+
+   def test_a_pushed_tag_without_a_github_release_is_resumed (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.gh, "available", lambda: True)
+      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
+      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [ "v1.3.0" ])
+      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
+
+      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == git.rev_parse ("HEAD")
+
+   def test_a_fully_published_release_is_not_resumed (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.gh, "available", lambda: True)
+      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: { "isPrerelease": False })
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
+      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [ "v1.3.0" ])
+      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
+
+      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == ""
+
+   def test_a_local_only_repository_never_looks_unpublished (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
+      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
+
+      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == ""

@@ -97,21 +97,35 @@ def _source () -> tuple [str, str, str]:
    return source_oid, target, public
 
 
-def _resumable (tag: str, source_oid: str) -> str:
-   """Return the release commit an interrupted run already made for this tag.
+def _published (tag: str) -> bool:
+   """Return whether one tag has finished reaching everywhere it belongs."""
 
-   A release builds its commit and tags it before moving the target, so a run that
-   dies partway leaves a tag sitting one commit ahead of the target. That, and only
-   that, is an unfinished release. A tag on the target itself is the ordinary state
-   after a release that completed, and must still bump to the next version.
+   if not git.remote_exists ():
+      return True
+   if tag not in git.remote_tags ():
+      return False
+
+   return not gh.available () or bool (gh.release_view (tag))
+
+
+def _resumable (tag: str, source_oid: str) -> str:
+   """Return the release commit an unfinished run already made for this tag.
+
+   A release builds its commit, tags it, moves the target, pushes, and publishes, in
+   that order. Every step after the tag can fail on its own, leaving the tag as the
+   only evidence. Two shapes mean unfinished work rather than a completed release:
+   a tag one commit ahead of the target, whose target never moved, and a tag on the
+   target that never reached the remote or never became a release.
    """
 
    if not git.tag_exists (tag):
       return ""
    tagged = git.rev_parse (tag)
    parents = git.capture ("rev-list", "--parents", "-n", "1", tagged).split () [1:]
+   if parents == [ source_oid ]:
+      return tagged
 
-   return tagged if parents == [ source_oid ] else ""
+   return tagged if tagged == source_oid and not _published (tag) else ""
 
 
 def plan_release (
