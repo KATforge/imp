@@ -8,7 +8,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
 1. Discover before changing anything.
 
    - Every command takes `--json` and answers with one versioned envelope; failures use `imp.error.v1` and a nonzero exit.
-   - Pass `--no-input` so a missing answer fails loudly instead of waiting, and `--yes` to approve what you already decided.
+   - `--json` already implies `--no-input`, so a missing answer fails loudly instead of waiting. Pass `--yes` to approve what you already decided, and `--dry-run` to see a plan without applying it.
    - Run `imp doctor --json` when the environment looks wrong; it reports tools, provider, and configuration.
    - Outside Git, edit directly. Do not initialize Git or Imp.
    - Inside Git, run `imp status --json`. Run it from a directory of checkouts to cover every repository below it.
@@ -24,7 +24,8 @@ description: Use for source-code changes in Git repositories. Route every Git op
 3. Span repositories only when they must move together.
 
    - Create one feature for all of them: `imp start <name> --repo <alias> --repo <alias>`.
-   - `--repo` takes a repository directory or a unique suffix of one; the order you name them is the order they integrate.
+   - Run it from the directory holding the checkouts. `--repo` takes a repository directory or a unique suffix of one, and the order you name them is the order they integrate.
+   - Nothing is declared: a feature spans the repositories that manage its name, and a lone checkout is a workspace of one.
    - `imp review <name>` and `imp done <name>` then cover every member.
 
 4. Use Imp for every Git operation.
