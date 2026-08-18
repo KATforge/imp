@@ -6,18 +6,6 @@ import pytest
 from imp_git import conflicts, features, git, roster, state, workspace
 from tests.conftest import commit_file, git_run
 
-MANIFEST = """
-schema: katforge.workspace.v1
-name: demo
-services:
-  api:
-    path: api
-  web:
-    path: web
-    needs:
-      api: "*"
-"""
-
 
 def _repo (root: Path, name: str) -> Path:
    origin = root / f"{name}.git"
@@ -37,16 +25,13 @@ def _repo (root: Path, name: str) -> Path:
 def demo (tmp_path, monkeypatch):
    root = tmp_path / "workspace"
    root.mkdir ()
-   (root / "workspace.yaml").write_text (MANIFEST)
    _repo (root, "api")
    _repo (root, "web")
    monkeypatch.setenv ("XDG_STATE_HOME", str (tmp_path / "state"))
    previous = Path.cwd ()
    os.chdir (root)
-   workspace.load.cache_clear ()
    yield root
    os.chdir (previous)
-   workspace.load.cache_clear ()
 
 
 def _start (repository: Path, name: str, path: Path):
@@ -68,7 +53,7 @@ class TestRoster:
    def test_an_untouched_feature_reads_as_empty (self, demo, tmp_path):
       _start (demo / "api", "checkout", tmp_path / "wt-api")
 
-      entries = roster.collect (workspace.load (str (demo)))
+      entries = roster.collect (workspace.here (str (demo)))
 
       assert [ entry ["name"] for entry in entries ] == [ "checkout" ]
       assert entries [0] ["condition"] == roster.EMPTY
@@ -79,7 +64,7 @@ class TestRoster:
       feature = _start (demo / "api", "checkout", tmp_path / "wt-api")
       commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
 
-      entries = roster.collect (workspace.load (str (demo)))
+      entries = roster.collect (workspace.here (str (demo)))
 
       assert entries [0] ["condition"] == roster.READY
       assert entries [0] ["members"] [0] ["ahead"] == 1
@@ -91,7 +76,7 @@ class TestRoster:
       commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
       (Path (feature ["path"]) / "loose.txt").write_text ("unsaved\n")
 
-      entries = roster.collect (workspace.load (str (demo)))
+      entries = roster.collect (workspace.here (str (demo)))
 
       assert entries [0] ["condition"] == roster.DIRTY
 
@@ -100,7 +85,7 @@ class TestRoster:
          feature = _start (demo / alias, "checkout", tmp_path / f"wt-{alias}")
          commit_file (Path (feature ["path"]), "new.txt", "work\n", "feat: work")
 
-      value = workspace.load (str (demo))
+      value = workspace.here (str (demo))
       entries = roster.collect (value)
 
       assert len (entries) == 1
@@ -112,7 +97,7 @@ class TestRoster:
       commit_file (Path (ready ["path"]), "new.txt", "work\n", "feat: work")
       _start (demo / "web", "checkout", tmp_path / "wt-web")
 
-      entries = roster.collect (workspace.load (str (demo)))
+      entries = roster.collect (workspace.here (str (demo)))
 
       assert entries [0] ["condition"] == roster.EMPTY
 
@@ -383,7 +368,7 @@ class TestInterrupted:
       self._record (demo / "api", "plan:done:checkout:1")
       self._record (demo / "web", "plan:done:checkout:1")
 
-      values = roster.interrupted (workspace.load (str (demo)))
+      values = roster.interrupted (workspace.here (str (demo)))
 
       assert sorted (record ["alias"] for record in values) == [ "api", "web" ]
 
@@ -397,23 +382,35 @@ class TestDiscovery:
       git_run (path, "config", "user.name", "T")
       commit_file (path, "file.txt", "x\n", "chore: init")
 
-   def test_nested_repositories_are_found_without_a_manifest (self, tmp_path, monkeypatch):
+   def test_nested_repositories_are_found_without_any_declaration (self, tmp_path, monkeypatch):
       root = tmp_path / "projects"
       self._repo (root / "alpha")
       self._repo (root / "group" / "beta")
       monkeypatch.chdir (root)
-      workspace.load.cache_clear ()
 
       value = workspace.here ()
 
-      assert value ["discovered"] is True
       assert sorted (value ["services"]) == [ "alpha", "group/beta" ]
 
-   def test_a_manifest_wins_over_discovery (self, demo):
-      value = workspace.here (str (demo))
+   def test_a_member_resolves_by_its_final_path_segment (self, tmp_path, monkeypatch):
+      root = tmp_path / "projects"
+      self._repo (root / "group" / "api.example.com")
+      monkeypatch.chdir (root)
+      value = workspace.here ()
 
-      assert "discovered" not in value
-      assert sorted (value ["services"]) == [ "api", "web" ]
+      assert workspace.match (value, "api") == str (root / "group" / "api.example.com")
+      assert workspace.match (value, "api.example.com") == str (root / "group" / "api.example.com")
+      assert workspace.match (value, "group/api.example.com") == str (root / "group" / "api.example.com")
+
+   def test_an_ambiguous_name_is_refused_rather_than_guessed (self, tmp_path, monkeypatch):
+      root = tmp_path / "projects"
+      self._repo (root / "one" / "api")
+      self._repo (root / "two" / "api")
+      monkeypatch.chdir (root)
+      value = workspace.here ()
+
+      with pytest.raises (state.StateError, match="Ambiguous repository"):
+         workspace.match (value, "api")
 
    def test_noise_directories_are_not_searched (self, tmp_path, monkeypatch):
       root = tmp_path / "projects"
@@ -421,7 +418,6 @@ class TestDiscovery:
       self._repo (root / "node_modules" / "package")
       self._repo (root / ".hidden" / "thing")
       monkeypatch.chdir (root)
-      workspace.load.cache_clear ()
 
       assert sorted (workspace.here () ["services"]) == [ "alpha" ]
 
@@ -429,7 +425,6 @@ class TestDiscovery:
       root = tmp_path / "empty"
       root.mkdir ()
       monkeypatch.chdir (root)
-      workspace.load.cache_clear ()
 
       assert workspace.here () is None
 
@@ -438,7 +433,6 @@ class TestDiscovery:
       self._repo (root / "alpha")
       (root / "alpha" / "loose.txt").write_text ("unsaved\n")
       monkeypatch.chdir (root)
-      workspace.load.cache_clear ()
 
       members = roster.repositories (workspace.here ())
 

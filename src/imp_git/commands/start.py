@@ -97,17 +97,18 @@ def _span (
    target: str,
    dry_run: bool,
 ):
-   """Create one feature across several workspace repositories at once."""
+   """Create one feature across several repositories, integrated in the order given."""
 
    try:
-      value = workspace.require ()
-      selected = workspace.order (value, repos)
-      members = { alias: workspace.resolve (value, alias) for alias in selected }
+      value = workspace.here ()
+      if not value:
+         raise state.StateError ("No repositories below this directory")
+      members = [ (alias, workspace.match (value, alias)) for alias in repos ]
       if spans.find (value, name):
          raise state.StateError (f"Feature already spans repositories: {name}")
       created = []
-      for alias in selected:
-         with spans.inside (members [alias]):
+      for alias, repository in members:
+         with spans.inside (repository):
             plan = features.plan_start (
                name, actor_id=actor_id, base=base, target=target, persist=not dry_run,
             )

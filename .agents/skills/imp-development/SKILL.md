@@ -8,8 +8,8 @@ description: Use for source-code changes in Git repositories. Route every Git op
 1. Discover before changing anything.
 
    - Outside Git, edit directly. Do not initialize Git or Imp.
-   - Inside Git, run `imp status --json`. It reports `spans` when a `workspace.yaml` above the repository groups it with others.
-   - Never create `.imp` or `workspace.yaml` automatically.
+   - Inside Git, run `imp status --json`. Run it from a directory of checkouts to cover every repository below it.
+   - Never create `.imp` automatically.
 
 2. Choose the smallest safe editing surface.
 
@@ -21,7 +21,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
 3. Span repositories only when they must move together.
 
    - Create one feature for all of them: `imp start <name> --repo <alias> --repo <alias>`.
-   - `--repo` takes service aliases from `workspace.yaml`; `needs` decides the order.
+   - `--repo` takes a repository directory or a unique suffix of one; the order you name them is the order they integrate.
    - `imp review <name>` and `imp done <name>` then cover every member.
 
 4. Use Imp for every Git operation.

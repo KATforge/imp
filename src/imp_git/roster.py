@@ -151,13 +151,11 @@ def promotable (values: list [dict [str, Any]]) -> list [dict [str, Any]]:
    return [ entry for entry in values if entry ["condition"] == READY ]
 
 
-def ordered_members (value: dict [str, Any], entry: dict [str, Any]) -> list [dict [str, Any]]:
-   """Return one feature's members in dependency-first order."""
+def ordered_members (_value: dict [str, Any], entry: dict [str, Any]) -> list [dict [str, Any]]:
+   """Return one feature's members, stably ordered.
 
-   by_alias = { member ["alias"]: member for member in entry ["members"] }
-   try:
-      ordered = workspace.order (value, sorted (by_alias))
-   except state.StateError:
-      ordered = sorted (by_alias)
+   Integrations are independent, so this order is presentational rather than a
+   dependency guarantee. A span carries the order its caller named.
+   """
 
-   return [ by_alias [alias] for alias in ordered ]
+   return sorted (entry ["members"], key=lambda member: str (member ["alias"]))

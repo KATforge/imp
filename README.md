@@ -68,8 +68,8 @@ imp review checkout
 imp done checkout
 ```
 
-Imp finds `workspace.yaml` by walking up from the working directory. Without one it is
-simply the single-repository tool.
+Imp finds the members by scanning for repositories below you. Nothing is declared, and
+outside a directory of checkouts it is simply the single-repository tool.
 
 Agent clients use the provider-neutral [Imp development skill](.agents/skills/imp-development/SKILL.md). Imp requires no hooks or adapters.
 

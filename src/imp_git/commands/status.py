@@ -171,7 +171,7 @@ def _show_workspace_interrupted (values: list [dict]):
 
 
 def _spans () -> list [dict]:
-   value = workspace.load ()
+   value = workspace.here ()
 
    return spans.all (value) if value else []
 

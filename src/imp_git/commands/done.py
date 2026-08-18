@@ -150,7 +150,7 @@ def _warn_if_standing_here ():
 def _group (feature: str) -> dict | None:
    """Resolve one feature to its members across the workspace, or None for a plain feature."""
 
-   value = workspace.load ()
+   value = workspace.here ()
    if not value:
       return None
    inside = git.succeeds ("rev-parse", "--git-dir")

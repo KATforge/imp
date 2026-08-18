@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from imp_git import identity, repo, state, workspace
+from imp_git import identity, repo, state
 
 
 def _directory (value: dict [str, Any]) -> Path:
@@ -44,7 +44,7 @@ def find (value: dict [str, Any], name: str) -> dict [str, Any] | None:
 def record (
    value: dict [str, Any],
    name: str,
-   members: dict [str, str],
+   members: list [tuple [str, str]],
    actor_id: str,
 ) -> dict [str, Any]:
    """Persist which repositories one feature spans."""
@@ -55,10 +55,10 @@ def record (
       "feature_id": feature_id,
       "name": identity.slug (name),
       "workspace": value ["name"],
-      "members": {
-         alias: { "alias": alias, "repository": repository }
-         for alias, repository in sorted (members.items ())
-      },
+      "members": [
+         { "alias": alias, "repository": repository }
+         for alias, repository in members
+      ],
       "created_by": actor_id,
       "created_at": state.now (),
    }
@@ -72,12 +72,10 @@ def forget (value: dict [str, Any], span: dict [str, Any]):
    _path (value, str (span ["feature_id"])).unlink (missing_ok=True)
 
 
-def members (value: dict [str, Any], span: dict [str, Any]) -> list [dict [str, str]]:
-   """Return one span's members in dependency-first order."""
+def members (_value: dict [str, Any], span: dict [str, Any]) -> list [dict [str, str]]:
+   """Return one span's members in the order the caller named them."""
 
-   ordered = workspace.order (value, sorted (span ["members"]))
-
-   return [ span ["members"] [alias] for alias in ordered ]
+   return list (span ["members"])
 
 
 @contextmanager

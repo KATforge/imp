@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Removed the workspace manifest. Imp read `workspace.yaml` only to learn which paths are members, a short alias
+  for each, and an integration order, and it refused any file not declaring a hardcoded platform schema. Members
+  now come from scanning, aliases from a unique path suffix, and order from the `--repo` flags you type
+- Removed the `pyyaml` dependency along with it. Every file Imp writes itself was already JSON
+
 - Added repository discovery. A directory holding several checkouts is treated as a workspace even without
   `workspace.yaml`, so `imp status` and `imp worktree list` work at any multi-project root. A manifest still wins
   when present, since only it carries aliases and the dependency graph
