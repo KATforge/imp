@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added workflow diagrams to `imp --help`: the feature loop and where the worktree sits in it, the two shapes
+  a repository can take, and what approval means. Reading the command list never showed how the commands relate
+
 - Added `imp cleanup` to reconcile expired claims, spent recoveries, closed features, merged or empty active
   features, stale state, and merged orphan worktrees under one exact approval. Missing worktrees with unique
   branches are restored; dirty, claimed, and unmerged active work is preserved with its next command

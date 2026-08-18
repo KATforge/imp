@@ -82,7 +82,25 @@ def main (
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply an exact displayed plan")] = False,
    actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
-   """[green]imp[/green] — safe Git workstreams for people and agents"""
+   """[green]imp[/green] — safe Git workstreams for people and agents
+
+   [bold]Feature[/bold]
+
+     start ─► edit ─► commit ─► review ─► done ─► trunk
+     └────────── isolated worktree ──────────┘
+
+   [bold]Scope[/bold]
+
+     one checkout          a directory of checkouts
+       api/                  workspace/
+       └── feature/pay       ├── api/ ─┐  imp start pay --repo api --repo web
+                             └── web/ ─┘  one feature, in the order named
+
+   [bold]Approval[/bold]
+
+     nothing changes until you approve the exact candidate shown
+     preview it with --dry-run, or approve up front with --yes
+   """
 
    if repo_path:
       target = Path (repo_path).expanduser ().resolve ()

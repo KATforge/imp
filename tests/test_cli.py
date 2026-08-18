@@ -232,6 +232,16 @@ class TestHelpOrdering:
          if (value := line.strip ("│ ").strip ()).startswith ("--")
       ]
 
+   def test_help_shows_the_workflow_diagrams (self):
+      result = runner.invoke (app, [ "--help" ])
+
+      lines = [ line.strip () for line in result.output.splitlines () ]
+
+      assert result.exit_code == 0
+      assert "start ─► edit ─► commit ─► review ─► done ─► trunk" in lines
+      assert "└────────── isolated worktree ──────────┘" in lines
+      assert "one checkout          a directory of checkouts" in lines
+
    def test_global_options_are_alphabetical_with_help_last (self):
       options = self._options ()
 
