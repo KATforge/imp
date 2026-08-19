@@ -5,7 +5,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from imp_git import ai, console, git, runtime, source_release
+from imp_git import ai, console, git, runtime
 from imp_git import main as main_mod
 from imp_git.main import app
 from tests.conftest import commit_count, git_run
@@ -15,24 +15,19 @@ runner = CliRunner ()
 
 class TestSurface:
 
-   def test_release_preview_names_pushed_refs_and_commits (self, repo_with_origin, monkeypatch):
-      git_run (repo_with_origin, "checkout", "-b", "develop", "master")
-      git_run (repo_with_origin, "push", "-u", "origin", "develop")
+   def test_release_preview_names_tag_and_notes (self, repo):
       for index in range (1, 4):
-         path = repo_with_origin / f"change-{index}.txt"
+         path = repo / f"change-{index}.txt"
          path.write_text (f"{index}\n")
-         git_run (repo_with_origin, "add", path.name)
-         git_run (repo_with_origin, "commit", "-m", f"feat: add change {index}")
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+         git_run (repo, "add", path.name)
+         git_run (repo, "commit", "-m", f"feat: add change {index}")
 
-      result = runner.invoke (app, [ "--dry-run", "release" ])
+      result = runner.invoke (app, [ "--dry-run", "release", "1.2.3", "--local" ])
 
       assert result.exit_code == 0
-      assert "origin: develop, v0.0.1" in result.output
-      assert "Commits to push" in result.output
+      assert "v1.2.3" in result.output
       for index in range (1, 4):
          assert f"feat: add change {index}" in result.output
-      assert "chore: release v0.0.1" in result.output
 
    def test_help_contains_only_the_small_native_surface (self):
       result = runner.invoke (app, [ "--help" ])
@@ -91,16 +86,13 @@ class TestSurface:
       assert "--keep" not in result.output
       assert "--strategy" not in result.output
 
-   def test_release_exposes_prerelease_without_legacy_flags (self):
+   def test_release_has_one_option (self):
       result = runner.invoke (app, [ "release", "--help" ])
 
       assert result.exit_code == 0
-      assert "--prerelease" in result.output
-      assert "--major" not in result.output
-      assert "--minor" not in result.output
-      assert "--patch" not in result.output
-      assert "--stable" not in result.output
-      assert "--squash" not in result.output
+      assert "--local" in result.output
+      assert "--prerelease" not in result.output
+      assert "--version" not in result.output
 
    def test_entrypoint_preserves_native_exit_code (self, monkeypatch):
       monkeypatch.setattr (main_mod, "app", lambda standalone_mode: 3)

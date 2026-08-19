@@ -65,10 +65,6 @@ def require ():
    if result.returncode != 0:
       console.fatal ("Not a git repository")
 
-def remote_url (name: str = "origin") -> str:
-   result = _run ("remote", "get-url", name, check=False)
-   return result.stdout.strip ()
-
 def staged_files () -> list [str]:
    result = _run ("diff", "--cached", "--name-only", check=False)
    return [ f.strip () for f in result.stdout.splitlines () if f.strip () ]
@@ -141,12 +137,6 @@ def branch () -> str:
    result = _run ("branch", "--show-current", check=False)
    return result.stdout.strip ()
 
-def branches_local () -> list [str]:
-   """Return local branch names without decoration."""
-
-   result = _run ("for-each-ref", "--format=%(refname:short)", "refs/heads", check=False)
-   return [line for line in result.stdout.splitlines () if line]
-
 def commit (msg: str):
    _run ("commit", "-m", msg)
 
@@ -184,27 +174,6 @@ def base_branch () -> str:
 def last_tag () -> str:
    result = _run ("describe", "--tags", "--abbrev=0", check=False)
    return result.stdout.strip ()
-
-def tags () -> list [str]:
-   result = _run ("tag", "-l", "v*", check=False)
-   return [ line.strip () for line in result.stdout.splitlines () if line.strip () ]
-
-def fetch_tag (name: str, remote: str = "origin") -> bool:
-   """Fetch exactly one tag, disturbing no other and never moving it by force."""
-
-   result = _run ("fetch", remote, f"refs/tags/{name}:refs/tags/{name}", check=False)
-
-   return result.returncode == 0
-
-def remote_tags (remote: str = "origin") -> list [str]:
-   result = _run ("ls-remote", "--tags", remote, check=False)
-   out = []
-   for line in result.stdout.splitlines ():
-      _, _, ref = line.partition ("refs/tags/")
-      # Peeled annotated-tag rows end in ^{}; the bare ref already covers them.
-      if ref and not ref.endswith ("^{}"):
-         out.append (ref.strip ())
-   return out
 
 def tag (name: str, ref: str = ""):
    args = [ "tag", name ]
@@ -275,11 +244,6 @@ def push (
       args.extend ([ "origin", ref ])
    _run (*args)
 
-def push_current ():
-   """Push the current branch, setting its upstream on first push."""
-
-   push (set_upstream=not has_upstream (), target=branch ())
-
 def is_merged (branch_name: str, into: str) -> bool:
    result = _run ("merge-base", "--is-ancestor", branch_name, into, check=False)
    return result.returncode == 0
@@ -342,11 +306,6 @@ def worktree_add (path: str, branch: str, base: str = ""):
    if base:
       args.append (base)
    _run (*args)
-
-def worktree_add_existing (path: str, branch: str):
-   """Attach an existing local branch to a new worktree."""
-
-   _run ("worktree", "add", path, branch)
 
 def worktree_add_detached (path: str, ref: str):
    """Create a detached temporary worktree at an exact object."""
@@ -427,24 +386,6 @@ def index_add_worktree (index: Path, paths: list [str]):
    """Stage worktree paths into an isolated index."""
 
    _run ("add", "-A", "--", *paths, env={ "GIT_INDEX_FILE": str (index) })
-
-def index_apply (index: Path, patch: str):
-   """Apply one patch to an isolated index."""
-
-   environment = { **os.environ, "GIT_INDEX_FILE": str (index) }
-   try:
-      subprocess.run (
-         [ "git", "apply", "--cached", "--whitespace=nowarn", "-" ],
-         input=patch,
-         capture_output=True,
-         text=True,
-         check=True,
-         timeout=60,
-         env=environment,
-      )
-   except subprocess.CalledProcessError as error:
-      detail = (error.stderr or error.stdout or "").strip ()
-      raise RuntimeError (f"Cannot apply planned change: {detail}") from error
 
 def index_diff (index: Path, path: str = "") -> str:
    """Return the binary-safe HEAD diff represented by an isolated index."""

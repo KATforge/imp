@@ -82,7 +82,7 @@ Optional policy lives in `.imp`:
 
 `imp pr` pushes the current branch and opens or updates its pull request.
 
-`imp release` updates versions and lockfiles, commits, tags, pushes, and publishes a GitHub release. `--local` stops after the local commit and tag.
+`imp release 1.2.3` tags the current clean commit, pushes the branch and tag, and publishes a GitHub release. `--local` only creates the tag.
 
 See the [documentation](https://docs.katforge.com/packages/imp/) and [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
 

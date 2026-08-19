@@ -3,7 +3,7 @@ import subprocess
 import pytest
 import typer
 
-from imp_git import git, version
+from imp_git import git
 from tests.conftest import commit_file, git_run
 
 
@@ -87,24 +87,6 @@ class TestLastTag:
    def test_with_tag (self, repo):
       git_run (repo, "tag", "v1.0.0")
       assert git.last_tag () == "v1.0.0"
-
-
-class TestHighestRelease:
-
-   def test_no_tags (self):
-      assert version.highest ([]) == ""
-
-   def test_highest (self):
-      assert version.highest ([ "v0.1.0", "v0.2.0" ]) == "v0.2.0"
-
-   def test_orders_by_number_not_text (self):
-      assert version.highest ([ "v0.9.0", "v0.10.0" ]) == "v0.10.0"
-
-   def test_skips_rc (self):
-      assert version.highest ([ "v0.1.0", "v0.2.0-rc.1" ]) == "v0.1.0"
-
-   def test_skips_non_semver (self):
-      assert version.highest ([ "v0.1.0", "v2024.5.1.3", "v1.2", "vpatch" ]) == "v0.1.0"
 
 
 class TestTagOperations:

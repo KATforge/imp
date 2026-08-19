@@ -3,8 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from imp_git import features, git, integration, source_release, state
-from tests.conftest import commit_file, git_run
+from imp_git import features, git, integration, state
+from imp_git.commands import release as release_command
+from tests.conftest import commit_file
 
 ACTOR = "actor:human:anders"
 
@@ -55,48 +56,40 @@ class TestIntegration:
       assert features.find (feature ["feature_id"]) ["state"] == "active"
 
 
-class TestSourceRelease:
+class TestRelease:
 
-   def test_release_uses_the_checked_out_branch (self, repo_with_origin, monkeypatch):
-      git_run (repo_with_origin, "checkout", "-b", "develop", "master")
-      git_run (repo_with_origin, "push", "-u", "origin", "develop")
-      commit_file (repo_with_origin, "develop.txt", "develop\n", "feat: advance develop")
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
+   def test_local_release_tags_the_current_commit (self, repo):
+      plan = release_command.plan_release ("1.2.3", local=True)
 
-      plan = source_release.plan_release ()
+      receipt = release_command.apply_release (plan)
 
-      assert plan ["payload"] ["target_ref"] == "develop"
-      assert { commit ["subject"] for commit in plan ["payload"] ["push_commits"] } == {
-         "feat: advance develop",
-         "chore: release v0.0.1",
-      }
+      assert receipt ["tag"] == "v1.2.3"
+      assert git.rev_parse ("v1.2.3") == git.rev_parse ("main")
 
-   def test_interrupted_release_resumes_from_its_tag (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      first = source_release.plan_release ()
-      payload = first ["payload"]
-      git.tag (str (payload ["tag"]), str (payload ["commit_oid"]))
+   def test_release_notes_are_commit_subjects (self, repo):
+      commit_file (repo, "change.txt", "change\n", "feat: add release change")
 
-      second = source_release.plan_release ()
+      plan = release_command.plan_release ("1.2.3", local=True)
 
-      assert second ["payload"] ["resumed"] is True
-      assert second ["payload"] ["commit_oid"] == payload ["commit_oid"]
+      assert "- feat: add release change" in plan ["payload"] ["notes"]
 
-   def test_github_failure_is_not_success (self, repo, monkeypatch):
-      plan = source_release.plan_release ()
-      plan ["payload"] ["github_release"] = True
-      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
-      monkeypatch.setattr (source_release.gh, "release_create", lambda *_args, **_kwargs: False)
+   def test_release_pushes_and_publishes (self, repo_with_origin, monkeypatch):
+      pushed = []
+      monkeypatch.setattr (release_command.gh, "available", lambda: True)
+      monkeypatch.setattr (
+         release_command.gh, "release_create",
+         lambda tag, notes, prerelease: f"https://example.test/{tag}",
+      )
+      monkeypatch.setattr (release_command.git, "push", lambda **kwargs: pushed.append (kwargs))
 
-      with pytest.raises (state.StateError, match="GitHub release creation failed"):
-         source_release.apply_release (plan)
+      plan = release_command.plan_release ("1.2.3")
+      receipt = release_command.apply_release (plan)
 
-   def test_local_release_moves_branch_and_tag (self, repo):
-      plan = source_release.plan_release (local=True)
+      assert pushed == [ { "ref": plan ["payload"] ["branch"] }, { "ref": "v1.2.3" } ]
+      assert receipt ["url"] == "https://example.test/v1.2.3"
 
-      receipt = source_release.apply_release (plan)
+   def test_release_refuses_an_existing_tag (self, repo):
+      git.tag ("v1.2.3")
 
-      assert receipt ["tag"] == "v0.0.1"
-      assert git.rev_parse ("v0.0.1") == git.rev_parse ("main")
-      assert not (state.root () / "releases").exists ()
+      with pytest.raises (state.StateError, match="already exists"):
+         release_command.plan_release ("1.2.3", local=True)

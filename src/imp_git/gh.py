@@ -2,88 +2,44 @@ import json
 import shutil
 import subprocess
 
+from imp_git import state
+
 
 def available () -> bool:
    return shutil.which ("gh") is not None
 
-def pr_create (title: str, body: str, base: str, head: str) -> str:
-   result = subprocess.run (
-      [
-         "gh", "pr", "create",
-         "--title", title,
-         "--body", body,
-         "--base", base,
-         "--head", head,
-      ],
-      capture_output=True,
-      text=True,
-      check=True,
-      timeout=30,
-   )
+
+def _run (*args: str) -> str:
+   try:
+      result = subprocess.run (
+         [ "gh", *args ], capture_output=True, text=True, timeout=30,
+      )
+   except OSError as error:
+      raise state.StateError ("GitHub CLI failed") from error
+   if result.returncode:
+      raise state.StateError ((result.stderr or result.stdout).strip () or "GitHub CLI failed")
    return result.stdout.strip ()
 
-def pr_edit (number: int, title: str, body: str) -> str:
-   # REST instead of gh pr edit: its GraphQL query trips on deprecated
-   # Projects (classic) fields (fails on gh <= 2.52)
-   result = subprocess.run (
-      [
-         "gh", "api", f"repos/{{owner}}/{{repo}}/pulls/{number}",
-         "-X", "PATCH",
-         "-f", f"title={title}",
-         "-f", f"body={body}",
-      ],
-      capture_output=True,
-      text=True,
-      check=True,
-      timeout=30,
-   )
-   return json.loads (result.stdout).get ("html_url", "")
 
 def pr_view (head: str) -> dict:
    try:
-      result = subprocess.run (
-         [ "gh", "pr", "view", head, "--json", "number,state,url" ],
-         capture_output=True,
-         text=True,
-         check=True,
-         timeout=30,
-      )
-      return json.loads (result.stdout)
-   except (subprocess.CalledProcessError, json.JSONDecodeError, OSError):
+      return json.loads (_run ("pr", "view", head, "--json", "url"))
+   except (state.StateError, json.JSONDecodeError):
       return {}
 
-def release_create (ver: str, notes: str, prerelease: bool = False) -> bool:
-   try:
-      cmd = [
-         "gh", "release", "create",
-         f"v{ver}",
-         "--title", f"v{ver}",
-         "--notes", notes,
-      ]
-      if prerelease:
-         cmd.append ("--prerelease")
 
-      subprocess.run (
-         cmd,
-         capture_output=True,
-         text=True,
-         check=True,
-         timeout=30,
-      )
-      return True
-   except subprocess.CalledProcessError:
-      return False
+def pr_create (title: str, body: str, base: str, head: str) -> str:
+   return _run (
+      "pr", "create", "--title", title, "--body", body, "--base", base, "--head", head,
+   )
 
 
-def release_view (tag: str) -> dict:
-   try:
-      result = subprocess.run (
-         [ "gh", "release", "view", tag, "--json", "isPrerelease,url" ],
-         capture_output=True,
-         text=True,
-         check=True,
-         timeout=30,
-      )
-      return json.loads (result.stdout)
-   except (subprocess.CalledProcessError, json.JSONDecodeError, OSError):
-      return {}
+def pr_update (head: str, title: str, body: str):
+   _run ("pr", "edit", head, "--title", title, "--body", body)
+
+
+def release_create (tag: str, notes: str, prerelease: bool = False) -> str:
+   args = [ "release", "create", tag, "--title", tag, "--notes", notes ]
+   if prerelease:
+      args.append ("--prerelease")
+   return _run (*args)
