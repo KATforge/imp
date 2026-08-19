@@ -77,7 +77,6 @@ def main (
    json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
    dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply an exact displayed plan")] = False,
-   actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
    """[green]imp[/green] — safe Git workstreams for people and agents
 
@@ -97,6 +96,11 @@ def main (
 
      nothing changes until you approve the exact candidate shown
      preview it with --dry-run, or approve up front with --yes
+
+   [bold]AI[/bold]
+
+     only commit calls AI; it sends the selected diff for a message
+     pass -m to send nothing; doctor only pings; all others are deterministic
    """
 
    if repo_path:
@@ -106,7 +110,6 @@ def main (
       os.chdir (target)
 
    runtime.configure (
-      actor_id=actor_id,
       command=ctx.invoked_subcommand or "",
       dry_run=dry_run,
       json=json_output,
@@ -129,7 +132,7 @@ _NATIVE.update ({ "worktree" })
 
 
 _GLOBAL_FLAGS = { "--dry-run", "--json", "--yes", "-y" }
-_GLOBAL_VALUED = { "-C", "--actor-id" }
+_GLOBAL_VALUED = { "-C" }
 
 
 def _hoist_global (args: list [str]) -> list [str]:

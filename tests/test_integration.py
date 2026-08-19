@@ -99,3 +99,4 @@ class TestSourceRelease:
 
       assert receipt ["tag"] == "v0.0.1"
       assert git.rev_parse ("v0.0.1") == git.rev_parse ("main")
+      assert not (state.root () / "releases").exists ()

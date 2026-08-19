@@ -47,6 +47,10 @@ class TestSurface:
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
+      assert "--actor-id" not in result.output
+      assert "only commit calls AI" in result.output
+      assert "pass -m to send nothing" in result.output
+      assert "all others are deterministic" in result.output
 
    def test_worktree_has_no_duplicate_start_or_claim_commands (self):
       result = runner.invoke (app, [ "worktree", "--help" ])

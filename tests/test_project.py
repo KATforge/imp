@@ -73,7 +73,7 @@ class TestCommandsRegistered:
 
 class TestMachineConfiguration:
 
-   def test_the_defaults_file_is_written_on_first_read (self, tmp_path, monkeypatch):
+   def test_defaults_do_not_create_a_file (self, tmp_path, monkeypatch):
       from imp_git import config
 
       monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path))
@@ -83,8 +83,7 @@ class TestMachineConfiguration:
       assert not target.exists ()
       settings = config.load ()
 
-      assert target.is_file ()
-      assert json.loads (target.read_text ()) == settings
+      assert not target.exists ()
       assert settings ["provider"] == "claude"
       config.load.cache_clear ()
 
@@ -99,16 +98,6 @@ class TestMachineConfiguration:
 
       assert config.load () ["provider"] == "ollama"
       assert json.loads (target.read_text ()) ["provider"] == "ollama"
-      config.load.cache_clear ()
-
-   def test_a_read_only_home_still_yields_defaults (self, tmp_path, monkeypatch):
-      from imp_git import config
-
-      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path / "nope"))
-      monkeypatch.setattr (config.Path, "mkdir", lambda *_a, **_k: (_ for _ in ()).throw (OSError ()))
-      config.load.cache_clear ()
-
-      assert config.load () ["provider"] == "claude"
       config.load.cache_clear ()
 
    def test_machine_configuration_ignores_the_environment (self, tmp_path, monkeypatch):

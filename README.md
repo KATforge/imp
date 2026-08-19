@@ -30,6 +30,14 @@ imp done
 
 Humans and agents may edit the current checkout for focused work. Use `imp start` for parallel, large, risky, or clean-checkout work.
 
+## AI
+
+Only `imp commit` sends content to AI: the selected diff, for a message. Pass `-m` to send nothing. `imp doctor` only sends a fixed ping; every other command is deterministic. Imp detects the actor automatically.
+
+## State
+
+Imp keeps one compact file per open feature in Git's common directory. `done` and `worktree remove` delete it. Plans and diffs live only for the process; locks and temporary files are transient. Releases remain in Git and GitHub. Defaults do not create a config file.
+
 ## Multiple repositories
 
 ```bash

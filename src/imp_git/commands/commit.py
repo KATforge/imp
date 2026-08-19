@@ -80,7 +80,7 @@ def _planned (
 def commit (
    message: Annotated [str, typer.Option ("--message", "-m", help="Commit staged changes without AI")] = "",
 ):
-   """Plan and create approved local Conventional Commits."""
+   """Create one local commit. Sends the selected diff to AI unless -m is used."""
 
    actor_id = runtime.options.actor_id
    dry_run = runtime.options.dry_run

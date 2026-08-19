@@ -6,17 +6,7 @@ from typing import Any
 
 from imp_git import config, console, fingerprint, git, identity, plans, runtime, state
 
-
-def _drop_task (value: dict [str, Any]) -> dict [str, Any]:
-   """Forget the free-text intent no command ever read."""
-
-   value.pop ("task", None)
-   value ["schema"] = "imp.feature.v2"
-
-   return value
-
-
-_MIGRATIONS: dict [str, state.Migration] = { "imp.feature.v1": _drop_task }
+_OPEN = { "active", "awaiting-merge" }
 
 
 def _directory () -> Path:
@@ -27,7 +17,7 @@ def _path (feature_id: str) -> Path:
    return _directory () / f"{identity.key (feature_id)}.json"
 
 
-def _claim_path (feature_id: str) -> Path:
+def _legacy_claim_path (feature_id: str) -> Path:
    return state.root () / "claims" / f"{identity.key (feature_id)}.json"
 
 
@@ -47,11 +37,36 @@ def _is_expired (claim_record: dict [str, Any]) -> bool:
    return expires <= datetime.now (timezone.utc)
 
 
-def _read_claim (feature_id: str) -> dict [str, Any] | None:
-   path = _claim_path (feature_id)
-   if not path.exists ():
+def _claim (value: Any) -> dict [str, str] | None:
+   if not isinstance (value, dict) or not value.get ("held_by") or not value.get ("expires_at"):
       return None
-   return state.read (path, "imp.claim.v1")
+   return { "held_by": str (value ["held_by"]), "expires_at": str (value ["expires_at"]) }
+
+
+def _compact (value: dict [str, Any]) -> dict [str, Any]:
+   return {
+      "schema": "imp.feature.v3",
+      "feature_id": value ["feature_id"],
+      "name": value ["name"],
+      "branch": value ["branch"],
+      "path": value ["path"],
+      "target": value ["target"],
+      "created_at": value ["created_at"],
+      "span": list (value.get ("span") or []),
+      "state": value.get ("state", "active"),
+      "claim": _claim (value.get ("claim")),
+   }
+
+
+def _stored (path: Path) -> dict [str, Any]:
+   value = _compact (state.read (path))
+   legacy = _legacy_claim_path (str (value ["feature_id"]))
+   if not value ["claim"] and legacy.exists ():
+      value ["claim"] = _claim (state.read (legacy))
+   legacy.unlink (missing_ok=True)
+   if value ["claim"] and _is_expired (value ["claim"]):
+      value ["claim"] = None
+   return value
 
 
 def _worktree_state (feature: dict [str, Any]) -> str:
@@ -65,21 +80,22 @@ def _worktree_state (feature: dict [str, Any]) -> str:
 
 
 def all () -> list [dict [str, Any]]:
-   """List retained features with reconciled worktree and claim state."""
-
    directory = _directory ()
-   if not directory.exists ():
-      return []
    values = []
-   for path in directory.glob ("feature--*.json"):
-      try:
-         feature = state.read (path, "imp.feature.v2", _MIGRATIONS)
-         claim_record = _read_claim (str (feature ["feature_id"]))
-         feature ["claim"] = None if claim_record and _is_expired (claim_record) else claim_record
-         feature ["worktree_state"] = _worktree_state (feature)
-         values.append (feature)
-      except state.StateError:
-         continue
+   if directory.exists ():
+      for path in directory.glob ("feature--*.json"):
+         try:
+            feature = _stored (path)
+            if feature ["state"] not in _OPEN:
+               path.unlink (missing_ok=True)
+               continue
+            if state.read (path) != feature:
+               state.atomic_write (path, feature)
+            feature ["worktree_state"] = _worktree_state (feature)
+            values.append (feature)
+         except state.StateError:
+            continue
+   state.prune ()
    return sorted (values, key=lambda value: str (value.get ("created_at", "")))
 
 
@@ -282,16 +298,8 @@ def _validate_start (plan: dict [str, Any]) -> dict [str, Any]:
    return descriptor
 
 
-def _new_claim (feature_id: str, actor_id: str) -> dict [str, Any]:
-   timestamp = state.now ()
-   return {
-      "schema": "imp.claim.v1",
-      "feature_id": feature_id,
-      "held_by": actor_id,
-      "created_at": timestamp,
-      "renewed_at": timestamp,
-      "expires_at": _expires_at (),
-   }
+def _new_claim (actor_id: str) -> dict [str, str]:
+   return { "held_by": actor_id, "expires_at": _expires_at () }
 
 
 def _discard_start (path: str, branch: str, feature_id: str):
@@ -300,7 +308,7 @@ def _discard_start (path: str, branch: str, feature_id: str):
    if git.ref_exists (branch):
       git.delete_branch (branch, force=True)
    _path (feature_id).unlink (missing_ok=True)
-   _claim_path (feature_id).unlink (missing_ok=True)
+   _legacy_claim_path (feature_id).unlink (missing_ok=True)
 
 
 def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
@@ -323,27 +331,23 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
       try:
          git.worktree_add (path, branch, str (descriptor ["base:oid"]))
          record = {
-            "schema": "imp.feature.v2",
+            "schema": "imp.feature.v3",
             "feature_id": feature_id,
             "name": descriptor ["name"],
             "branch": branch,
             "path": path,
-            "base:ref": descriptor ["base:ref"],
-            "base:oid": descriptor ["base:oid"],
             "target": descriptor ["target"],
-            "created_by": descriptor ["created_by"],
             "created_at": state.now (),
             "span": list (descriptor.get ("span") or []),
             "state": "active",
+            "claim": _new_claim (str (descriptor ["created_by"])),
          }
          state.atomic_write (_path (feature_id), record)
-         claim_record = _new_claim (feature_id, str (descriptor ["created_by"]))
-         state.atomic_write (_claim_path (feature_id), claim_record)
       except Exception:
          _discard_start (path, branch, feature_id)
          raise
    plans.mark (plan, "applied", applied_at=state.now ())
-   return { **record, "claim": claim_record, "worktree_state": "live" }
+   return { **record, "worktree_state": "live" }
 
 
 def discard_start (feature: dict [str, Any]):
@@ -357,21 +361,17 @@ def claim (feature: dict [str, Any], actor_id: str) -> dict [str, Any]:
 
    feature_id = str (feature ["feature_id"])
    with state.lock (identity.key (feature_id)):
-      existing = _read_claim (feature_id)
-      if existing and _is_expired (existing):
-         existing = None
+      record = _stored (_path (feature_id))
+      existing = record ["claim"]
       if existing:
          held_by = existing.get ("held_by")
          if held_by != actor_id:
             raise state.StateError (
                f"Feature has an active claim held by {held_by} until {existing.get ('expires_at')}"
             )
-         existing ["renewed_at"] = state.now ()
-         existing ["expires_at"] = _expires_at ()
-         state.atomic_write (_claim_path (feature_id), existing)
-         return existing
-      value = _new_claim (feature_id, actor_id)
-      state.atomic_write (_claim_path (feature_id), value)
+      value = _new_claim (actor_id)
+      record ["claim"] = value
+      state.atomic_write (_path (feature_id), record)
       return value
 
 
@@ -387,7 +387,7 @@ def _remove_fingerprint (feature: dict [str, Any]) -> str:
    return fingerprint.values ({
       "branch": feature ["branch"],
       "branch_oid": git.rev_parse (str (feature ["branch"])),
-      "claim": _read_claim (str (feature ["feature_id"])),
+      "claim": feature.get ("claim"),
       "feature_id": feature ["feature_id"],
       "path": path,
       "status": git.capture ("-C", path, "status", "--porcelain=v1"),
@@ -402,7 +402,7 @@ def plan_remove (
    """Plan removal of one clean managed worktree."""
 
    blockers = []
-   claim_record = _read_claim (str (feature ["feature_id"]))
+   claim_record = feature.get ("claim")
    if claim_record and claim_record.get ("held_by") != actor_id and not _is_expired (claim_record):
       blockers.append (f"Active writer claim held by {claim_record.get ('held_by')}")
    dirty = git.capture ("-C", str (feature ["path"]), "status", "--porcelain=v1")
@@ -448,7 +448,7 @@ def apply_remove (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
       git.worktree_remove (str (feature ["path"]))
       if not git.delete_branch (str (feature ["branch"]), force=True):
          raise state.StateError (f"Could not delete branch {feature ['branch']}")
-      _claim_path (str (feature ["feature_id"])).unlink (missing_ok=True)
+      _legacy_claim_path (str (feature ["feature_id"])).unlink (missing_ok=True)
       _path (str (feature ["feature_id"])).unlink (missing_ok=True)
       plans.mark (plan, "applied", applied_at=state.now ())
    return {
@@ -489,6 +489,6 @@ def complete (
             git.delete_branch_checked (branch, branch_oid or git.rev_parse (branch))
          except subprocess.CalledProcessError as error:
             raise state.StateError (f"Integrated branch changed: {branch}") from error
-      _claim_path (feature_id).unlink (missing_ok=True)
+      _legacy_claim_path (feature_id).unlink (missing_ok=True)
       _path (feature_id).unlink ()
    return { **feature, "state": "completed", "completed_at": state.now () }

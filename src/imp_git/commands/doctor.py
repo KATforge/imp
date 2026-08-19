@@ -64,7 +64,7 @@ def _show_settings (settings: dict [str, Any], policy: dict [str, Any], inside: 
 
 
 def doctor ():
-   """Check required tools, optional AI providers, and configuration."""
+   """Check Git and configuration, then ping the AI provider."""
 
    machine = runtime.options.json
    tools = _inspect ()

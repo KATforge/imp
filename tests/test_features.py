@@ -72,10 +72,10 @@ class TestFeatures:
       owner = _actor ("codex", "owner")
       intruder = _actor ("claude", "intruder")
       _plan, feature = _start ("claimed", owner)
-      claim_path = features._claim_path (feature ["feature_id"])
-      record = state.read (claim_path, "imp.claim.v1")
-      record ["expires_at"] = "2000-01-01T00:00:00Z"
-      state.atomic_write (claim_path, record)
+      path = features._path (feature ["feature_id"])
+      record = state.read (path, "imp.feature.v3")
+      record ["claim"] ["expires_at"] = "2000-01-01T00:00:00Z"
+      state.atomic_write (path, record)
 
       claim = features.claim (feature, intruder)
 
@@ -117,18 +117,25 @@ class TestFeatures:
 
 
 class TestFeatureMigration:
-   """An existing record must survive the loss of a field no command read."""
 
-   def test_a_v1_record_migrates_and_forgets_its_task (self, repo_with_origin, tmp_path):
+   def test_an_old_record_compacts_into_one_file (self, repo_with_origin, tmp_path):
       _, feature = _start ("payments", _actor ("codex", "payments"))
       path = state.root () / "features" / f"{identity.key (feature ['feature_id'])}.json"
       record = json.loads (path.read_text ())
-      record ["schema"] = "imp.feature.v1"
+      claim = record.pop ("claim")
+      record ["schema"] = "imp.feature.v2"
+      record ["base:ref"] = "origin/master"
+      record ["base:oid"] = git.rev_parse ("origin/master")
+      record ["created_by"] = claim ["held_by"]
       record ["task"] = "Improve failed-payment recovery"
       path.write_text (json.dumps (record, indent=3, sort_keys=True) + "\n")
+      claim_path = features._legacy_claim_path (feature ["feature_id"])
+      state.atomic_write (claim_path, { "schema": "imp.claim.v1", **claim })
 
       stored = features.find ("payments")
 
-      assert stored ["schema"] == "imp.feature.v2"
-      assert "task" not in stored
-      assert json.loads (path.read_text ()) ["schema"] == "imp.feature.v2"
+      assert stored ["schema"] == "imp.feature.v3"
+      assert set (json.loads (path.read_text ())) == {
+         "branch", "claim", "created_at", "feature_id", "name", "path", "schema", "span", "state", "target",
+      }
+      assert not claim_path.exists ()

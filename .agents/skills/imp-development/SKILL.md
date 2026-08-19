@@ -9,6 +9,8 @@ description: Use for source-code changes in Git repositories. Route every Git op
 
    - Every command takes `--json` and answers with one versioned envelope; failures use `imp.error.v1` and a nonzero exit.
    - `--json` never prompts. Pass `--yes` to approve what you already decided, and `--dry-run` to see a plan without applying it.
+   - Only `imp commit` sends content to AI: the selected diff, for a message. Pass `-m` to send nothing. Every other workflow command is deterministic; `imp doctor` only sends a fixed ping.
+   - Imp detects the current actor automatically. Never pass or persist an actor override.
    - Run `imp doctor --json` when the environment looks wrong; it reports tools, provider, and configuration.
    - Outside Git, edit directly. Do not initialize Git or Imp.
    - Inside Git, run `imp status --json`. Run it from a directory of checkouts to cover every repository below it.

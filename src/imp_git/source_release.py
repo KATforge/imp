@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from imp_git import fingerprint, gh, git, identity, plans, state, validate, version
+from imp_git import fingerprint, gh, git, plans, state, validate, version
 
 _LOCK_COMMANDS = {
    "bun.lock": [ "bun", "install", "--lockfile-only", "--ignore-scripts" ],
@@ -321,7 +321,6 @@ def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
             raise state.StateError (f"GitHub release creation failed for {payload ['tag']}")
          release_url = str (existing.get ("url") or _repository_url (payload ["tag"]))
       receipt = {
-         "source_release_id": identity.resource ("source-release", git.repo_name (), payload ["tag"]),
          "repository": git.repo_name (),
          "version": payload ["version"],
          "tag": payload ["tag"],
@@ -333,9 +332,5 @@ def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
          "updated_lockfiles": sorted (payload ["lockfile_hashes"]),
          "prerelease": bool (payload ["prerelease"]),
       }
-      state.atomic_write (
-         state.root () / "releases" / f"{identity.key (receipt ['source_release_id'])}.json",
-         { "schema": "imp.source-release.v2", **receipt, "created_at": state.now () },
-      )
       plans.mark (plan, "applied", applied_at=state.now ())
       return receipt

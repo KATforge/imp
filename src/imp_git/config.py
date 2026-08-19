@@ -18,18 +18,11 @@ def path () -> Path:
 
 @functools.cache
 def load () -> dict:
-   """Return machine configuration, writing the defaults file on first use.
-
-   Configuration has no command surface. The file is created with sensible
-   defaults the first time anything reads it, and edited by hand or overridden
-   per invocation with the IMP_AI_* environment variables.
-   """
+   """Return defaults plus an explicit machine configuration file."""
 
    cfg = dict (_DEFAULTS)
 
    p = path ()
-   if not p.exists ():
-      _seed (p)
    if p.is_file ():
       try:
          stored = json.loads (p.read_text ())
@@ -39,16 +32,7 @@ def load () -> dict:
          console.warn ("Invalid config file, using defaults")
       except OSError:
          pass
-
-
    return cfg
-
-def _seed (p: Path):
-   try:
-      p.parent.mkdir (parents=True, exist_ok=True)
-      p.write_text (json.dumps (_DEFAULTS, indent=3, sort_keys=True) + "\n")
-   except OSError:
-      pass
 
 
 def save (cfg: dict):
