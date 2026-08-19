@@ -166,11 +166,11 @@ def commit_message (prompt: str) -> str:
 
    return msg
 
-def json_payload (prompt: str, spin_title: str = "Thinking...") -> dict:
+def json_payload (prompt: str, spin: bool = True) -> dict:
    from imp_git import state
 
    for _attempt in range (2):
-      raw = strip_fences (_invoke ("smart", prompt))
+      raw = strip_fences (_invoke ("smart", prompt, spin))
       start = raw.find ("{")
       end = raw.rfind ("}")
       if start < 0 or end <= start:
@@ -183,10 +183,10 @@ def json_payload (prompt: str, spin_title: str = "Thinking...") -> dict:
          return value
    raise state.StateError ("AI did not return the requested JSON")
 
-def review_diff (diff: str) -> dict:
+def review_diff (diff: str, spin: bool = True) -> dict:
    from imp_git import prompts
 
-   return json_payload (prompts.review (truncate (diff)))
+   return json_payload (prompts.review (truncate (diff)), spin)
 
 def answer (diff: str, question: str) -> str:
    from imp_git import prompts

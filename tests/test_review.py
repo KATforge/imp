@@ -17,7 +17,7 @@ class TestScope:
       _feature ()
       seen = {}
 
-      def fake_review (diff):
+      def fake_review (diff, spin=True):
          seen ["diff"] = diff
          return { "summary": "Adds checkout.", "annotations": [] }
 
@@ -34,7 +34,7 @@ class TestScope:
       commit_file (repo_with_origin, "landed.txt", "landed\n", "feat: land work")
       monkeypatch.setattr (
          ai, "review_diff",
-         lambda diff: { "summary": "Lands work.", "annotations": [
+         lambda diff, spin=True: { "summary": "Lands work.", "annotations": [
             { "file": "landed.txt", "line": 1, "severity": "info", "note": "New file." },
          ] },
       )
@@ -45,8 +45,33 @@ class TestScope:
       assert data ["commits"]
       assert data ["annotations"] [0] ["file"] == "landed.txt"
 
+   def test_the_diff_prints_before_the_sidebar (self, repo_with_origin, monkeypatch, capsys):
+      import threading
+
+      git_run (repo_with_origin, "checkout", "master")
+      commit_file (repo_with_origin, "landed.txt", "landed\n", "feat: land work")
+      gate = threading.Event ()
+
+      def slow_review (diff, spin=True):
+         assert gate.wait (5), "diff render never released the AI result"
+         return { "summary": "Lands work.", "annotations": [] }
+
+      real = review_cmd._render_diff
+
+      def render_then_release (label, diff):
+         real (label, diff)
+         gate.set ()
+
+      monkeypatch.setattr (ai, "review_diff", slow_review)
+      monkeypatch.setattr (review_cmd, "_render_diff", render_then_release)
+
+      review_cmd.review ()
+
+      output = capsys.readouterr ().out
+      assert output.index ("+landed") < output.index ("AI review")
+
    def test_nothing_to_review_when_trunk_is_pushed (self, repo_with_origin, monkeypatch):
-      def explode (diff):
+      def explode (diff, spin=True):
          raise AssertionError ("AI was called with nothing to review")
 
       monkeypatch.setattr (ai, "review_diff", explode)

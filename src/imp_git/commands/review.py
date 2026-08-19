@@ -1,4 +1,5 @@
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated, Any
 
 import typer
@@ -85,11 +86,29 @@ def _match (annotations: list [dict [str, Any]], hunk: dict [str, Any], first_of
    return notes
 
 
-def _render (label: str, review: dict [str, Any], diff: str):
+def _render_diff (label: str, diff: str):
+   """Print the complete diff immediately; the AI reads it concurrently."""
+
    console.header (f"Review: {label}")
+   seen_files: set [str] = set ()
+   for hunk in _hunks (diff):
+      if hunk ["file"] not in seen_files:
+         seen_files.add (hunk ["file"])
+         console.out.print (Text (hunk ["file"], style=f"bold {theme.accent}"))
+      console.out.print (_styled (hunk ["lines"]))
+   console.out.print ()
+
+
+def _render_annotations (review: dict [str, Any], diff: str):
+   """Attach the AI sidebar: annotated hunks only, notes beside the code they concern."""
+
+   console.label ("AI review")
    console.md (str (review.get ("summary", "")))
    console.out.print ()
    annotations = [ dict (value) for value in review.get ("annotations", []) ]
+   if not annotations:
+      console.success ("No findings")
+      return
    table = Table (box=box.ROUNDED, header_style="accent", border_style=theme.muted, show_lines=True)
    table.add_column ("Diff", overflow="fold", ratio=3)
    table.add_column ("Notes", overflow="fold", ratio=1)
@@ -98,12 +117,14 @@ def _render (label: str, review: dict [str, Any], diff: str):
       first = hunk ["file"] not in seen_files
       seen_files.add (hunk ["file"])
       notes = _match (annotations, hunk, first)
+      if not notes:
+         continue
       left = Text ()
-      if first:
-         left.append (hunk ["file"] + "\n", style=f"bold {theme.accent}")
+      left.append (hunk ["file"] + "\n", style=f"bold {theme.accent}")
       left.append (_styled (hunk ["lines"]))
       table.add_row (left, "\n".join (notes))
-   console.out.print (table)
+   if table.row_count:
+      console.out.print (table)
    strays = [ value for value in annotations if not value.get ("placed") ]
    for value in strays:
       console.warn (f"{value.get ('file', '?')}: {value.get ('note', '')}")
@@ -134,9 +155,11 @@ def review (
    is exactly the layer integrated by `imp done` and not pushed. Name a feature to
    review its branch against trunk before integrating.
 
-   The diff is shown per hunk with AI annotations aligned beside the code they concern,
-   ranked info, warn, or risk, under a short summary. Afterwards, keep asking free-form
-   questions about the diff at the prompt. Use --ask for a single scripted question.
+   The diff prints immediately while the AI reads it in the background; the sidebar
+   attaches as soon as it is ready — a summary, then only the annotated hunks with
+   notes beside the code they concern, ranked info, warn, or risk. Afterwards, keep
+   asking free-form questions about the diff at the prompt. Use --ask for a single
+   scripted question.
 
    Advisory only: writes nothing and changes nothing. Sends the diff, and any question
    you type, to the configured AI provider.
@@ -163,18 +186,28 @@ def review (
          )
       console.md (reply)
       return { "answer": reply, "question": ask, "scope": label }
-   try:
-      value = ai.review_diff (diff)
-   except state.StateError as error:
-      console.fatal (str (error))
-   data = {
+   if runtime.options.json:
+      try:
+         value = ai.review_diff (diff)
+      except state.StateError as error:
+         console.fatal (str (error))
+      return result.emit ("imp.review.v1", "imp review", _data (value, base, tip, label), json_output=True)
+   with ThreadPoolExecutor (max_workers=1) as pool:
+      pending = pool.submit (ai.review_diff, diff, spin=False)
+      _render_diff (label, diff)
+      try:
+         value = pending.result () if pending.done () else console.spin ("Annotating...", pending.result)
+      except state.StateError as error:
+         console.fatal (str (error))
+   _render_annotations (value, diff)
+   _questions (diff)
+   return _data (value, base, tip, label)
+
+
+def _data (value: dict [str, Any], base: str, tip: str, label: str) -> dict [str, Any]:
+   return {
       "annotations": value.get ("annotations", []),
       "commits": git.log_oneline (rev_range=f"{base}..{tip}").splitlines (),
       "scope": label,
       "summary": str (value.get ("summary", "")),
    }
-   if runtime.options.json:
-      return result.emit ("imp.review.v1", "imp review", data, json_output=True)
-   _render (label, value, diff)
-   _questions (diff)
-   return data
