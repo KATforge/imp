@@ -1,7 +1,21 @@
 import shutil
+from pathlib import Path
 from typing import Any
 
-from imp_git import ai, features, fingerprint, git, hygiene, identity, plans, prompts, state, validate
+from imp_git import ai, features, fingerprint, git, hygiene, identity, locks, plans, prompts, state, validate
+
+
+def _trunk_claim () -> str:
+   """Return the trunk branch when committing directly on it in the primary checkout."""
+
+   branch = git.branch ()
+   if not branch or branch != git.base_branch ():
+      return ""
+   entries = git.worktrees ()
+   if not entries:
+      return branch
+   primary = str (Path (entries [0].get ("worktree", "")).resolve ())
+   return branch if primary == str (Path (git.repo_root ()).resolve ()) else ""
 
 
 def _scope () -> tuple [str, list [str]]:
@@ -40,6 +54,13 @@ def create (*, message: str = "") -> dict [str, Any]:
    branch_ref = git.current_ref ()
    if not branch_ref:
       raise state.StateError ("Commit planning requires an attached branch")
+   trunk_claim = _trunk_claim ()
+   if trunk_claim:
+      taken = locks.foreign (trunk_claim)
+      if taken:
+         raise state.StateError (
+            f"{trunk_claim} is locked by {taken ['actor']} ({taken ['name']}); imp start to get a worktree"
+         )
    payload = {
       "branch": branch,
       "branch_ref": branch_ref,
@@ -54,6 +75,7 @@ def create (*, message: str = "") -> dict [str, Any]:
          if path not in paths
       ],
       "tree_oid": tree,
+      "trunk_claim": trunk_claim,
    }
    return plans.build (
       "commit",
@@ -81,6 +103,8 @@ def _payload (plan: dict [str, Any]) -> dict [str, Any]:
       raise state.StateError ("Commit plan branch or HEAD changed")
    if not validate.commit (str (payload ["message"])):
       raise state.StateError ("Commit plan contains an invalid message")
+   if payload.get ("trunk_claim"):
+      locks.acquire (str (payload ["trunk_claim"]))
    return payload
 
 

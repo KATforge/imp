@@ -1,11 +1,76 @@
 import re
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 
-from imp_git import approval, console, features, git, plans, state, workspace
+from imp_git import approval, console, features, git, identity, locks, plans, state, workspace
 
 _TICKET = re.compile (r"^[A-Za-z]+-[0-9]+$")
+
+
+def _on_primary_trunk (trunk: str) -> bool:
+   if git.branch () != trunk:
+      return False
+   entries = git.worktrees ()
+   if not entries:
+      return True
+   primary = str (Path (entries [0].get ("worktree", "")).resolve ())
+   return primary == str (Path (git.repo_root ()).resolve ())
+
+
+def _trunk_state () -> tuple [bool, str]:
+   """Decide whether work may land directly on trunk, or why it must isolate."""
+
+   git.require ()
+   trunk = git.base_branch ()
+   if not _on_primary_trunk (trunk):
+      return False, ""
+   taken = locks.foreign (trunk)
+   if taken:
+      return False, f"{trunk} is locked by {taken ['actor']} ({taken ['name']}); isolating in a worktree"
+   if not git.is_clean () and not locks.mine (trunk):
+      return False, f"The {trunk} checkout is dirty; isolating in a worktree"
+   return True, ""
+
+
+def _plan_trunk (name: str) -> dict [str, Any]:
+   trunk = git.base_branch ()
+   slug = identity.slug (name)
+   return plans.build (
+      "start",
+      slug,
+      scope={ "repository": git.repo_name (), "branch": trunk },
+      items=[ { "action": "claim_trunk", "branch": trunk } ],
+      payload_schema="imp.trunk-plan.v1",
+      payload={
+         "mode": "trunk",
+         "name": slug,
+         "path": git.repo_root (),
+         "trunk": trunk,
+      },
+   )
+
+
+def _apply_trunk (plan: dict [str, Any]) -> dict [str, Any]:
+   payload = plan ["payload"]
+   lock = locks.acquire (str (payload ["trunk"]), str (payload ["name"]))
+   return { **payload, "lock": lock }
+
+
+def _show_trunk (plan: dict [str, Any]):
+   payload = plan ["payload"]
+   console.header (f"Start on trunk: {plan ['label']}")
+   console.table ([ "Field", "Value" ], [
+      [ "Mode", "direct to trunk" ],
+      [ "Branch", str (payload ["trunk"]) ],
+      [ "Checkout", str (payload ["path"]) ],
+   ])
+
+
+def _success_trunk (data: dict [str, Any]):
+   console.success (f"Trunk is yours: commit directly on {data ['trunk']}")
+   console.hint (f"imp done {data ['name']} releases it")
 
 
 def _members (repos: list [str] | None) -> tuple [str, list [tuple [str, str]]]:
@@ -72,6 +137,7 @@ def _apply (plan: dict [str, Any]) -> dict [str, Any]:
       raise
 
    return {
+      "mode": "worktree",
       "name": plan ["payload"] ["name"],
       "ticket": plan ["payload"] ["ticket"],
       "span": plan ["payload"] ["span"],
@@ -123,40 +189,59 @@ def start (
       typer.Option (
          "--ticket",
          help="Ticket ID such as SPK-12345; prefixes the branch (feature/SPK-12345-<name>) "
-              "and flows into commit subjects",
+              "and flows into commit subjects. Implies a worktree",
       ),
    ] = "",
+   worktree: Annotated [
+      bool,
+      typer.Option ("--worktree", help="Isolate in a worktree even when trunk is free"),
+   ] = False,
 ):
-   """Create an isolated feature: one branch plus one worktree, based on fresh trunk.
+   """Start work trunk-first: claim the trunk lock when it is free, else isolate in a worktree.
 
-   The worktree lands under ~/.worktrees/<repo>/<name> (override with `git config
-   imp.worktrees <dir>`), so the current checkout is never disturbed. The branch bases
-   on origin's trunk, or on local trunk when it only leads the remote.
+   With trunk free, on it, and clean, this claims `imp.lock.<trunk>` for 8 hours and
+   work happens directly in the current checkout, committed straight to trunk;
+   `imp done <name>` releases the lock. Anyone else's live lock, a dirty checkout, a
+   ticket, a span, or --worktree falls through to isolation.
+
+   A worktree feature is one branch plus one worktree off fresh trunk, under
+   ~/.worktrees/<repo>/<name> (override with `git config imp.worktrees <dir>`), based
+   on origin's trunk or on local trunk when it only leads the remote. --ticket shapes
+   the branch (feature/SPK-12345-<name>).
 
    Spanning: run from a directory of checkouts with repeated --repo flags to create
    one feature across several repositories. The order you name them is recorded as
    `imp.span.<name>.order` in each member and replayed dependency-first by `imp done`.
 
-   Nothing is written outside Git: the feature IS the branch and its worktree.
-   Deterministic; sends nothing to AI.
+   Nothing is written outside Git. Deterministic; sends nothing to AI.
    """
 
    if not name:
       console.fatal ("Feature name is required")
    if ticket and not _TICKET.fullmatch (ticket):
       console.fatal ("Ticket must look like SPK-12345")
+   notes = []
    try:
-      scope_name, members = _members (repos)
-      plan = _plan (name, ticket, scope_name, members)
+      direct = False
+      if not worktree and not repos and not ticket:
+         direct, note = _trunk_state ()
+         if note:
+            notes.append (note)
+      if direct:
+         plan = _plan_trunk (name)
+      else:
+         scope_name, members = _members (repos)
+         plan = _plan (name, ticket, scope_name, members)
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
 
    return approval.run (
       plan,
       noun="start",
-      confirm="Create this feature?",
+      confirm="Claim trunk for this work?" if direct else "Create this feature?",
       result_schema="imp.start.v2",
-      apply=_apply,
-      show=_show,
-      success=_success,
+      apply=_apply_trunk if direct else _apply,
+      show=_show_trunk if direct else _show,
+      success=_success_trunk if direct else _success,
+      warnings=notes,
    )

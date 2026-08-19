@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme as RichTheme
 
 from imp_git import result, runtime
@@ -58,6 +59,11 @@ def divider ():
    out.print (
       "[muted]────────────────────────────────────────[/muted]"
    )
+
+def raw (text: str):
+   """Print verbatim content, such as a diff, without interpreting rich markup."""
+
+   out.print (Text (text))
 
 def table (headers: list [str], rows: list [list [str]], *, right: set [int] | None = None):
    """Render one shared responsive CLI table."""

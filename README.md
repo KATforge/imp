@@ -17,8 +17,8 @@ imp doctor
 ## Workflow
 
 ```bash
-imp start payment-retries --ticket SPK-12345
-cd "$(imp worktree path payment-retries)"
+imp start payment-retries      # trunk free → work in place; trunk busy → worktree
+cd "$(imp worktree path payment-retries)"   # only when isolated
 
 imp commit
 imp done
@@ -27,7 +27,7 @@ imp review     # AI-annotated diff of unpushed trunk; ask questions at the promp
 imp push
 ```
 
-`imp start` creates one branch plus one worktree off fresh trunk. `--ticket` shapes the branch (`feature/SPK-12345-payment-retries`), and Imp warns when existing branches carry tickets and yours does not.
+`imp start` is trunk-first: when the trunk lock is free and the checkout is clean and on trunk, it claims `imp.lock.<trunk>` for 8 hours and work lands directly on trunk; `imp done` releases it. A trunk locked by someone else, a dirty checkout, `--ticket`, `--repo`, or `--worktree` isolates in one branch plus one worktree off fresh trunk instead, so concurrent agents cascade: the first takes trunk, the rest take worktrees. `imp commit` on trunk claims or renews the lock automatically. `--ticket` shapes the branch (`feature/SPK-12345-payment-retries`), and Imp warns when existing branches carry tickets and yours does not.
 
 `imp commit` uses staged changes, or every dirty path when nothing is staged. It builds one commit off-ref and moves the branch only when it succeeds.
 
@@ -47,7 +47,7 @@ Agents approve their own reversible work: `start`, `commit`, and `done` run with
 
 ## State
 
-Git is the database. A feature is its `feature/*` branch plus its worktree; age comes from the reflog, integration history from trunk's reflog, discarded work from `refs/imp/attic`. Multi-repository order and machine knobs live in Git configuration under `imp.*`. Imp writes no state files.
+Git is the database. A feature is its `feature/*` branch plus its worktree; age comes from the reflog, integration history from trunk's reflog, discarded work from `refs/imp/attic`. Trunk locks, multi-repository order, and machine knobs live in Git configuration under `imp.*`. Imp writes no state files.
 
 ```bash
 git config imp.worktrees ~/.worktrees    # managed worktree root (default)

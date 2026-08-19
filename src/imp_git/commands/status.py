@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from imp_git import console, features, fingerprint, git, hygiene, result, roster, runtime, workspace
+from imp_git import console, features, fingerprint, git, hygiene, locks, result, roster, runtime, workspace
 
 
 def _file_style (code: str) -> str:
@@ -218,6 +218,8 @@ def status ():
    name = git.repo_name ()
    branch = git.branch ()
    tag = git.last_tag ()
+   trunk = git.base_branch ()
+   lock = locks.holder (trunk)
    managed = features.all ()
    changes = git.status_short ()
    hygiene_warnings = hygiene.inspect (git.changed_paths (all_changes=True))
@@ -231,6 +233,7 @@ def status ():
       "features": managed,
       "hygiene": { "blockers": [], "warnings": hygiene_warnings },
       "last_release": tag or None,
+      "trunk_lock": lock,
    }
    if json_output:
       return result.emit ("imp.status.v5", "imp status", data, json_output=True)
@@ -239,6 +242,8 @@ def status ():
    _show_features (managed)
    console.label ("Branch")
    console.out.print (f"  [muted]{branch}[/muted]{_sync ()}")
+   if lock:
+      console.out.print (f"  [muted]{trunk} locked by {lock ['actor']} ({lock ['name']})[/muted]")
    console.out.print ()
    _show_changes (changes)
 

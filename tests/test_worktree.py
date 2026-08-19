@@ -33,7 +33,7 @@ class TestStart:
       git_run (repo_with_origin, "checkout", "master")
       commit_file (repo_with_origin, "landed.txt", "landed\n", "feat: landed")
 
-      start_cmd.start (name="next")
+      start_cmd.start (name="next", worktree=True)
 
       assert git.rev_parse ("feature/next") == git.rev_parse ("master")
 
@@ -43,7 +43,7 @@ class TestStart:
       git_run (repo, "remote", "add", "origin", str (origin))
       git_run (repo, "push", "-u", "origin", "main")
 
-      start_cmd.start (name="main-base")
+      start_cmd.start (name="main-base", worktree=True)
 
       assert git.rev_parse ("feature/main-base") == git.rev_parse ("origin/main")
 

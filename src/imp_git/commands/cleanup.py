@@ -9,6 +9,7 @@ from imp_git import (
    console,
    features,
    git,
+   locks,
    plans,
    result,
    roster,
@@ -132,6 +133,7 @@ def _expire (repositories: list [str]) -> list [str]:
    for repository in repositories:
       with workspace.inside (repository):
          expired.extend (features.expire_attic ())
+         locks.sweep ()
    return expired
 
 

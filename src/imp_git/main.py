@@ -98,6 +98,8 @@ def main (
    [bold]State[/bold]
 
      Git is the database: a feature is its branch plus its worktree
+     start is trunk-first: it claims the trunk lock when free and works
+     in place; a busy trunk isolates in a worktree automatically
      cleanup reconciles and flattens everything that is still open
 
    [bold]Approval[/bold]

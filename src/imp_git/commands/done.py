@@ -3,14 +3,28 @@ from typing import Annotated, Any
 
 import typer
 
-from imp_git import approval, console, features, integration, plans, roster, runtime, state, workspace
+from imp_git import (
+   approval,
+   console,
+   features,
+   git,
+   identity,
+   integration,
+   locks,
+   plans,
+   result,
+   roster,
+   runtime,
+   state,
+   workspace,
+)
 
 
 def _show_diff (value: str):
    if not value:
       return
    console.divider ()
-   console.out.print (value)
+   console.raw (value)
    console.divider ()
 
 
@@ -30,19 +44,14 @@ def _standing (entries: list [dict [str, Any]]) -> list [str]:
 
 
 def _select (entries: list [dict [str, Any]], feature: str, all_features: bool) -> list [dict [str, Any]]:
-   if not entries:
-      console.fatal ("No open features")
-   if all_features:
+   if all_features or not entries:
       return entries
    if feature:
       wanted = features.name_of (feature)
-      matched = [
+      return [
          entry for entry in entries
          if entry ["name"] == wanted or any (member ["branch"] == feature for member in entry ["members"])
       ]
-      if not matched:
-         console.fatal (f"Unknown feature: {feature}")
-      return matched
    if len (entries) == 1:
       return entries
    if runtime.options.json or runtime.options.no_input:
@@ -52,6 +61,46 @@ def _select (entries: list [dict [str, Any]], feature: str, all_features: bool) 
       for entry in entries
    }
    return [ labels [console.choose ("Select a feature", list (labels))] ]
+
+
+def _my_locks (value: dict [str, Any], feature: str) -> list [tuple [str, str, dict [str, str]]]:
+   """Find trunk locks held by this actor, optionally matching one requested name."""
+
+   held = []
+   wanted = identity.slug (feature) if feature else ""
+   for _alias, repository in sorted (workspace.repositories (value).items ()):
+      with workspace.inside (repository):
+         trunk = git.base_branch ()
+         lock = locks.holder (trunk)
+      if not lock or lock ["actor"] != identity.actor ():
+         continue
+      if wanted and lock ["name"] != wanted:
+         continue
+      held.append ((repository, trunk, lock))
+   return held
+
+
+def _release (value: dict [str, Any], feature: str) -> dict [str, Any] | None:
+   """Release this actor's trunk locks: the trunk-mode counterpart of completing a feature."""
+
+   held = _my_locks (value, feature)
+   if not held:
+      return None
+   released = []
+   for repository, trunk, _lock in held:
+      with workspace.inside (repository):
+         locks.release (trunk)
+      released.append (trunk)
+   data = {
+      "completed": [],
+      "feature": feature or held [0] [2] ["name"],
+      "order": [],
+      "released": released,
+   }
+   if runtime.options.json:
+      return result.emit ("imp.done.v3", "imp done", data, json_output=True)
+   console.success (f"Trunk released: {', '.join (released)}")
+   return data
 
 
 def _plan_group (name: str, workspace_name: str, entries: list [dict [str, Any]]) -> dict [str, Any]:
@@ -160,6 +209,9 @@ def done (
    order and refuses as a whole if any member is blocked. With exactly one open
    feature, the name may be omitted.
 
+   For trunk-mode work (started when the trunk lock was free), there is nothing to
+   integrate: `imp done` simply releases the lock.
+
    Checks come from `git config imp.check` entries, or are detected from the project
    (package.json, composer.json, pyproject with pytest, Makefile). Deterministic;
    sends nothing to AI.
@@ -172,6 +224,11 @@ def done (
       console.fatal ("Pass a feature or --all, not both")
    entries = roster.collect (value)
    selected = _select (entries, feature, all_features)
+   if not selected:
+      released = _release (value, feature)
+      if released is not None:
+         return released
+      console.fatal (f"Unknown feature: {feature}" if feature else "No open features")
    notes = _standing (selected)
    name = "all features" if all_features else str (selected [0] ["name"])
    try:

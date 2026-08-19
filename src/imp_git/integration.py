@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from imp_git import features, fingerprint, git, plans, state
+from imp_git import features, fingerprint, git, locks, plans, state
 
 
 def _configured_checks () -> list [dict [str, Any]] | None:
@@ -241,6 +241,9 @@ def plan_done (
    resurrected = _resurrected (git.merge_base (target_oid, feature_oid), target_oid, candidate_oid)
    if resurrected:
       blockers.append (f"Candidate restores deleted paths: {', '.join (resurrected [:5])}")
+   taken = locks.foreign (target)
+   if taken:
+      blockers.append (f"{target} is locked by {taken ['actor']} ({taken ['name']}) until {taken ['expires_at']}")
    payload = {
       "branch": feature ["branch"],
       "candidate_oid": candidate_oid,
