@@ -137,6 +137,26 @@ class TestPullRequest:
 
       assert data ["url"] == "https://example.test/7"
 
+   def test_pr_targets_an_explicit_branch (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "branch", "develop", "master")
+      git_run (repo_with_origin, "checkout", "-b", "feature/widget", "develop")
+      commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
+      created = []
+      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
+      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: {})
+      monkeypatch.setattr (
+         pr_cmd.gh, "pr_create",
+         lambda title, body, base, head: created.append ((base, head)) or "https://example.test/1",
+      )
+      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
+
+      data = pr_cmd.pr (into="develop")
+
+      assert created == [ ("develop", "feature/widget") ]
+      assert data ["base"] == "develop"
+
    def test_pr_refuses_to_target_its_own_branch (self, repo_with_origin, monkeypatch):
       from imp_git.commands import pr as pr_cmd
 

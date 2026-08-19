@@ -175,6 +175,16 @@ def last_tag () -> str:
    result = _run ("describe", "--tags", "--abbrev=0", check=False)
    return result.stdout.strip ()
 
+def tags () -> list [str]:
+   return [ line for line in _run ("tag", "-l", "v*", check=False).stdout.splitlines () if line ]
+
+def remote_tags () -> list [str]:
+   result = _run ("ls-remote", "--tags", "origin", check=False).stdout
+   return [
+      ref for line in result.splitlines ()
+      if (ref := line.partition ("refs/tags/") [2]) and not ref.endswith ("^{}")
+   ]
+
 def tag (name: str, ref: str = ""):
    args = [ "tag", name ]
    if ref:

@@ -93,3 +93,18 @@ class TestRelease:
 
       with pytest.raises (state.StateError, match="already exists"):
          release_command.plan_release ("1.2.3", local=True)
+
+   def test_release_increments_semver (self, repo):
+      git.tag ("v1.2.3")
+
+      assert release_command.plan_release (local=True) ["payload"] ["tag"] == "v1.2.4"
+      assert release_command.plan_release (bump="major", local=True) ["payload"] ["tag"] == "v2.0.0"
+      assert release_command.plan_release (bump="minor", local=True) ["payload"] ["tag"] == "v1.3.0"
+      assert release_command.plan_release (bump="patch", local=True) ["payload"] ["tag"] == "v1.2.4"
+
+   def test_release_advances_and_stabilizes_candidates (self, repo):
+      git.tag ("v1.2.3")
+      git.tag ("v1.2.4-rc.1")
+
+      assert release_command.plan_release (bump="rc", local=True) ["payload"] ["tag"] == "v1.2.4-rc.2"
+      assert release_command.plan_release (bump="stable", local=True) ["payload"] ["tag"] == "v1.2.4"

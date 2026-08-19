@@ -34,8 +34,8 @@ def pr_create (title: str, body: str, base: str, head: str) -> str:
    )
 
 
-def pr_update (head: str, title: str, body: str):
-   _run ("pr", "edit", head, "--title", title, "--body", body)
+def pr_update (head: str, base: str, title: str, body: str):
+   _run ("pr", "edit", head, "--base", base, "--title", title, "--body", body)
 
 
 def release_create (tag: str, notes: str, prerelease: bool = False) -> str:

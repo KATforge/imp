@@ -80,9 +80,9 @@ Optional policy lives in `.imp`:
 }
 ```
 
-`imp pr` pushes the current branch and opens or updates its pull request.
+`imp pr` pushes the current branch and opens or updates its pull request. `--into develop` targets another branch instead of trunk.
 
-`imp release 1.2.3` tags the current clean commit, pushes the branch and tag, and publishes a GitHub release. `--local` only creates the tag.
+`imp release` increments the patch version, tags the current clean commit, pushes, and publishes. Use an explicit version or `--major`, `--minor`, `--patch`, `--rc`, or `--stable`. `--local` only creates the tag.
 
 See the [documentation](https://docs.katforge.com/packages/imp/) and [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
 

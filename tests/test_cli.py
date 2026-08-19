@@ -86,13 +86,18 @@ class TestSurface:
       assert "--keep" not in result.output
       assert "--strategy" not in result.output
 
-   def test_release_has_one_option (self):
+   def test_release_exposes_semver_options (self):
       result = runner.invoke (app, [ "release", "--help" ])
 
       assert result.exit_code == 0
-      assert "--local" in result.output
-      assert "--prerelease" not in result.output
-      assert "--version" not in result.output
+      for option in [ "--local", "--major", "--minor", "--patch", "--rc", "--stable" ]:
+         assert option in result.output
+
+   def test_pr_exposes_target_branch (self):
+      result = runner.invoke (app, [ "pr", "--help" ])
+
+      assert result.exit_code == 0
+      assert "--into" in result.output
 
    def test_entrypoint_preserves_native_exit_code (self, monkeypatch):
       monkeypatch.setattr (main_mod, "app", lambda standalone_mode: 3)

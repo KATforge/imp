@@ -1,4 +1,6 @@
-from typing import Any
+from typing import Annotated, Any
+
+import typer
 
 from imp_git import approval, console, fingerprint, gh, git, plans, runtime, state, validate
 
@@ -11,13 +13,13 @@ def _fingerprint (payload: dict [str, Any]) -> str:
    })
 
 
-def plan_pr () -> dict [str, Any]:
+def plan_pr (into: str = "") -> dict [str, Any]:
    if not gh.available () or not git.remote_exists ():
       raise state.StateError ("Pull requests require origin and the GitHub CLI")
    if not git.is_clean ():
       raise state.StateError ("Commit the working tree before opening a pull request")
    head = git.branch ()
-   base = git.base_branch ()
+   base = into or git.base_branch ()
    if not head or head == base:
       raise state.StateError (f"Cannot open a pull request from {head or 'detached HEAD'}")
    existing = gh.pr_view (head)
@@ -55,7 +57,10 @@ def apply_pr (plan: dict [str, Any]) -> dict [str, Any]:
    git.push (set_upstream=True, target=str (payload ["head"]))
    url = str (payload ["url"])
    if url:
-      gh.pr_update (str (payload ["head"]), str (payload ["title"]), str (payload ["body"]))
+      gh.pr_update (
+         str (payload ["head"]), str (payload ["base"]),
+         str (payload ["title"]), str (payload ["body"]),
+      )
    else:
       url = gh.pr_create (
          str (payload ["title"]), str (payload ["body"]),
@@ -76,12 +81,14 @@ def _show (plan: dict [str, Any]):
    ])
 
 
-def pr ():
+def pr (
+   into: Annotated [str, typer.Option ("--into", help="Target branch")] = "",
+):
    """Push the current branch and open or update its pull request."""
 
    git.require ()
    try:
-      plan = plan_pr ()
+      plan = plan_pr (into)
    except state.StateError as error:
       console.fatal (str (error))
    return approval.run (
