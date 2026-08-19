@@ -3,9 +3,9 @@
 </p>
 
 <h1 align="center">Imp</h1>
-<p align="center"><strong>Safe Git workstreams for people and parallel AI agents.</strong></p>
+<p align="center"><strong>Safe Git worktrees and exact local commits.</strong></p>
 
-Imp gives each concurrent writer an isolated Git worktree and turns finished work into small, approved commits.
+Imp isolates concurrent writers, plans exact changes, and integrates one feature at a time.
 
 ## Install
 
@@ -20,118 +20,63 @@ imp doctor
 imp start payment-retries
 cd "$(imp worktree path payment-retries)"
 
-# Edit and test.
 imp commit
-
-imp review
 imp done
-
-imp done --all
-imp cleanup
 ```
 
-Omitting an existing feature opens a picker. Review asks whether to mark the exact candidate after displaying it.
+`imp commit` uses staged changes, or every dirty path when nothing is staged. It builds one commit off-ref and moves the branch only when it succeeds.
 
-`imp start` branches from freshly verified remote trunk by default, or from local trunk when local
-already contains the remote tip, which is the ordinary state after integrating and before pushing.
+`imp done` runs configured checks, shows the complete candidate diff, asks once, integrates locally, then removes the feature worktree, branch, claim, and record.
 
-The plan creates no branch or worktree. Apply revalidates the exact base before changing Git state.
+Humans and agents may edit the current checkout for focused work. Use `imp start` for parallel, large, risky, or clean-checkout work.
 
-`imp cleanup` reconciles expired claims, spent recovery records, closed features, merged or empty active
-features, stale state, and merged orphan worktrees. It restores a missing worktree when its branch still
-contains unique work. Dirty, claimed, or unmerged active work is preserved with the exact next command.
-
-`imp commit` plans staged changes, or all dirty changes when nothing is staged. It can split separate change sections from the same file into different commits. Apply builds the complete commit chain off-ref and moves the branch only after every commit succeeds.
-
-## Direct editing
-
-Humans and agents may use the current checkout for focused work when the user allows it. Use a managed worktree for parallel, large, risky, or clean-checkout work.
-
-Repositories that must move together share one feature:
+## Multiple repositories
 
 ```bash
 imp start checkout --repo api --repo web
-imp review checkout
 imp done checkout
 ```
 
-Run it from the directory holding the checkouts. Imp finds the members by scanning below you
-and integrates them in the order you named. Nothing is declared and nothing is recorded on the
-side: a feature spans the repositories that manage its name. A lone checkout is a workspace of
-one, so the same commands mean the same thing either way.
-
-Agent clients use the provider-neutral [Imp development skill](.agents/skills/imp-development/SKILL.md). Imp requires no hooks or adapters.
-
-## Documentation
-
-See the [Imp documentation](https://docs.katforge.com/packages/imp/) for direct editing, parallel workstreams, repository policy, releases, and automation.
-
-Imp stores feature records, claims, and active selection under the repository's common Git directory. Nothing is written to project-level agent instruction files, and nothing about a feature is kept outside the repositories it lives in.
-
-Repositories need no `.imp` file for built-in policy. Imp creates local state when an operation needs it. Adding tracked policy remains an explicit source change.
-
-Imp resolves supported agent session identities from the environment. Other clients pass `--actor-id`.
+Run these from the directory containing the repositories. The repeated `--repo` order is the integration order.
 
 ## Automation
 
 ```bash
-imp --json --no-input --dry-run commit
-imp --json --no-input --yes commit
+imp commit --json --dry-run
+imp commit --json --yes
 ```
 
-Persisted JSON and command results declare independent schemas. A plan lives only for the invocation that built it: `--dry-run` shows exactly what would happen, `--yes` approves it, and `--no-input` makes a missing answer fail instead of wait. See the [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
+`--json` never prompts. `--dry-run` emits the exact ephemeral plan. `--yes` approves it.
 
 ## Git passthrough
 
-Imp owns only its workflow commands. Everything else runs as ordinary Git with unchanged arguments and exit status.
+Unknown commands run as Git with the same arguments and exit status.
 
 ```bash
 imp diff --staged
 imp log --oneline
 imp push
-imp restore src/auth.py
 ```
 
-Native commands are `start`, `status`, `cleanup`, `done`, `commit`, `review`, `pr`, `release`, `doctor`, and `worktree`.
+Native commands are `commit`, `doctor`, `done`, `pr`, `release`, `start`, `status`, and `worktree`.
 
-## Optional repository policy
+## Repository policy
 
-Project overrides live in `.imp`:
+Optional policy lives in `.imp`:
 
 ```json
 {
-   "feature:required": false,
    "check:commands": [
       { "name": "test", "run": ["uv", "run", "pytest"] }
-   ],
-   "worktree:setup": [
-      { "name": "dependencies", "run": ["uv", "sync"] }
-   ],
-   "worktree:share": [".env.local"]
+   ]
 }
 ```
 
-Setup commands are argv arrays. Shared paths must be explicitly allowed, ignored, untracked, and inside the primary repository.
+`imp pr` pushes the current branch and opens or updates its pull request.
 
-`imp release --minor` releases the checked-out trunk branch. It reads the highest existing tag, steps the
-version, then updates package versions and lockfiles before committing, tagging, pushing that branch, and
-publishing the GitHub release. `--prerelease` cuts the next `-rc.N` instead.
+`imp release` updates versions and lockfiles, commits, tags, pushes, and publishes a GitHub release. `--local` stops after the local commit and tag.
 
-Release notes come from the history, not from a file. Integrating with `squash` keeps one commit whose
-subject names the feature and whose body lists the work it discards, so trunk describes itself and the
-GitHub release for each tag is the changelog.
-
-Notes are one short line per change and carry features and fixes only, since that is what a release is read
-for. A release with nothing major to report falls back to everything it does contain.
-
-`imp release --local` stops after the commit and the tag, touching no remote. Use it when you want a version cut locally and will publish later.
-
-`imp pr --into main` pushes the current branch and opens or updates its pull request. It never tags or bumps a version, so it is the promotion path rather than a release.
-
-The body is one short bullet per commit, oldest first. Each line keeps its first clause and clips at `commit:max_subject`, so a reviewer scans it instead of reading it.
-
-See the [Imp documentation](https://docs.katforge.com/packages/imp/) for the complete workflow.
-Machine clients should follow the [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
+See the [documentation](https://docs.katforge.com/packages/imp/) and [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
 
 ## License
 

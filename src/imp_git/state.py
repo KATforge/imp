@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import socket
 import tempfile
 import time
@@ -160,92 +159,6 @@ def read (
    if actual.startswith (schema.rsplit (".v", 1) [0] + ".v"):
       raise StateError (f"Unsupported newer schema {actual}; update Imp")
    raise StateError (f"Unsupported schema in {path}: {actual}")
-
-
-def _landed (candidate: str, target: str) -> bool:
-   """Return whether one candidate commit is already part of its target branch."""
-
-   from imp_git import git
-
-   if not candidate or not target:
-      return False
-
-   return git.succeeds ("merge-base", "--is-ancestor", candidate, target)
-
-
-
-
-def tidy ():
-   """Drop state that is spent or orphaned by a removed feature."""
-
-   directory = root ()
-   (directory / "active.json").unlink (missing_ok=True)
-   shutil.rmtree (directory / "contexts", ignore_errors=True)
-
-   shutil.rmtree (directory / "plans", ignore_errors=True)
-
-
-def recoveries () -> list [dict [str, Any]]:
-   """List interrupted operations, dropping any whose work has since landed.
-
-   A record carries the candidate it was building and the target it was building
-   onto. When the target already contains that candidate the operation finished,
-   however the run ended, so the record is noise.
-
-   Records written before that became true describe nothing actionable: they name no
-   candidate, and their resume hint points at a saved plan that no longer exists. They
-   are dropped rather than reported forever.
-   """
-
-   directory = root () / "recovery"
-   if not directory.is_dir ():
-      return []
-
-   values = []
-   for path in sorted (directory.glob ("*.json")):
-      try:
-         record = read (path, "imp.recovery.v1")
-      except StateError:
-         path.unlink (missing_ok=True)
-         continue
-      if not record.get ("candidate_oid") or "--apply" in str (record.get ("next", "")):
-         path.unlink (missing_ok=True)
-         continue
-      if _landed (record.get ("candidate_oid", ""), record.get ("target_ref", "")):
-         path.unlink (missing_ok=True)
-         continue
-      values.append (record)
-
-   return sorted (values, key=lambda value: str (value.get ("created_at", "")))
-
-
-def clear_recovery (label: str):
-   """Remove recovery records for one operation that has since succeeded."""
-
-   directory = root () / "recovery"
-   if not directory.is_dir ():
-      return
-   for path in directory.glob ("*.json"):
-      try:
-         value = read (path)
-      except StateError:
-         continue
-      if value.get ("label") == label:
-         path.unlink ()
-
-
-def discard_recovery (recovery_id: str):
-   directory = root () / "recovery"
-   if not directory.is_dir ():
-      return
-   for path in directory.glob ("*.json"):
-      try:
-         value = read (path, "imp.recovery.v1")
-      except StateError:
-         continue
-      if value.get ("recovery_id") == recovery_id:
-         path.unlink ()
-         return
 
 
 def _process_exists (pid: int) -> bool:

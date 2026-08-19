@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from imp_git import console, features, fingerprint, git, hygiene, result, roster, runtime, state, workspace
+from imp_git import console, features, fingerprint, git, hygiene, result, roster, runtime, workspace
 
 
 def _file_style (code: str) -> str:
@@ -45,12 +45,9 @@ def _stats () -> dict [str, tuple [str, str]]:
 
 
 _CONDITION_STYLE = {
-   roster.READY: "green",
-   roster.CONFLICT: "red",
-   roster.CHECKS: "yellow",
-   roster.DIRTY: "yellow",
-   roster.EMPTY: "muted",
-   roster.BROKEN: "red",
+   "open": "green",
+   "dirty": "yellow",
+   "missing": "red",
 }
 
 
@@ -77,11 +74,8 @@ def _show_roster (value: dict, entries: list [dict]):
          for entry in entries
       ],
    )
-   ready = len (roster.promotable (entries))
    console.out.print ()
-   console.muted (f"{ready} of {len (entries)} ready")
-   if ready:
-      console.hint ("imp done to promote")
+   console.hint ("imp done to integrate")
 
 
 def _workspace_status (json_output: bool):
@@ -93,7 +87,6 @@ def _workspace_status (json_output: bool):
       "root": value ["root"],
       "repositories": sorted (repositories),
       "features": entries,
-      "interrupted": roster.interrupted (value),
       "members": roster.repositories (value),
    }
    if json_output:
@@ -101,27 +94,8 @@ def _workspace_status (json_output: bool):
    console.header (str (value ["name"]))
    _show_members (data ["members"])
    _show_roster (value, entries)
-   _show_workspace_interrupted (data ["interrupted"])
 
    return data
-
-
-def _show_interrupted (values: list [dict]):
-   if not values:
-      return
-   console.label ("Interrupted")
-   console.table (
-      [ "Command", "Error", "Resume with" ],
-      [
-         [
-            str (record.get ("command", "")),
-            str (record.get ("error", "")),
-            str (record.get ("next", "")),
-         ]
-         for record in values
-      ],
-   )
-   console.out.print ()
 
 
 def _drift (member: dict) -> str:
@@ -154,20 +128,6 @@ def _show_members (values: list [dict]):
       ],
    )
    console.out.print ()
-
-
-def _show_workspace_interrupted (values: list [dict]):
-   if not values:
-      return
-   console.out.print ()
-   console.label ("Interrupted")
-   console.table (
-      [ "Repository", "Command", "Error" ],
-      [
-         [ str (record ["alias"]), str (record.get ("command", "")), str (record.get ("error", "")) ]
-         for record in values
-      ],
-   )
 
 
 def _show_features (managed: list [dict]):
@@ -228,12 +188,10 @@ def status (
 
    git.require ()
 
-   state.tidy ()
-
    name = git.repo_name ()
    branch = git.branch ()
    tag = git.last_tag ()
-   managed = features.all ()
+   managed = features.eligible ({ "active", "awaiting-merge" }, live=False)
    changes = git.status_short ()
    hygiene_warnings = hygiene.inspect (git.changed_paths (all_changes=True))
 
@@ -244,16 +202,14 @@ def status (
       "source_fingerprint": fingerprint.repository (),
       "changes": changes.splitlines (),
       "features": managed,
-      "interrupted": state.recoveries (),
       "hygiene": { "blockers": [], "warnings": hygiene_warnings },
       "last_release": tag or None,
    }
    if json_output:
-      return result.emit ("imp.status.v3", "imp status", data, json_output=True)
+      return result.emit ("imp.status.v4", "imp status", data, json_output=True)
 
    console.header (name)
    _show_features (managed)
-   _show_interrupted (data ["interrupted"])
    console.label ("Branch")
    console.out.print (f"  [muted]{branch}[/muted]{_sync ()}")
    console.out.print ()

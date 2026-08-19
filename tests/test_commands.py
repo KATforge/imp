@@ -3,7 +3,6 @@ import typer
 
 from imp_git import ai, console, git, runtime
 from imp_git.commands import commit as commit_cmd
-from imp_git.commands import review as review_cmd
 from tests.conftest import commit_count, commit_file, git_run, last_commit_subject
 
 
@@ -16,7 +15,7 @@ class TestCommitCommand:
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
 
-      commit_cmd.commit (all=False, exclude=None, whisper="")
+      commit_cmd.commit ()
 
       assert last_commit_subject (repo) == "feat: add login"
 
@@ -26,7 +25,7 @@ class TestCommitCommand:
 
       (repo / "new.txt").write_text ("new file\n")
 
-      commit_cmd.commit (all=True, exclude=None, whisper="")
+      commit_cmd.commit ()
 
       assert last_commit_subject (repo) == "feat: add feature"
 
@@ -39,13 +38,13 @@ class TestCommitCommand:
       git_run (repo, "add", ".")
 
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, whisper="")
+         commit_cmd.commit ()
 
       assert commit_count (repo) == 1
 
    def test_commit_nothing_staged (self, repo, monkeypatch):
       with pytest.raises (typer.Exit):
-         commit_cmd.commit (all=False, exclude=None, whisper="")
+         commit_cmd.commit ()
 
    def test_commit_retries_on_invalid_ai (self, repo, monkeypatch):
       calls = []
@@ -62,54 +61,10 @@ class TestCommitCommand:
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", ".")
 
-      commit_cmd.commit (all=False, exclude=None, whisper="")
+      commit_cmd.commit ()
 
       assert last_commit_subject (repo) == "fix: resolve bug"
       assert len (calls) == 2
-
-
-
-
-class TestReviewCommand:
-
-   def test_reviews_staged_changes (self, repo, monkeypatch, mock_spin):
-      captured = {}
-
-      def mock_smart (prompt, spin=True):
-         captured ["prompt"] = prompt
-         return "Code looks good. No issues found."
-
-      monkeypatch.setattr (ai, "smart", mock_smart)
-
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", ".")
-
-      review_cmd.review (last=0, whisper="")
-
-      assert "prompt" in captured
-      assert "changed" in captured ["prompt"]
-
-   def test_reviews_last_n_commits (self, repo, monkeypatch, mock_spin):
-      captured = {}
-
-      def mock_smart (prompt, spin=True):
-         captured ["prompt"] = prompt
-         return "Code looks good. No issues found."
-
-      monkeypatch.setattr (ai, "smart", mock_smart)
-
-      commit_file (repo, "file.txt", "first\n", "first")
-      commit_file (repo, "file.txt", "second\n", "second")
-
-      review_cmd.review (last=2, whisper="")
-
-      assert "prompt" in captured
-      assert "second" in captured ["prompt"]
-
-   def test_review_no_changes (self, repo):
-      with pytest.raises (typer.Exit):
-         review_cmd.review (last=0, whisper="")
-
 
 class TestStatusParsing:
 
@@ -157,7 +112,7 @@ class TestPullRequest:
       )
       monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: pushed.append (kwargs))
 
-      data = pr_cmd.pr (into="master")
+      data = pr_cmd.pr ()
 
       assert pushed == [ { "set_upstream": True, "target": "feature/widget" } ]
       assert created [0] [1:] == ( "master", "feature/widget" )
@@ -178,7 +133,7 @@ class TestPullRequest:
       )
       monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
 
-      data = pr_cmd.pr (into="master")
+      data = pr_cmd.pr ()
 
       assert edited == [ 7 ]
       assert data ["updated"] is True
@@ -190,7 +145,7 @@ class TestPullRequest:
       monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
 
       with pytest.raises (typer.Exit):
-         pr_cmd.pr (into="master")
+         pr_cmd.pr ()
 
    def test_pr_body_is_one_short_bullet_per_commit (self, repo_with_origin, monkeypatch):
       from imp_git.commands import pr as pr_cmd
@@ -215,7 +170,7 @@ class TestPullRequest:
       )
       monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
 
-      pr_cmd.pr (into="master")
+      pr_cmd.pr ()
 
       lines = [ line for line in bodies [0].splitlines () if line ]
 
@@ -240,7 +195,7 @@ class TestPullRequest:
       )
       monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
 
-      pr_cmd.pr (into="master")
+      pr_cmd.pr ()
 
       assert [ line for line in bodies [0].splitlines () if line ] == [ "- chore: sync" ]
 

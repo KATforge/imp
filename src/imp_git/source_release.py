@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from imp_git import fingerprint, gh, git, identity, plans, state, summary, validate, version
+from imp_git import fingerprint, gh, git, identity, plans, state, validate, version
 
 _LOCK_COMMANDS = {
    "bun.lock": [ "bun", "install", "--lockfile-only", "--ignore-scripts" ],
@@ -22,8 +22,7 @@ _FALLBACK = "- Changed the source release"
 _DIRTY_SOURCE = """Uncommitted changes cannot be shipped.
 
 Next:
-  imp --dry-run commit --all
-  imp --yes commit --all
+  imp commit
   imp release"""
 
 
@@ -94,22 +93,7 @@ def _entry (source_oid: str, names: list [str]) -> tuple [str, str, list [str]]:
 
 
 def _described (range_value: str) -> str:
-   """Every described change in a range, reading a squash body as the work it carries.
-
-   Integrating with `squash` keeps one commit whose subject names the feature and whose
-   body lists what landed. The body is the record; the subject alone says nothing.
-   """
-
-   lines: list [str] = []
-   raw = git.capture ("log", "--no-merges", "--format=%s%x1f%b%x1e", range_value)
-   for record in raw.split ("\x1e"):
-      subject, _, body = record.strip ().partition ("\x1f")
-      carried = [
-         value.strip () [2:] for value in body.splitlines () if value.strip ().startswith ("- ")
-      ] if subject.strip ().startswith (summary.INTEGRATE) else []
-      lines.extend (carried or ([ subject.strip () ] if subject.strip () else []))
-
-   return "\n".join (lines)
+   return git.capture ("log", "--no-merges", "--format=%s", range_value)
 
 
 def _refresh_lockfiles (root: Path, manifests: list [Path]) -> tuple [list [dict [str, Any]], dict [str, str]]:
@@ -199,14 +183,10 @@ def _push_commits (public_target_oid: str, commit_oid: str) -> list [dict [str, 
 
 def plan_release (
    *,
-   level: str = "patch",
    prerelease: bool = False,
    set_version: str = "",
    local: bool = False,
-   persist: bool = True,
 ) -> dict [str, Any]:
-   if level not in { "patch", "minor", "major" }:
-      raise state.StateError (f"Unsupported version level: {level}")
    if not git.is_clean ():
       raise state.StateError (_DIRTY_SOURCE)
    source_oid, target_ref, public_target_oid = _source ()
@@ -216,7 +196,7 @@ def plan_release (
    if resumed:
       new_version = current
    else:
-      base_version = set_version or version.bump (current, level)
+      base_version = set_version or version.bump (current, "patch")
       if version.base_tuple (base_version) is None or "-" in base_version:
          raise state.StateError (f"Release version must be X.Y.Z: {base_version}")
       existing = [ name for name in names if name.startswith (f"v{base_version}-rc.") ]
@@ -246,7 +226,6 @@ def plan_release (
       "diff": diff,
       "github_release": not local and gh.available () and git.remote_exists (),
       "resumed": bool (resumed),
-      "level": level,
       "lock_commands": lock_commands,
       "lockfile_hashes": lock_hashes,
       "manifest_versions": manifest_versions,
@@ -310,83 +289,53 @@ def _validate (plan: dict [str, Any]) -> dict [str, Any]:
    return payload
 
 
-def _recovery (plan: dict [str, Any], completed: list [str], error: Exception):
-   recovery_id = identity.resource ("recovery", "release", str (plan ["label"]), str (len (completed) + 1))
-   state.atomic_write (
-      state.root () / "recovery" / f"{identity.key (recovery_id)}.json",
-      {
-         "schema": "imp.recovery.v1",
-         "command": "imp release",
-         "completed": completed,
-         "created_at": state.now (),
-         "error": str (error),
-         "next": "imp release",
-         "recovery_id": recovery_id,
-      },
-   )
-
-
 def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
-   completed = []
-   try:
-      with state.lock ("release"):
-         payload = _validate (plan)
-         target_ref = str (payload ["target_ref"])
-         for path in git.ref_worktrees (target_ref):
-            if not git.clean_at (path):
-               raise state.StateError (f"Release target worktree is dirty: {path}")
-         if git.rev_parse (target_ref) == payload ["source_oid"]:
-            git.update_ref_checked (
-               f"refs/heads/{target_ref}", payload ["commit_oid"], payload ["source_oid"]
-            )
-            for path in git.ref_worktrees (target_ref):
-               git.reset_at (path, payload ["commit_oid"])
-         completed.append ("commit")
-         if not git.tag_exists (payload ["tag"]):
-            git.tag (payload ["tag"], payload ["commit_oid"])
-         completed.append ("tag")
-         pushed_refs = []
-         if payload ["push"]:
-            git.push (ref=target_ref)
-            pushed_refs.append (f"refs/heads/{target_ref}")
-            git.push (ref=payload ["tag"])
-            pushed_refs.append (f"refs/tags/{payload ['tag']}")
-            completed.append ("push")
-         release_url = ""
-         if payload ["github_release"]:
-            existing = gh.release_view (payload ["tag"])
-            if existing and bool (existing.get ("isPrerelease")) != bool (payload ["prerelease"]):
-               raise state.StateError (f"GitHub release type does not match the plan for {payload ['tag']}")
-            if not existing:
-               created = gh.release_create (
-                  payload ["version"],
-                  payload ["changelog"],
-                  prerelease=bool (payload ["prerelease"]),
-               )
-               if not created:
-                  raise state.StateError (f"GitHub release creation failed for {payload ['tag']}")
-            release_url = str (existing.get ("url") or _repository_url (payload ["tag"]))
-            completed.append ("github_release")
-         receipt = {
-            "source_release_id": identity.resource ("source-release", git.repo_name (), payload ["tag"]),
-            "repository": git.repo_name (),
-            "version": payload ["version"],
-            "tag": payload ["tag"],
-            "commit_oid": payload ["commit_oid"],
-            "changelog": payload ["changelog"],
-            "pushed_refs": pushed_refs,
-            "release_url": release_url,
-            "manifest_versions": payload ["manifest_versions"],
-            "updated_lockfiles": sorted (payload ["lockfile_hashes"]),
-            "prerelease": bool (payload ["prerelease"]),
-         }
-         state.atomic_write (
-            state.root () / "releases" / f"{identity.key (receipt ['source_release_id'])}.json",
-            { "schema": "imp.source-release.v2", **receipt, "created_at": state.now () },
+   with state.lock ("release"):
+      payload = _validate (plan)
+      target_ref = str (payload ["target_ref"])
+      for path in git.ref_worktrees (target_ref):
+         if not git.clean_at (path):
+            raise state.StateError (f"Release target worktree is dirty: {path}")
+      if git.rev_parse (target_ref) == payload ["source_oid"]:
+         git.update_ref_checked (
+            f"refs/heads/{target_ref}", payload ["commit_oid"], payload ["source_oid"]
          )
-         plans.mark (plan, "applied", applied_at=state.now ())
-         state.clear_recovery (str (plan ["label"]))
-         return receipt
-   except Exception as error:
-      _recovery (plan, completed, error)
-      raise
+         for path in git.ref_worktrees (target_ref):
+            git.reset_at (path, payload ["commit_oid"])
+      if not git.tag_exists (payload ["tag"]):
+         git.tag (payload ["tag"], payload ["commit_oid"])
+      pushed_refs = []
+      if payload ["push"]:
+         git.push (ref=target_ref)
+         pushed_refs.append (f"refs/heads/{target_ref}")
+         git.push (ref=payload ["tag"])
+         pushed_refs.append (f"refs/tags/{payload ['tag']}")
+      release_url = ""
+      if payload ["github_release"]:
+         existing = gh.release_view (payload ["tag"])
+         if existing and bool (existing.get ("isPrerelease")) != bool (payload ["prerelease"]):
+            raise state.StateError (f"GitHub release type does not match the plan for {payload ['tag']}")
+         if not existing and not gh.release_create (
+            payload ["version"], payload ["changelog"], prerelease=bool (payload ["prerelease"]),
+         ):
+            raise state.StateError (f"GitHub release creation failed for {payload ['tag']}")
+         release_url = str (existing.get ("url") or _repository_url (payload ["tag"]))
+      receipt = {
+         "source_release_id": identity.resource ("source-release", git.repo_name (), payload ["tag"]),
+         "repository": git.repo_name (),
+         "version": payload ["version"],
+         "tag": payload ["tag"],
+         "commit_oid": payload ["commit_oid"],
+         "changelog": payload ["changelog"],
+         "pushed_refs": pushed_refs,
+         "release_url": release_url,
+         "manifest_versions": payload ["manifest_versions"],
+         "updated_lockfiles": sorted (payload ["lockfile_hashes"]),
+         "prerelease": bool (payload ["prerelease"]),
+      }
+      state.atomic_write (
+         state.root () / "releases" / f"{identity.key (receipt ['source_release_id'])}.json",
+         { "schema": "imp.source-release.v2", **receipt, "created_at": state.now () },
+      )
+      plans.mark (plan, "applied", applied_at=state.now ())
+      return receipt

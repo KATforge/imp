@@ -4,7 +4,7 @@ import pytest
 import typer
 
 from imp_git import git, version
-from tests.conftest import commit_file, git_run, last_commit_subject
+from tests.conftest import commit_file, git_run
 
 
 class TestRequire:
@@ -134,15 +134,6 @@ class TestLogOneline:
       git_run (repo, "tag", "v1.0.0")
       result = git.log_oneline (rev_range="v1.0.0..HEAD")
       assert result == ""
-
-
-class TestCommitAmend:
-
-   def test_amend_flag (self, repo):
-      (repo / "file.txt").write_text ("changed\n")
-      git_run (repo, "add", ".")
-      git.commit ("feat: original", amend=True)
-      assert last_commit_subject (repo) == "feat: original"
 
 
 class TestRepoName:

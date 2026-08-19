@@ -1,15 +1,11 @@
 import contextlib
-from typing import Annotated
 
 import typer
 
 from imp_git import console, gh, git, result, runtime, state, summary, validate
 
 
-def pr (
-   into: Annotated [str, typer.Option ("--into", help="Target branch for the pull request")] = "",
-   title: Annotated [str, typer.Option ("--title", help="Explicit pull request title")] = "",
-):
+def pr ():
    """Push the current branch and open or update its pull request."""
 
    git.require ()
@@ -19,7 +15,7 @@ def pr (
       console.fatal ("A remote is required to open a pull request")
 
    head = git.branch ()
-   base = into or git.base_branch ()
+   base = git.base_branch ()
    if head == base:
       console.fatal (f"Cannot open a pull request from {head} into itself")
    if not git.is_clean ():
@@ -28,7 +24,7 @@ def pr (
    with contextlib.suppress (state.StateError):
       git.fetch (remote="origin", refspec=f"+refs/heads/{base}:refs/remotes/origin/{base}")
 
-   subject = summary.bullet (title or git.subject (head) or head, summary.cap ())
+   subject = summary.bullet (git.subject (head) or head, summary.cap ())
    body = summary.body (f"origin/{base}" if git.rev_parse (f"origin/{base}") else base, head)
    if not validate.publishable (f"{subject}\n{body}"):
       console.fatal ("Pull request text contains AI attribution or an actor ID")

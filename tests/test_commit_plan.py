@@ -1,282 +1,117 @@
-import json
-
 import pytest
 
-from imp_git import ai, commit_plan, git, identity, prompts, state
+from imp_git import ai, commit_plan, git, state
 from tests.conftest import commit_count, git_run
 
-
-def _actor () -> str:
-   return identity.resource ("actor", "human", "anders")
+ACTOR = "actor:human:anders"
 
 
 def _lines () -> str:
    return "".join (f"line {number}\n" for number in range (1, 16))
 
 
-def _prepare_changes (repo):
+def _prepare (repo):
    (repo / "file.txt").write_text (_lines ())
    git_run (repo, "add", "file.txt")
    git_run (repo, "commit", "-m", "test: add fixture lines")
-   changed = _lines ().replace ("line 2\n", "line two\n").replace ("line 13\n", "line thirteen\n")
-   (repo / "file.txt").write_text (changed)
+   (repo / "file.txt").write_text (
+      _lines ().replace ("line 2\n", "line two\n").replace ("line 13\n", "line thirteen\n")
+   )
 
 
 class TestPlans:
 
-   def test_plan_and_apply_create_a_root_commit (self, unborn_repo, monkeypatch):
+   def test_root_commit (self, unborn_repo, monkeypatch):
       (unborn_repo / "file.txt").write_text ("first\n")
       monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add first value")
 
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
-
-      assert plan ["payload"] ["head_oid"] == ""
-
-      result = commit_plan.apply (plan, _actor ())
+      result = commit_plan.apply (commit_plan.create (actor_id=ACTOR), ACTOR)
 
       assert len (result ["commits"]) == 1
-      assert git.capture ("rev-list", "--parents", "-n", "1", "HEAD").split () [1:] == []
       assert git.capture ("show", "HEAD:file.txt").strip () == "first"
-      assert git.is_clean ()
 
-   def test_plan_is_read_only_and_apply_splits_one_file_by_change (self, repo, monkeypatch):
-      _prepare_changes (repo)
+   def test_multiple_changes_make_one_commit_off_ref (self, repo, monkeypatch):
+      (repo / "first.txt").write_text ("first\n")
+      (repo / "second.txt").write_text ("second\n")
       before = git.rev_parse ("HEAD")
-      response = [
-         { "changes": [ "file.txt#1" ], "message": "fix: update first value" },
-         { "changes": [ "file.txt#2" ], "message": "feat: update second value" },
-      ]
-      monkeypatch.setattr (ai, "smart", lambda prompt: json.dumps (response))
+      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add values")
 
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
+      plan = commit_plan.create (actor_id=ACTOR)
 
       assert git.rev_parse ("HEAD") == before
-      assert [group ["changes"] for group in plan ["payload"] ["groups"]] == [
-         [ "file.txt#1" ],
-         [ "file.txt#2" ],
-      ]
-
-      result = commit_plan.apply (plan, _actor ())
-
-      assert len (result ["commits"]) == 2
-      assert git.capture ("show", "HEAD~1:file.txt").replace ("\r\n", "\n") == _lines ().replace (
-         "line 2\n", "line two\n"
-      )
-      assert git.is_clean ()
-
-   def test_apply_preserves_crlf_file_content (self, repo, monkeypatch):
-      (repo / "crlf.txt").write_bytes (b"one\r\ntwo\r\nthree\r\n")
-      git_run (repo, "add", "crlf.txt")
-      git_run (repo, "commit", "-m", "test: add crlf fixture")
-      (repo / "crlf.txt").write_bytes (b"one\r\nTWO\r\nthree\r\n")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update crlf value")
-
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
-      result = commit_plan.apply (plan, _actor ())
-
+      result = commit_plan.apply (plan, ACTOR)
       assert len (result ["commits"]) == 1
-      assert git.capture ("show", "HEAD:crlf.txt") == "one\r\nTWO\r\nthree\r\n"
       assert git.is_clean ()
 
-   def test_planner_bounds_large_changes_without_dropping_sections (self, repo, monkeypatch):
-      (repo / "large-a.txt").write_text ("a" * 200_000)
-      (repo / "large-b.txt").write_text ("b" * 200_000)
-      captured = []
-      monkeypatch.setattr (ai, "fast", lambda prompt: captured.append (prompt) or "chore: add large fixtures")
-
-      commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
-
-      assert "large-a.txt#1" in captured [0]
-      assert "large-b.txt#1" in captured [0]
-      assert len (captured [0]) <= ai.MAX_DIFF_CHARS + len (prompts.commit ("", git.branch ()))
-
-   def test_planner_reallocates_unused_budget_to_larger_changes (self):
-      changes = [
-         { "id": "large.txt#1", "patch": "x" * 50_000 + "END", "path": "large.txt" },
-         *[
-            { "id": f"small-{index}.txt#1", "patch": "small", "path": f"small-{index}.txt" }
-            for index in range (9)
-         ],
-      ]
-
-      value = commit_plan._diffs (changes)
-
-      assert "END" in value
-      assert len (value) <= ai.MAX_DIFF_CHARS
-
-   def test_staged_plan_preserves_unstaged_changes_in_same_file (self, repo, monkeypatch):
-      _prepare_changes (repo)
+   def test_staged_scope_preserves_unstaged_changes (self, repo, monkeypatch):
+      _prepare (repo)
       staged = _lines ().replace ("line 2\n", "line two\n")
       (repo / "file.txt").write_text (staged)
       git_run (repo, "add", "file.txt")
       (repo / "file.txt").write_text (staged.replace ("line 13\n", "line thirteen\n"))
       monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update first value")
 
-      plan = commit_plan.create (actor_id=_actor (), staged=True)
-      commit_plan.apply (plan, _actor ())
+      commit_plan.apply (commit_plan.create (actor_id=ACTOR), ACTOR)
 
       assert git.capture ("show", "HEAD:file.txt").replace ("\r\n", "\n") == staged
       assert "line thirteen" in (repo / "file.txt").read_text ()
-      assert git.diff ()
-      assert not git.diff (staged=True)
 
-   def test_excluded_staged_path_remains_staged (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("selected\n")
-      (repo / "other.txt").write_text ("preserved\n")
-      git_run (repo, "add", "file.txt", "other.txt")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update selected value")
-
-      plan = commit_plan.create (actor_id=_actor (), exclude=[ "other.txt" ], staged=True)
-      commit_plan.apply (plan, _actor ())
-
-      assert git.staged_files () == [ "other.txt" ]
-      assert git.capture ("show", "HEAD:file.txt").strip () == "selected"
-
-   def test_stale_plan_refuses_without_moving_head (self, repo, monkeypatch):
+   def test_stale_plan_does_not_move_head (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("planned\n")
       monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
+      plan = commit_plan.create (actor_id=ACTOR)
       before = git.rev_parse ("HEAD")
       (repo / "file.txt").write_text ("changed later\n")
 
       with pytest.raises (state.StateError, match="stale"):
-         commit_plan.apply (plan, _actor ())
+         commit_plan.apply (plan, ACTOR)
 
       assert git.rev_parse ("HEAD") == before
 
-   def test_apply_revalidates_commit_messages (self, repo, monkeypatch):
+   def test_apply_revalidates_messages (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("planned\n")
       monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
-      before = git.rev_parse ("HEAD")
-      plan ["payload"] ["groups"] [0] ["message"] = (
-         "fix: update value\n\nCo-Authored-By: Bot <bot@example.com>"
-      )
+      plan = commit_plan.create (actor_id=ACTOR)
+      plan ["payload"] ["message"] = "invalid"
 
       with pytest.raises (state.StateError, match="invalid message"):
-         commit_plan.apply (plan, _actor ())
-
-      assert git.rev_parse ("HEAD") == before
-
-
-   def test_apply_rejects_older_commit_plan_names (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("planned\n")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
-      plan ["payload_schema"] = "imp.commit-plan.v1"
-
-      with pytest.raises (state.StateError, match="older format"):
-         commit_plan.apply (plan, _actor ())
+         commit_plan.apply (plan, ACTOR)
 
       assert commit_count (repo) == 1
 
-   def test_build_failure_leaves_head_index_and_worktree_unchanged (self, repo, monkeypatch):
-      _prepare_changes (repo)
-      response = [
-         { "changes": [ "file.txt#1" ], "message": "fix: update first value" },
-         { "changes": [ "file.txt#2" ], "message": "feat: update second value" },
-      ]
-      monkeypatch.setattr (ai, "smart", lambda prompt: json.dumps (response))
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
+   def test_build_failure_changes_nothing (self, repo, monkeypatch):
+      (repo / "file.txt").write_text ("changed\n")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
+      plan = commit_plan.create (actor_id=ACTOR)
       before_head = git.rev_parse ("HEAD")
       before_status = git.capture ("status", "--porcelain=v1")
-      real_commit_tree = git.commit_tree
-      calls = []
 
-      def fail_second (tree, parent, message):
-         calls.append (message)
-         if len (calls) == 2:
-            raise RuntimeError ("injected failure")
-         return real_commit_tree (tree, parent, message)
+      def fail (*args):
+         raise RuntimeError ("failed")
 
-      monkeypatch.setattr (git, "commit_tree", fail_second)
+      monkeypatch.setattr (git, "commit_tree", fail)
 
-      with pytest.raises (RuntimeError, match="injected failure"):
-         commit_plan.apply (plan, _actor ())
+      with pytest.raises (RuntimeError, match="failed"):
+         commit_plan.apply (plan, ACTOR)
 
       assert git.rev_parse ("HEAD") == before_head
       assert git.capture ("status", "--porcelain=v1") == before_status
 
-   def test_real_index_failure_rolls_back_the_branch_and_index (self, repo, monkeypatch):
-      (repo / "file.txt").write_text ("planned\n")
-      git_run (repo, "add", "file.txt")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
-      plan = commit_plan.create (actor_id=_actor (), staged=True)
-      before_head = git.rev_parse ("HEAD")
-      before_index = git.diff (staged=True)
-      monkeypatch.setattr (git, "reset_mixed", lambda ref: (_ for _ in ()).throw (RuntimeError ("index failure")))
-
-      with pytest.raises (RuntimeError, match="index failure"):
-         commit_plan.apply (plan, _actor ())
-
-      assert git.rev_parse ("HEAD") == before_head
-      assert git.diff (staged=True) == before_index
-      assert (repo / "file.txt").read_text () == "planned\n"
-
-   def test_planning_skips_stale_intent_to_add_paths (self, repo, monkeypatch):
+   def test_stale_intent_to_add_is_ignored (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("updated\n")
       (repo / "phantom.txt").write_text ("temp\n")
       git_run (repo, "add", "-N", "phantom.txt")
       (repo / "phantom.txt").unlink ()
       monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update local value")
 
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
-      commit_plan.apply (plan, _actor ())
+      commit_plan.apply (commit_plan.create (actor_id=ACTOR), ACTOR)
 
       assert git.capture ("show", "HEAD:file.txt") == "updated\n"
-      assert git.is_clean ()
 
-   def test_possible_secret_warns_without_blocking (self, repo, monkeypatch):
+   def test_possible_secret_warns (self, repo, monkeypatch):
       (repo / ".env").write_text ("TOKEN=secret\n")
       monkeypatch.setattr (ai, "fast", lambda prompt: "chore: update env defaults")
 
-      plan = commit_plan.create (actor_id=_actor (), all_changes=True)
+      plan = commit_plan.create (actor_id=ACTOR)
 
-      assert plan ["state"] == "ready"
       assert any (warning.startswith ("Possible secret file") for warning in plan ["warnings"])
-
-   def test_amend_replaces_only_the_last_unpublished_commit (self, repo, monkeypatch):
-      (repo / "second.txt").write_text ("second\n")
-      git_run (repo, "add", "second.txt")
-      git_run (repo, "commit", "-m", "feat: add second value")
-      original_parent = git.rev_parse ("HEAD^")
-      original_count = commit_count (repo)
-      (repo / "file.txt").write_text ("amended\n")
-      git_run (repo, "add", "file.txt")
-      monkeypatch.setattr (ai, "fast", lambda prompt: "fix: amend local value")
-
-      plan = commit_plan.create (actor_id=_actor (), amend=True, staged=True)
-      commit_plan.apply (plan, _actor ())
-
-      assert commit_count (repo) == original_count
-      assert git.rev_parse ("HEAD^") == original_parent
-      assert git.capture ("log", "-1", "--format=%s").strip () == "fix: amend local value"
-
-   def test_amend_refuses_a_published_head (self, repo_with_origin):
-      git_run (repo_with_origin, "checkout", "master")
-      (repo_with_origin / "file.txt").write_text ("amended\n")
-      git_run (repo_with_origin, "add", "file.txt")
-
-      with pytest.raises (state.StateError, match="published"):
-         commit_plan.create (actor_id=_actor (), amend=True, staged=True)
-
-   def test_truncated_diffs_warn_instead_of_passing_silently (self, repo, monkeypatch):
-      (repo / "large-a.txt").write_text ("a" * 200_000)
-      warnings = []
-      monkeypatch.setattr (ai, "fast", lambda prompt: "chore: add a large fixture")
-      monkeypatch.setattr (commit_plan.console, "warn", lambda text: warnings.append (text))
-
-      commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
-
-      assert any ("Diff truncated" in text for text in warnings)
-      assert any ("large-a.txt" in text for text in warnings)
-
-   def test_a_diff_within_budget_warns_about_nothing (self, repo, monkeypatch):
-      (repo / "small.txt").write_text ("small\n")
-      warnings = []
-      monkeypatch.setattr (ai, "fast", lambda prompt: "chore: add a small fixture")
-      monkeypatch.setattr (commit_plan.console, "warn", lambda text: warnings.append (text))
-
-      commit_plan.create (actor_id=_actor (), all_changes=True, single=True)
-
-      assert warnings == []

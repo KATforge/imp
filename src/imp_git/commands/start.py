@@ -23,8 +23,6 @@ def _show (plan: dict):
 
 def start (
    name: Annotated [str, typer.Argument (help="Readable feature or lane name")] = "",
-   base: Annotated [str, typer.Option ("--base", help="Explicit base ref")] = "",
-   target: Annotated [str, typer.Option ("--target", help="Integration target branch")] = "",
    repos: Annotated [
       list [str] | None,
       typer.Option ("--repo", help="Workspace repository to span; repeat as needed"),
@@ -39,8 +37,7 @@ def start (
 
    if repos:
       return _span (
-         name, repos, actor_id=identity.actor (actor_id), base=base, target=target,
-         dry_run=dry_run, yes=yes, json_output=json_output,
+         name, repos, actor_id=identity.actor (actor_id), dry_run=dry_run, yes=yes, json_output=json_output,
       )
 
    git.require ()
@@ -51,8 +48,6 @@ def start (
       plan = features.plan_start (
          name,
          actor_id=identity.actor (actor_id),
-         base=base,
-         target=target,
       )
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
@@ -100,8 +95,6 @@ def _plan_span (
    repos: list [str],
    *,
    actor_id: str,
-   base: str,
-   target: str,
 ) -> dict:
    """Plan one feature across several repositories, in the order the caller named."""
 
@@ -119,7 +112,7 @@ def _plan_span (
    for alias, repository in members:
       with workspace.inside (repository):
          child = features.plan_start (
-            name, actor_id=actor_id, base=base, span=order, target=target,
+            name, actor_id=actor_id, span=order,
          )
       blockers.extend (f"{alias}: {reason}" for reason in child ["blockers"])
       children.append ({ "alias": alias, "repository": repository, "plan": child })
@@ -167,8 +160,6 @@ def _span (
    repos: list [str],
    *,
    actor_id: str,
-   base: str,
-   target: str,
    dry_run: bool,
    yes: bool,
    json_output: bool,
@@ -176,7 +167,7 @@ def _span (
    """Create one feature across several repositories, integrated in the order given."""
 
    try:
-      plan = _plan_span (name, repos, actor_id=actor_id, base=base, target=target)
+      plan = _plan_span (name, repos, actor_id=actor_id)
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
 

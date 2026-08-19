@@ -38,11 +38,12 @@ class TestSurface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "cleanup", "start", "status", "commit", "review", "release", "pr", "worktree" ]:
+      for command in [ "start", "status", "commit", "done", "release", "pr", "worktree" ]:
          assert command in result.output
       removed_commands = [
          "active", "amend", "bisect", "changelog", "context", "guard",
-         "config", "fleet", "init", "recover", "resolve", "revert", "ship", "split", "tidy", "undo", "use",
+         "cleanup", "config", "fleet", "init", "recover", "resolve", "review", "revert", "ship", "split",
+         "tidy", "undo", "use",
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
@@ -77,29 +78,23 @@ class TestSurface:
 
       assert seen == commands
 
-   def test_bare_optional_values_reach_the_native_command (self):
-      assert main_mod._optional_values ([ "commit", "--fixup" ]) == [ "commit", "--fixup=__pick__" ]
-      assert main_mod._optional_values ([ "commit", "--fixup", "HEAD~2" ]) == [ "commit", "--fixup", "HEAD~2" ]
-
-   def test_review_help_hides_internal_marking_option (self):
-      result = runner.invoke (app, [ "review", "--help" ])
-
-      assert result.exit_code == 0
-      assert "[FEATURE]" in result.output
-      assert "--fix" in result.output
-      assert "--mark-reviewed" not in result.output
-
-   def test_done_exposes_explicit_approval_override (self):
+   def test_done_has_no_workflow_options (self):
       result = runner.invoke (app, [ "done", "--help" ])
 
       assert result.exit_code == 0
-      assert "--approve" in result.output
+      assert "--approve" not in result.output
+      assert "--all" not in result.output
+      assert "--keep" not in result.output
+      assert "--strategy" not in result.output
 
    def test_release_exposes_prerelease_without_legacy_flags (self):
       result = runner.invoke (app, [ "release", "--help" ])
 
       assert result.exit_code == 0
       assert "--prerelease" in result.output
+      assert "--major" not in result.output
+      assert "--minor" not in result.output
+      assert "--patch" not in result.output
       assert "--stable" not in result.output
       assert "--squash" not in result.output
 
@@ -180,7 +175,7 @@ class TestAutomation:
 
       assert result.exit_code == 0
       value = json.loads (result.stdout)
-      assert value ["schema"] == "imp.commit-plan.v2"
+      assert value ["schema"] == "imp.commit-plan.v3"
       assert value ["data"] ["plan"] ["state"] == "ready"
       assert commit_count (repo) == 1
 
@@ -196,12 +191,12 @@ class TestAutomation:
       assert "Plan saved" not in result.stdout
 
 
-   def test_no_input_fails_closed_without_explicit_approval (self, repo, monkeypatch):
+   def test_json_fails_closed_without_explicit_approval (self, repo, monkeypatch):
       (repo / "file.txt").write_text ("changed\n")
       git_run (repo, "add", "file.txt")
       monkeypatch.setattr (ai, "fast", lambda prompt: "fix: update value")
 
-      result = runner.invoke (app, [ "--no-input", "commit" ])
+      result = runner.invoke (app, [ "--json", "commit" ])
 
       assert result.exit_code == 1
       assert commit_count (repo) == 1
@@ -257,8 +252,8 @@ class TestHelpOrdering:
       lines = [ line.strip () for line in result.output.splitlines () ]
 
       assert result.exit_code == 0
-      assert "start ─► edit ─► commit ─► review ─► done ─► trunk" in lines
-      assert "└────────── isolated worktree ──────────┘" in lines
+      assert "start ─► edit ─► commit ─► done ─► trunk" in lines
+      assert "└──────── isolated worktree ────────┘" in lines
       assert "one checkout          a directory of checkouts" in lines
 
    def test_global_options_are_alphabetical_with_help_last (self):
@@ -268,7 +263,7 @@ class TestHelpOrdering:
       assert options [:-1] == sorted (options [:-1])
 
    def test_every_command_orders_its_options_alphabetically (self):
-      for command in [ "commit", "done", "start", "release", "pr", "review" ]:
+      for command in [ "commit", "done", "start", "release", "pr" ]:
          options = self._options (command)
 
          assert options [-1] == "--help", command

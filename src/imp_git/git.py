@@ -147,14 +147,8 @@ def branches_local () -> list [str]:
    result = _run ("for-each-ref", "--format=%(refname:short)", "refs/heads", check=False)
    return [line for line in result.stdout.splitlines () if line]
 
-def commit (msg: str, amend: bool = False, date: str = ""):
-   args = [ "commit", "-m", msg ]
-   if amend:
-      args.insert (1, "--amend")
-   if date:
-      args.extend ([ "--date", date ])
-
-   _run (*args, env={ "GIT_COMMITTER_DATE": date } if date else {})
+def commit (msg: str):
+   _run ("commit", "-m", msg)
 
 def published (ref: str = "HEAD") -> bool:
    """Return whether a commit is reachable from any remote branch."""
@@ -414,9 +408,6 @@ def worktree_remove (path: str, force: bool = False):
    args.append (path)
    _run (*args)
 
-def worktree_prune ():
-   _run ("worktree", "prune", check=False)
-
 def current_ref () -> str:
    """Return the full branch ref currently attached to HEAD."""
 
@@ -583,6 +574,3 @@ def parent (ref: str = "HEAD") -> str:
 def ref_exists (ref: str) -> bool:
    result = _run ("rev-parse", "--verify", "--quiet", ref, check=False)
    return result.returncode == 0
-
-def commit_fixup (ref: str):
-   _run ("commit", f"--fixup={ref}")

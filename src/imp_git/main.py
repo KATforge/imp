@@ -11,13 +11,11 @@ from typer.core import TyperGroup
 
 from imp_git import __version__, console, passthrough, runtime
 from imp_git.cli import SortedCommand, ordered
-from imp_git.commands.cleanup import cleanup
 from imp_git.commands.commit import commit
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
 from imp_git.commands.pr import pr
 from imp_git.commands.release import release
-from imp_git.commands.review import review
 from imp_git.commands.start import start
 from imp_git.commands.status import status
 from imp_git.commands.worktree import worktree
@@ -78,7 +76,6 @@ def main (
    repo_path: Annotated [str, typer.Option ("-C", help="Run against this repository")] = "",
    json_output: Annotated [bool, typer.Option ("--json", help="Emit versioned JSON")] = False,
    dry_run: Annotated [bool, typer.Option ("--dry-run", help="Display an ephemeral plan")] = False,
-   no_input: Annotated [bool, typer.Option ("--no-input", help="Fail instead of prompting")] = False,
    yes: Annotated [bool, typer.Option ("--yes", "-y", help="Apply an exact displayed plan")] = False,
    actor_id: Annotated [str, typer.Option ("--actor-id", help="Advanced actor override")] = "",
 ):
@@ -86,8 +83,8 @@ def main (
 
    [bold]Feature[/bold]
 
-     start ─► edit ─► commit ─► review ─► done ─► trunk
-     └────────── isolated worktree ──────────┘
+     start ─► edit ─► commit ─► done ─► trunk
+     └──────── isolated worktree ────────┘
 
    [bold]Scope[/bold]
 
@@ -113,14 +110,13 @@ def main (
       command=ctx.invoked_subcommand or "",
       dry_run=dry_run,
       json=json_output,
-      no_input=no_input,
+      no_input=json_output,
       repo=repo_path,
       yes=yes,
    )
 
 _commands = [
-   cleanup, commit, doctor, done, pr,
-   release, review, start, status,
+   commit, doctor, done, pr, release, start, status,
 ]
 
 for _cmd in _commands:
@@ -132,7 +128,7 @@ _NATIVE = { command.name or command.callback.__name__ for command in app.registe
 _NATIVE.update ({ "worktree" })
 
 
-_GLOBAL_FLAGS = { "--dry-run", "--json", "--no-input", "--yes", "-y" }
+_GLOBAL_FLAGS = { "--dry-run", "--json", "--yes", "-y" }
 _GLOBAL_VALUED = { "-C", "--actor-id" }
 
 
@@ -181,18 +177,6 @@ def _native_request (args: list [str]) -> bool:
          return False
       return value in _NATIVE
    return False
-
-
-def _optional_values (args: list [str]) -> list [str]:
-   """Give optional-value flags a sentinel understood by native commands."""
-
-   values = list (args)
-   for index, value in enumerate (values):
-      if value != "--fixup":
-         continue
-      if index + 1 == len (values) or values [index + 1].startswith ("-"):
-         values [index] = f"{value}=__pick__"
-   return values
 
 
 def _machine () -> bool:
@@ -251,7 +235,6 @@ def _fail (error: Exception) -> int:
 def run () -> int:
    """Run Imp, falling back to Git when native syntax does not match."""
 
-   sys.argv [1:] = _optional_values (sys.argv [1:])
    try:
       outcome = app (standalone_mode=False)
    except click.UsageError as error:

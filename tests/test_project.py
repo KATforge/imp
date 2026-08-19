@@ -12,15 +12,15 @@ class TestRepoConfig:
 
    def test_missing_returns_defaults (self, repo):
       assert repo_mod.load () == {}
-      assert repo_mod.get ("commit:max_subject") == 72
+      assert repo_mod.get ("check:commands", []) == []
 
    def test_reads_imp (self, repo):
       (repo / ".imp").write_text (json.dumps ({
-         "commit:max_subject": 50,
+         "check:commands": [ { "name": "test", "run": [ "pytest" ] } ],
       }))
       repo_mod.load.cache_clear ()
 
-      assert repo_mod.get ("commit:max_subject") == 50
+      assert repo_mod.get ("check:commands") == [ { "name": "test", "run": [ "pytest" ] } ]
 
    def test_invalid_json_ignored (self, repo):
       (repo / ".imp").write_text ("{ not json")

@@ -1,16 +1,12 @@
 import re
 
-from imp_git import git, repo
-
-INTEGRATE = "feat: integrate "
+from imp_git import git
 
 _SENTENCE = re.compile (r"(?<=[.!?])\s")
 
 
 def cap () -> int:
-   value = repo.get ("commit:max_subject", 72)
-
-   return int (value) if str (value).isdigit () else 72
+   return 72
 
 
 def bullet (text: str, width: int) -> str:

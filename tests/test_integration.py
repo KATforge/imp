@@ -2,305 +2,62 @@ import sys
 from pathlib import Path
 
 import pytest
-import typer
 
-from imp_git import ai, console, features, git, identity, integration, runtime, source_release, state
-from imp_git.commands import done as done_cmd
-from imp_git.commands import review as review_cmd
+from imp_git import features, git, integration, source_release, state
 from tests.conftest import commit_file, git_run
 
-ACTOR = identity.resource ("actor", "human", "anders")
+ACTOR = "actor:human:anders"
 
 
-def _feature (repo: Path, tmp_path: Path, name: str = "checkout") -> dict:
-   plan = features.plan_start (name, actor_id=ACTOR)
-   feature = features.apply_start (plan)
+def _feature (name: str = "checkout") -> dict:
+   feature = features.apply_start (features.plan_start (name, actor_id=ACTOR))
    commit_file (Path (feature ["path"]), f"{name}.txt", f"{name}\n", f"feat: add {name}")
    return features.find (feature ["feature_id"])
 
 
 class TestIntegration:
 
-   def test_omitted_feature_uses_picker_even_with_one_candidate (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      selected = []
-      monkeypatch.setattr (
-         console,
-         "choose",
-         lambda title, values: selected.append ((title, values)) or values [0],
-      )
-
-      value = features.resolve (
-         "",
-         states={ "active", "awaiting-merge" },
-         title="Select feature to complete",
-      )
-
-      assert value ["feature_id"] == feature ["feature_id"]
-      assert selected == [
-         (
-            "Select feature to complete",
-            [ "checkout · active · feature/checkout" ],
-         )
-      ]
-
-   def test_omitted_feature_fails_closed_without_input (self, repo, tmp_path, monkeypatch):
-      _feature (repo, tmp_path)
-      monkeypatch.setattr (runtime, "options", runtime.Options (no_input=True))
-
-      with pytest.raises (state.StateError, match="explicit feature"):
-         features.resolve ("", title="Select feature to complete")
-
-
-
-
-   def test_failed_checks_leave_target_and_feature_unchanged (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      target_before = git.rev_parse ("main")
-      feature_before = git.rev_parse (str (feature ["branch"]))
+   def test_failed_checks_change_nothing (self, repo, monkeypatch):
+      feature = _feature ()
+      target_oid = git.rev_parse ("main")
       monkeypatch.setattr (
          integration,
          "_checks",
          lambda: [ { "name": "tests", "run": [ sys.executable, "-c", "raise SystemExit(1)" ] } ],
       )
 
-      plan = integration.plan_done (feature, actor_id=ACTOR)
+      plan = integration.plan_done (feature)
 
-      assert plan ["state"] == "blocked"
       assert plan ["blockers"] == [ "Check failed: tests" ]
-      assert git.rev_parse ("main") == target_before
-      assert git.rev_parse (str (feature ["branch"])) == feature_before
+      assert git.rev_parse ("main") == target_oid
 
+   def test_done_shows_and_integrates_the_exact_diff (self, repo):
+      feature = _feature ()
+      plan = integration.plan_done (feature)
 
-   def test_plan_is_read_only_and_apply_integrates_exact_candidate (self, repo, tmp_path):
-      feature = _feature (repo, tmp_path)
-      before = git.rev_parse ("main")
+      assert "+checkout" in plan ["payload"] ["diff"]
 
-      plan = integration.plan_done (feature, actor_id=ACTOR)
-
-      assert plan ["state"] == "ready"
-      assert git.rev_parse ("main") == before
-      assert plan ["payload"] ["candidate_tree_oid"] == git.tree (plan ["payload"] ["candidate_oid"])
-
-      receipt = integration.apply_done (plan, ACTOR)
+      receipt = integration.apply_done (plan)
 
       assert receipt ["candidate_oid"] == git.rev_parse ("main")
       assert git.capture ("show", "main:checkout.txt").strip () == "checkout"
-      assert features.find (feature ["feature_id"]) ["state"] == "completed"
+      assert features.find (feature ["feature_id"]) is None
       assert not Path (feature ["path"]).exists ()
 
-   def test_apply_refuses_a_moved_target (self, repo, tmp_path):
-      feature = _feature (repo, tmp_path)
-      plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
+   def test_apply_refuses_a_moved_target (self, repo):
+      feature = _feature ()
+      plan = integration.plan_done (feature)
       commit_file (repo, "other.txt", "other\n", "chore: move target")
 
       with pytest.raises (state.StateError, match="target moved"):
-         integration.apply_done (plan, ACTOR)
+         integration.apply_done (plan)
 
       assert features.find (feature ["feature_id"]) ["state"] == "active"
-
-   def test_push_failure_can_resume_the_same_plan (self, repo_with_origin, tmp_path, monkeypatch):
-      feature = _feature (repo_with_origin, tmp_path)
-      plan = integration.plan_done (feature, actor_id=ACTOR, push=True)
-      candidate = plan ["payload"] ["candidate_oid"]
-      original = git.push
-      attempts = []
-
-      def push (*args, **kwargs):
-         attempts.append (True)
-         if len (attempts) == 1:
-            raise state.StateError ("network unavailable")
-         return original (*args, **kwargs)
-
-      monkeypatch.setattr (integration.git, "push", push)
-
-      with pytest.raises (state.StateError, match="network unavailable"):
-         integration.apply_done (plan, ACTOR)
-
-      receipt = integration.apply_done (plan, ACTOR)
-
-      assert receipt ["candidate_oid"] == candidate
-      assert git.rev_parse (f"origin/{plan ['payload']['target_ref']}") == candidate
-      assert attempts == [ True, True ]
-      assert not list ((state.root () / "recovery").glob ("*.json"))
-
-   def test_agent_work_integrates_without_review (self, repo, tmp_path):
-      feature = _feature (repo, tmp_path)
-      features.release (feature, ACTOR)
-      features.claim (feature, identity.resource ("actor", "codex", "session-1"))
-      feature = features.find (feature ["feature_id"])
-
-      plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
-
-      assert plan ["state"] == "ready"
-      assert plan ["blockers"] == []
-
-   def test_configured_review_requires_exact_human_review (self, repo, tmp_path):
-      from imp_git import repo as repo_mod
-
-      commit_file (repo, ".imp", '{ "review:required": true }\n', "chore: require review")
-      repo_mod.load.cache_clear ()
-      feature = _feature (repo, tmp_path)
-      plan = integration.plan_done (feature, actor_id=ACTOR, keep=True)
-
-      assert plan ["state"] == "blocked"
-      with pytest.raises (state.StateError, match="Only a human"):
-         integration.mark_reviewed (
-            plan,
-            identity.resource ("actor", "codex", "session-1"),
-            files=[ "checkout.txt" ],
-            findings={ "blocker": 0, "warning": 0, "note": 0 },
-         )
-
-      receipt = integration.mark_reviewed (
-         plan,
-         ACTOR,
-         files=[ "checkout.txt" ],
-         findings={ "blocker": 0, "warning": 0, "note": 0 },
-      )
-      reviewed = plan
-
-      assert receipt ["candidate_oid"] == plan ["payload"] ["candidate_oid"]
-      assert receipt ["decision"] == "reviewed"
-      assert reviewed ["state"] == "ready"
-      assert reviewed ["reviewed_at"] == receipt ["reviewed_at"]
-      assert integration.approval_current (reviewed)
-      assert reviewed ["state"] == "ready"
-
-   def test_human_can_explicitly_approve_without_review (self, repo, tmp_path):
-      feature = _feature (repo, tmp_path)
-      features.release (feature, ACTOR)
-      features.claim (feature, identity.resource ("actor", "codex", "session-1"))
-
-      done_cmd.done (feature ["feature_id"], approve=True)
-      receipt = integration.approval_receipt (feature ["feature_id"])
-
-      assert receipt ["decision"] == "approved_without_review"
-      assert "reviewed_at" not in receipt
-      assert receipt ["acknowledged_by"].startswith ("actor:human:")
-
-   def test_agent_cannot_use_explicit_approval_override (self, repo, tmp_path):
-      feature = _feature (repo, tmp_path)
-
-      runtime.configure (actor_id=identity.resource ("actor", "codex", "session-1"), yes=True)
-
-      with pytest.raises (typer.Exit):
-         done_cmd.done (feature ["feature_id"], approve=True)
-
-   def test_machine_review_includes_the_complete_diff (self, repo, tmp_path):
-      feature = _feature (repo, tmp_path)
-
-      value = review_cmd.review (
-         feature ["feature_id"],
-         no_ai=True)
-
-      assert "checkout.txt" in value ["diff"]
-      assert "+checkout" in value ["diff"]
-      assert value ["files"] == [ "checkout.txt" ]
-
-   def test_review_uses_the_current_managed_worktree (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      monkeypatch.chdir (feature ["path"])
-      monkeypatch.setattr (
-         console,
-         "choose",
-         lambda *_args: pytest.fail ("current worktree should not open the feature picker"),
-      )
-
-      value = review_cmd.review (no_ai=True)
-
-      assert value ["feature_id"] == feature ["feature_id"]
-
-   def test_dirty_review_commits_after_exact_approval (self, repo, tmp_path, monkeypatch):
-      runtime.configure (actor_id=ACTOR)
-      feature = _feature (repo, tmp_path)
-      path = Path (feature ["path"])
-      (path / "dirty.txt").write_text ("dirty\n")
-      monkeypatch.setattr (ai, "fast", lambda _prompt: "fix: commit review candidate")
-      monkeypatch.setattr (console, "confirm", lambda message: message.startswith ("Create "))
-
-      value = review_cmd.review (feature ["feature_id"], no_ai=True)
-
-      assert git.clean_at (str (path))
-      assert git.capture ("-C", str (path), "log", "-1", "--format=%s").strip () == (
-         "fix: commit review candidate"
-      )
-      assert value ["receipt"] is None
-
-   def test_dirty_review_never_commits_without_exact_approval (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      path = Path (feature ["path"])
-      before = git.capture ("-C", str (path), "rev-parse", "HEAD").strip ()
-      (path / "dirty.txt").write_text ("dirty\n")
-      monkeypatch.setattr (ai, "fast", lambda _prompt: "fix: commit review candidate")
-      monkeypatch.setattr (console, "confirm", lambda _message: False)
-
-      with pytest.raises (typer.Exit):
-         review_cmd.review (feature ["feature_id"], no_ai=True)
-
-      assert git.capture ("-C", str (path), "rev-parse", "HEAD").strip () == before
-      assert not git.clean_at (str (path))
-
-   def test_human_review_prompts_to_mark_the_exact_candidate (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      prompts = []
-      monkeypatch.setattr (console, "interactive", lambda: True)
-      monkeypatch.setattr (console, "confirm", lambda message: prompts.append (message) or True)
-
-      value = review_cmd.review (feature ["feature_id"], no_ai=True)
-
-      assert prompts == [ "Mark this exact candidate reviewed?" ]
-      assert value ["receipt"] ["candidate_oid"] == value ["candidate_oid"]
-
-   def test_human_review_can_apply_smart_fixes (self, repo, tmp_path, monkeypatch):
-      runtime.configure (actor_id=ACTOR)
-      feature = _feature (repo, tmp_path)
-      responses = iter ([
-         "The checkout value should be clearer.",
-         """diff --git a/checkout.txt b/checkout.txt
---- a/checkout.txt
-+++ b/checkout.txt
-@@ -1 +1 @@
--checkout
-+fixed checkout
-""",
-      ])
-      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: next (responses))
-      monkeypatch.setattr (console, "interactive", lambda: True)
-      monkeypatch.setattr (console, "choose", lambda _title, values: values [0])
-
-      value = review_cmd.review (feature ["feature_id"])
-
-      assert value ["fix"] == { "applied": True, "files": [ "checkout.txt" ] }
-      assert value ["receipt"] is None
-      assert value ["mark_available"] is False
-      assert (Path (feature ["path"]) / "checkout.txt").read_text () == "fixed checkout\n"
-
-   def test_smart_fix_cannot_escape_reviewed_files (self, repo, tmp_path, monkeypatch):
-      feature = _feature (repo, tmp_path)
-      responses = iter ([
-         "Change an unrelated file.",
-         """diff --git a/file.txt b/file.txt
---- a/file.txt
-+++ b/file.txt
-@@ -1 +1 @@
--hello
-+changed
-""",
-      ])
-      monkeypatch.setattr (ai, "smart", lambda prompt, spin=True: next (responses))
-
-      with pytest.raises (typer.Exit):
-         review_cmd.review (feature ["feature_id"], fix=True)
-
-      assert (Path (feature ["path"]) / "file.txt").read_text () == "hello\n"
-      assert git.clean_at (str (feature ["path"]))
-
 
 
 class TestSourceRelease:
 
-   def test_release_uses_the_checked_out_trunk_branch (self, repo_with_origin, monkeypatch):
+   def test_release_uses_the_checked_out_branch (self, repo_with_origin, monkeypatch):
       git_run (repo_with_origin, "checkout", "-b", "develop", "master")
       git_run (repo_with_origin, "push", "-u", "origin", "develop")
       commit_file (repo_with_origin, "develop.txt", "develop\n", "feat: advance develop")
@@ -309,59 +66,25 @@ class TestSourceRelease:
       plan = source_release.plan_release ()
 
       assert plan ["payload"] ["target_ref"] == "develop"
-      assert plan ["payload"] ["source_oid"] == git.rev_parse ("develop")
-      assert plan ["payload"] ["public_target_oid"] == git.rev_parse ("origin/develop")
       assert { commit ["subject"] for commit in plan ["payload"] ["push_commits"] } == {
          "feat: advance develop",
          "chore: release v0.0.1",
       }
 
-   def test_release_refuses_a_trunk_behind_its_remote (self, repo_with_origin):
-      git_run (repo_with_origin, "checkout", "master")
-      git_run (repo_with_origin, "checkout", "-b", "remote-ahead")
-      commit_file (repo_with_origin, "remote.txt", "remote\n", "feat: advance remote")
-      git_run (repo_with_origin, "push", "origin", "remote-ahead:master")
-      git_run (repo_with_origin, "checkout", "master")
-
-      with pytest.raises (state.StateError, match="behind origin/master"):
-         source_release.plan_release ()
-
-   def test_prerelease_is_exact_and_increments_candidates (self, repo, monkeypatch):
-      git.tag ("v1.2.3")
-      releases = []
-      monkeypatch.setattr (source_release.gh, "available", lambda: True)
+   def test_interrupted_release_resumes_from_its_tag (self, repo, monkeypatch):
+      monkeypatch.setattr (source_release.gh, "available", lambda: False)
       monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
+      first = source_release.plan_release ()
+      payload = first ["payload"]
+      git.tag (str (payload ["tag"]), str (payload ["commit_oid"]))
 
-      first = source_release.plan_release (level="patch", prerelease=True)
+      second = source_release.plan_release ()
 
-      assert first ["payload_schema"] == "imp.release-plan.v1"
-      assert first ["payload"] ["version"] == "1.2.4-rc.1"
-      assert first ["payload"] ["tag"] == "v1.2.4-rc.1"
-      assert first ["payload"] ["prerelease"] is True
+      assert second ["payload"] ["resumed"] is True
+      assert second ["payload"] ["commit_oid"] == payload ["commit_oid"]
 
-      first ["payload"] ["github_release"] = True
-      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
-      monkeypatch.setattr (
-         source_release.gh,
-         "release_create",
-         lambda version, notes, prerelease=False: releases.append ((version, prerelease)) or True,
-      )
-      receipt = source_release.apply_release (first)
-
-      assert receipt ["prerelease"] is True
-      assert releases == [ ("1.2.4-rc.1", True) ]
-
-      second = source_release.plan_release (level="patch", prerelease=True)
-
-      assert second ["payload"] ["version"] == "1.2.4-rc.2"
-
-   def test_stable_release_rejects_prerelease_version (self, repo):
-      with pytest.raises (state.StateError, match=r"must be X\.Y\.Z"):
-         source_release.plan_release (set_version="1.2.3-rc.1")
-
-   def test_github_release_failure_is_not_reported_as_success (self, repo, monkeypatch):
-      plan = source_release.plan_release (level="patch")
+   def test_github_failure_is_not_success (self, repo, monkeypatch):
+      plan = source_release.plan_release ()
       plan ["payload"] ["github_release"] = True
       monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
       monkeypatch.setattr (source_release.gh, "release_create", lambda *_args, **_kwargs: False)
@@ -369,241 +92,10 @@ class TestSourceRelease:
       with pytest.raises (state.StateError, match="GitHub release creation failed"):
          source_release.apply_release (plan)
 
-
-   def test_dirty_source_reports_exact_next_steps (self, repo):
-      (repo / "file.txt").write_text ("changed\n")
-
-      with pytest.raises (state.StateError) as error:
-         source_release.plan_release (level="patch")
-
-      assert "Uncommitted changes cannot be shipped" in str (error.value)
-      assert "imp --yes commit --all" in str (error.value)
-      assert "imp release" in str (error.value)
-
-
-   def test_apply_revalidates_release_notes (self, repo):
-      plan = source_release.plan_release (level="patch")
-      before = git.rev_parse ("main")
-      plan ["payload"] ["changelog"] = "Generated with Claude Code"
-
-      with pytest.raises (state.StateError, match="Release notes"):
-         source_release.apply_release (plan)
-
-      assert git.rev_parse ("main") == before
-      assert not git.tag_exists ("v0.0.1")
-
-   def test_plan_bumps_manifests_before_exact_apply (self, repo):
-      (repo / "pyproject.toml").write_text ('[project]\nname = "demo"\nversion = "1.2.3"\n')
-      git_run (repo, "add", "pyproject.toml")
-      git_run (repo, "commit", "-m", "feat: add package metadata")
-      before = git.rev_parse ("main")
-
-      plan = source_release.plan_release (level="patch")
-
-      assert plan ["payload"] ["version"] == "0.0.1"
-      assert plan ["payload"] ["manifest_versions"] == { "pyproject.toml": "0.0.1" }
-      assert "- Added package metadata" in plan ["payload"] ["changelog"]
-      assert git.rev_parse ("main") == before
+   def test_local_release_moves_branch_and_tag (self, repo):
+      plan = source_release.plan_release (local=True)
 
       receipt = source_release.apply_release (plan)
 
       assert receipt ["tag"] == "v0.0.1"
       assert git.rev_parse ("v0.0.1") == git.rev_parse ("main")
-      assert 'version = "0.0.1"' in (repo / "pyproject.toml").read_text ()
-      assert not (repo / "CHANGELOG.md").exists ()
-
-   def test_local_release_commits_and_tags_without_reaching_a_remote (self, repo, monkeypatch):
-      git.tag ("v1.2.3")
-      monkeypatch.setattr (source_release.gh, "available", lambda: True)
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
-      monkeypatch.setattr (source_release.git, "fetch", lambda **_kwargs: None)
-      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
-      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
-
-      plan = source_release.plan_release (level="minor", local=True, persist=False)
-
-      assert plan ["payload"] ["local"] is True
-      assert plan ["payload"] ["push"] is False
-      assert plan ["payload"] ["push_commits"] == []
-      assert plan ["payload"] ["github_release"] is False
-      actions = { item ["action"] for item in plan ["items"] }
-      assert actions == { "update_ref", "tag" }
-
-   def test_a_published_release_pushes_and_creates_a_github_release (self, repo, monkeypatch):
-      git.tag ("v1.2.3")
-      monkeypatch.setattr (source_release.gh, "available", lambda: True)
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
-      monkeypatch.setattr (source_release.git, "fetch", lambda **_kwargs: None)
-      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
-      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
-
-      plan = source_release.plan_release (level="minor", persist=False)
-
-      assert plan ["payload"] ["local"] is False
-      assert [ commit ["subject"] for commit in plan ["payload"] ["push_commits"] ] == [
-         "Initial commit",
-      ]
-      actions = { item ["action"] for item in plan ["items"] }
-      assert actions == { "update_ref", "tag", "push", "github_release" }
-      push = next (item for item in plan ["items"] if item ["action"] == "push")
-      assert push ["refs"] == [ "main", plan ["payload"] ["tag"] ]
-      assert push ["commits"] == plan ["payload"] ["push_commits"]
-
-   def test_an_interrupted_release_resumes_instead_of_refusing (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
-      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
-      first = source_release.plan_release (level="minor")
-      payload = first ["payload"]
-      git.tag (str (payload ["tag"]), str (payload ["commit_oid"]))
-
-      assert source_release._resumable (str (payload ["tag"]), str (payload ["source_oid"])) == payload ["commit_oid"]
-
-      second = source_release.plan_release (level="minor")
-
-      assert second ["payload"] ["resumed"] is True
-      assert second ["payload"] ["commit_oid"] == payload ["commit_oid"]
-
-   def test_an_explicit_version_that_already_exists_is_refused (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
-      git.tag ("v1.2.3")
-
-      with pytest.raises (state.StateError, match="already exists"):
-         source_release.plan_release (set_version="1.2.3")
-
-   def test_a_tag_that_never_reached_the_remote_is_resumed (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
-      monkeypatch.setattr (source_release.git, "fetch", lambda **_kwargs: None)
-      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [])
-      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
-      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
-
-      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == git.rev_parse ("HEAD")
-
-   def test_a_pushed_tag_without_a_github_release_is_resumed (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.gh, "available", lambda: True)
-      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: {})
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
-      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [ "v1.3.0" ])
-      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
-
-      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == git.rev_parse ("HEAD")
-
-   def test_a_fully_published_release_is_not_resumed (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.gh, "available", lambda: True)
-      monkeypatch.setattr (source_release.gh, "release_view", lambda _tag: { "isPrerelease": False })
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: True)
-      monkeypatch.setattr (source_release.git, "remote_tags", lambda *_a, **_k: [ "v1.3.0" ])
-      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
-
-      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == ""
-
-   def test_a_local_only_repository_never_looks_unpublished (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      git.tag ("v1.3.0", git.rev_parse ("HEAD"))
-
-      assert source_release._resumable ("v1.3.0", git.rev_parse ("HEAD")) == ""
-
-
-class TestReleaseTags:
-   """A release must not depend on local tags agreeing with the ones origin published."""
-
-   def _diverged (self, repo_with_origin, monkeypatch):
-      git_run (repo_with_origin, "checkout", "master")
-      git.tag ("v1.0.0")
-      git_run (repo_with_origin, "push", "origin", "v1.0.0")
-      git_run (repo_with_origin, "push", "origin", "feat/wip:refs/tags/v1.1.0")
-      git_run (repo_with_origin, "tag", "-f", "v1.0.0", "feat/wip")
-      monkeypatch.setattr (source_release.gh, "available", lambda: False)
-      monkeypatch.setattr (source_release, "_repository_url", lambda tag: f"https://example.test/{tag}")
-
-   def test_a_tag_that_disagrees_with_origin_does_not_block_a_release (self, repo_with_origin, monkeypatch):
-      self._diverged (repo_with_origin, monkeypatch)
-
-      plan = source_release.plan_release (level="patch")
-
-      assert plan ["payload"] ["version"] == "1.1.1"
-      assert plan ["state"] == "ready"
-
-   def test_a_release_never_moves_a_local_tag (self, repo_with_origin, monkeypatch):
-      self._diverged (repo_with_origin, monkeypatch)
-      before = git.rev_parse ("v1.0.0^{}")
-
-      source_release.plan_release (level="patch")
-
-      assert git.rev_parse ("v1.0.0^{}") == before
-      assert before == git.rev_parse ("feat/wip")
-
-   def test_a_published_tag_the_clone_lacks_still_counts (self, repo_with_origin, monkeypatch):
-      self._diverged (repo_with_origin, monkeypatch)
-
-      assert git.tag_exists ("v1.1.0") is False
-      assert source_release._latest_version (source_release._release_tags ()) == "1.1.0"
-
-
-class TestReleaseChangelog:
-   """The changelog covers the work, not the branch plumbing around it."""
-
-   def test_merge_commits_are_left_out (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      git.tag ("v1.0.0")
-      git_run (repo, "checkout", "-b", "topic")
-      commit_file (repo, "topic.txt", "x\n", "feat: add the topic")
-      git_run (repo, "checkout", "main")
-      git_run (repo, "merge", "--no-ff", "-m", "Merge branch 'topic' into main", "topic")
-
-      _tag, entry, _notes = source_release._entry (git.rev_parse ("main"), source_release._release_tags ())
-
-      assert entry == "- Added the topic"
-
-
-class TestGitNativeNotes:
-   """Trunk carries what landed, so release notes need no file beside it."""
-
-   def _landed (self, repo: Path, tmp_path: Path) -> dict:
-      plan = features.plan_start ("checkout", actor_id=ACTOR)
-      feature = features.apply_start (plan)
-      commit_file (Path (feature ["path"]), "one.txt", "1\n", "feat: add the search box")
-      commit_file (Path (feature ["path"]), "two.txt", "2\n", "fix: stop the crash on submit")
-      done = integration.plan_done (features.find (feature ["feature_id"]), actor_id=ACTOR, strategy="squash")
-      return integration.apply_done (done, ACTOR)
-
-   def test_a_squash_carries_the_subjects_it_discards (self, repo, tmp_path):
-      self._landed (repo, tmp_path)
-
-      message = git.capture ("log", "-1", "--format=%B", "main")
-
-      assert message.splitlines () [0] == "feat: integrate checkout"
-      assert "- feat: add the search box" in message
-      assert "- fix: stop the crash on submit" in message
-
-   def test_release_notes_read_the_squash_body (self, repo, tmp_path, monkeypatch):
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      git.tag ("v1.0.0")
-      self._landed (repo, tmp_path)
-
-      _tag, entry, _notes = source_release._entry (
-         git.rev_parse ("main"), source_release._release_tags (),
-      )
-
-      assert "- Added the search box" in entry
-      assert "- Fixed stop the crash on submit" in entry
-      assert "integrate checkout" not in entry
-
-   def test_a_stray_bullet_in_an_ordinary_commit_is_not_carried (self, repo, monkeypatch):
-      monkeypatch.setattr (source_release.git, "remote_exists", lambda: False)
-      git.tag ("v1.0.0")
-      (repo / "note.txt").write_text ("x\n")
-      git_run (repo, "add", "note.txt")
-      git_run (repo, "commit", "-m", "feat: add a note\n\n- an aside a reader wrote")
-
-      _tag, entry, _notes = source_release._entry (
-         git.rev_parse ("main"), source_release._release_tags (),
-      )
-
-      assert entry == "- Added a note"

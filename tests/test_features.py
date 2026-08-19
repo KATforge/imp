@@ -1,13 +1,10 @@
 import json
 import os
-import sys
 from pathlib import Path
 
 import pytest
 
 from imp_git import ai, commit_plan, features, git, identity, state
-from imp_git import repo as repo_mod
-from tests.conftest import git_run
 
 
 def _actor (kind: str, name: str) -> str:
@@ -38,22 +35,6 @@ class TestFeatures:
       assert git.rev_parse ("feature/payments") == git.rev_parse ("origin/master")
       assert not (path / "wip.txt").exists ()
 
-   def test_temper_can_create_an_initially_unclaimed_feature (self, repo_with_origin, tmp_path):
-      actor_id = _actor ("temper", "checkout")
-      plan = features.plan_start (
-         "checkout",
-         actor_id=actor_id,
-         change_id="change:checkout",
-         claim_writer=False,
-         target="master",
-      )
-
-      feature = features.apply_start (plan)
-
-      assert feature ["change_id"] == "change:checkout"
-      assert feature ["claim"] is None
-      assert feature ["target"] == "master"
-
    def test_two_agents_commit_in_isolated_worktrees (self, repo_with_origin, tmp_path, monkeypatch):
       first_actor = _actor ("codex", "payments")
       second_actor = _actor ("claude", "profile")
@@ -63,12 +44,12 @@ class TestFeatures:
 
       monkeypatch.chdir (first ["path"])
       Path ("payments.txt").write_text ("payments\n")
-      first_commit = commit_plan.create (actor_id=first_actor, all_changes=True)
+      first_commit = commit_plan.create (actor_id=first_actor)
       commit_plan.apply (first_commit, first_actor)
 
       monkeypatch.chdir (second ["path"])
       Path ("profile.txt").write_text ("profile\n")
-      second_commit = commit_plan.create (actor_id=second_actor, all_changes=True)
+      second_commit = commit_plan.create (actor_id=second_actor)
       commit_plan.apply (second_commit, second_actor)
 
       assert git.capture ("show", "feature/payments:payments.txt").strip () == "payments"
@@ -82,7 +63,7 @@ class TestFeatures:
       _plan, feature = _start ("claimed", owner)
       monkeypatch.chdir (feature ["path"])
 
-      with pytest.raises (state.StateError, match="claimed by"):
+      with pytest.raises (state.StateError, match="claim held by"):
          features.assert_write_access (intruder)
 
       features.assert_write_access (owner)
@@ -99,7 +80,7 @@ class TestFeatures:
       claim = features.claim (feature, intruder)
 
       assert claim ["held_by"] == intruder
-      assert intruder in features.find (feature ["feature_id"]) ["writers"]
+      assert features.find (feature ["feature_id"]) ["claim"] ["held_by"] == intruder
 
    def test_feature_worktree_does_not_disturb_the_current_branch (self, repo_with_origin, tmp_path):
       original_branch = git.branch ()
@@ -109,31 +90,7 @@ class TestFeatures:
       assert Path (feature ["path"]).is_dir ()
       assert git.branch () == original_branch
 
-   def test_setup_and_ignored_share_are_applied_from_the_plan (self, repo_with_origin, tmp_path):
-      git_run (repo_with_origin, "checkout", "master")
-      (repo_with_origin / ".gitignore").write_text (".env.local\n")
-      (repo_with_origin / ".env.local").write_text ("TOKEN=local\n")
-      (repo_with_origin / ".imp").write_text (json.dumps ({
-         "worktree:setup": [
-            { "name": "marker", "run": [ sys.executable, "-c", "open('setup.ok', 'w').write('ok')" ] },
-         ],
-         "worktree:share": [ ".env.local" ],
-      }))
-      git_run (repo_with_origin, "add", ".gitignore", ".imp")
-      git_run (repo_with_origin, "commit", "-m", "chore: configure worktrees")
-      git_run (repo_with_origin, "push", "origin", "master")
-      repo_mod.load.cache_clear ()
-
-      plan, feature = _start ("shared", _actor ("human", "anders"))
-      target = Path (feature ["path"])
-
-      assert {item ["action"] for item in plan ["items"]} >= { "setup", "share" }
-      assert (target / ".env.local").is_symlink ()
-      assert (target / ".env.local").read_text () == "TOKEN=local\n"
-      assert (target / "setup.ok").read_text () == "ok"
-      assert feature ["worktree_state"] == "live"
-
-   def test_clean_worktree_removal_is_planned_and_retains_feature_record (self, repo_with_origin, tmp_path):
+   def test_clean_worktree_removal_discards_everything (self, repo_with_origin, tmp_path):
       actor_id = _actor ("human", "anders")
       _start_plan, feature = _start ("temporary", actor_id)
 
@@ -144,20 +101,19 @@ class TestFeatures:
 
       assert result ["feature_id"] == feature ["feature_id"]
       assert not Path (feature ["path"]).exists ()
-      retained = features.find (feature ["feature_id"])
-      assert retained ["state"] == "removed"
-      assert retained ["worktree_state"] == "missing"
-      assert retained ["claim"] is None
+      assert features.find (feature ["feature_id"]) is None
+      assert not git.ref_exists (feature ["branch"])
 
    def test_completing_from_inside_the_worktree_leaves_a_live_directory (self, repo_with_origin, tmp_path):
       actor_id = _actor ("human", "anders")
       _plan, feature = _start ("stepping", actor_id)
       os.chdir (feature ["path"])
 
-      features.complete (feature, actor_id)
+      features.complete (feature)
 
       assert Path.cwd ().exists ()
       assert not Path (feature ["path"]).exists ()
+      assert features.find (feature ["feature_id"]) is None
 
 
 class TestFeatureMigration:

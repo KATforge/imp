@@ -2,16 +2,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from imp_git import features, git, repo, state, workspace
+from imp_git import features, git, workspace
 
-READY = "ready"
-CHECKS = "checks"
-CONFLICT = "conflict"
-DIRTY = "dirty"
-EMPTY = "empty"
-BROKEN = "broken"
-
-_ORDER = { READY: 0, CONFLICT: 1, CHECKS: 2, DIRTY: 3, EMPTY: 4, BROKEN: 5 }
+_ORDER = { "open": 0, "dirty": 1, "missing": 2 }
 
 
 def _age (value: str) -> str:
@@ -28,36 +21,18 @@ def _age (value: str) -> str:
    return f"{hours // 24}d"
 
 
-def _ahead (path: str, branch: str, target: str) -> int:
-   output = git.run_at (path, "rev-list", "--count", f"{target}..{branch}", check=False)
-   value = output.stdout.strip ()
-
-   return int (value) if value.isdigit () else 0
-
-
 def _member (feature: dict [str, Any], alias: str, repository: str) -> dict [str, Any]:
    path = str (feature ["path"])
    branch = str (feature ["branch"])
-   target = str (feature.get ("target") or repo.get ("done:target", "")) or git.base_branch ()
+   target = str (feature.get ("target") or git.base_branch ())
    live = feature.get ("worktree_state") == "live"
    dirty = 0 if not live else len (git.run_at (path, "status", "--porcelain", check=False).stdout.splitlines ())
-   ahead = _ahead (path, branch, target) if live else 0
    claim = feature.get ("claim") or {}
 
-   if not live:
-      condition = BROKEN
-   elif dirty:
-      condition = DIRTY
-   elif not ahead:
-      condition = EMPTY
-   else:
-      condition = READY
-
    return {
-      "ahead": ahead,
       "alias": alias,
       "branch": branch,
-      "condition": condition,
+      "condition": "missing" if not live else "dirty" if dirty else "open",
       "dirty": dirty,
       "feature_id": feature ["feature_id"],
       "path": path,
@@ -95,11 +70,10 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
 
    values = []
    for entry in grouped.values ():
-      conditions = { member ["condition"] for member in entry ["members"] }
-      for condition in [ BROKEN, DIRTY, EMPTY, READY ]:
-         if condition in conditions:
-            entry ["condition"] = condition
-            break
+      entry ["condition"] = max (
+         (member ["condition"] for member in entry ["members"]),
+         key=lambda condition: _ORDER [condition],
+      )
       entry ["age"] = _age (str (entry ["created_at"]))
       entry ["repositories"] = sorted (member ["alias"] for member in entry ["members"])
       entry ["writers"] = sorted ({ member ["writer"] for member in entry ["members"] if member ["writer"] })
@@ -132,24 +106,6 @@ def repositories (value: dict [str, Any]) -> list [dict [str, Any]]:
          })
 
    return values
-
-
-def interrupted (value: dict [str, Any]) -> list [dict [str, Any]]:
-   """Every unfinished operation across the workspace, newest last."""
-
-   values = []
-   for alias, repository in sorted (workspace.repositories (value).items ()):
-      if not Path (repository, ".git").exists ():
-         continue
-      with workspace.inside (repository):
-         state.tidy ()
-         values.extend ({ "alias": alias, **record } for record in state.recoveries ())
-
-   return sorted (values, key=lambda record: str (record.get ("created_at", "")))
-
-
-def promotable (values: list [dict [str, Any]]) -> list [dict [str, Any]]:
-   return [ entry for entry in values if entry ["condition"] == READY ]
 
 
 def ordered_members (entry: dict [str, Any]) -> list [dict [str, Any]]:

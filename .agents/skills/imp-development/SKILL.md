@@ -8,7 +8,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
 1. Discover before changing anything.
 
    - Every command takes `--json` and answers with one versioned envelope; failures use `imp.error.v1` and a nonzero exit.
-   - `--json` already implies `--no-input`, so a missing answer fails loudly instead of waiting. Pass `--yes` to approve what you already decided, and `--dry-run` to see a plan without applying it.
+   - `--json` never prompts. Pass `--yes` to approve what you already decided, and `--dry-run` to see a plan without applying it.
    - Run `imp doctor --json` when the environment looks wrong; it reports tools, provider, and configuration.
    - Outside Git, edit directly. Do not initialize Git or Imp.
    - Inside Git, run `imp status --json`. Run it from a directory of checkouts to cover every repository below it.
@@ -26,7 +26,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
    - Create one feature for all of them: `imp start <name> --repo <alias> --repo <alias>`.
    - Run it from the directory holding the checkouts. `--repo` takes a repository directory or a unique suffix of one, and the order you name them is the order they integrate.
    - Nothing is declared: a feature spans the repositories that manage its name, and a lone checkout is a workspace of one.
-   - `imp review <name>` and `imp done <name>` then cover every member.
+   - `imp done <name>` then covers every member.
 
 4. Use Imp for every Git operation.
 
@@ -48,6 +48,6 @@ description: Use for source-code changes in Git repositories. Route every Git op
 6. Finish cleanly.
 
    - Run configured checks, then `imp status --json` before handoff.
-   - Release the writer claim when editing stops, and remove worktrees and branches once they are merged into trunk.
-   - `imp status` reports interrupted operations with their resume command; leave blocked features and spans in place for it.
+   - `imp done` removes integrated features. Use `imp worktree remove` to discard clean unfinished features.
+   - Leave blocked features and spans in place for the next run.
    - Never write repository instruction files unless explicitly requested.

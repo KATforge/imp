@@ -44,6 +44,8 @@ def _reset_process_state (tmp_path_factory, monkeypatch):
    from imp_git import repo as repo_mod
 
    home = tmp_path_factory.mktemp ("imp-home")
+   monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
+   monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)
    monkeypatch.setenv ("XDG_CONFIG_HOME", str (home / "config"))
    monkeypatch.setenv ("XDG_STATE_HOME", str (home / "state"))
    config.load.cache_clear ()
@@ -132,4 +134,3 @@ def repo_with_origin (tmp_path):
    os.chdir (work)
    yield work
    os.chdir (old_cwd)
-
