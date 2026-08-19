@@ -40,11 +40,16 @@ def _show (plan: dict):
 
 def done (
    feature: Annotated [str, typer.Argument (help="Feature name")] = "",
+   all_features: Annotated [bool, typer.Option ("--all", help="Integrate every open feature")] = False,
 ):
-   """Integrate one exact candidate into trunk."""
+   """Integrate one or all exact feature candidates into trunk."""
 
    inside = git.succeeds ("rev-parse", "--git-dir")
    notes = _standing_here () if inside else []
+   if all_features:
+      if feature:
+         console.fatal ("Pass a feature or --all, not both")
+      return _promote (_all (), warnings=notes)
    group = _group (feature)
    if not group and not inside:
       git.require ()
@@ -117,12 +122,29 @@ def _pick (value: dict) -> dict:
    return _entry_group (value, labels [console.choose ("Select a feature", list (labels))])
 
 
+def _all () -> dict:
+   value = workspace.here ()
+   entries = roster.collect (value) if value else []
+   if not entries:
+      console.fatal ("No open features")
+   return {
+      "groups": [ _entry_group (value, entry) for entry in entries ],
+      "name": "all features",
+      "workspace": value,
+   }
+
+
 def _show_group (plan: dict):
    console.header (f"Complete feature: {plan ['label']}")
    console.table (
-      [ "Repository", "Candidate" ],
+      [ "Feature", "Repository", "Target", "Candidate" ],
       [
-         [ str (member ["alias"]), str (member ["plan"] ["payload"] ["candidate_oid"]) [:12] ]
+         [
+            str (member ["feature"]),
+            str (member ["alias"]),
+            str (member ["plan"] ["payload"] ["target_ref"]),
+            str (member ["plan"] ["payload"] ["candidate_oid"]) [:12],
+         ]
          for member in plan ["payload"] ["members"]
       ],
    )
@@ -131,36 +153,64 @@ def _show_group (plan: dict):
    for member in plan ["payload"] ["members"]:
       diff = str (member ["plan"] ["payload"] ["diff"])
       if diff:
-         console.label (str (member ["alias"]))
+         console.label (str (member ["label"]))
          _show_diff (diff)
+
+
+def _member_label (entry: dict, member: dict, all_features: bool) -> str:
+   if not all_features:
+      return str (member ["alias"])
+   if len (entry ["members"]) == 1:
+      return str (entry ["name"])
+   return f"{entry ['name']}/{member ['alias']}"
 
 
 def _plan_group (group: dict) -> dict:
    children = []
    blockers = []
-   for member in group ["members"]:
-      with workspace.inside (member ["repository"]):
-         child = integration.plan_done (features.resolve (
-            str (group ["name"]), states={ "active", "awaiting-merge" }, title="Select feature",
-         ))
-      blockers.extend (f"{member ['alias']}: {reason}" for reason in child ["blockers"])
-      children.append ({ "alias": member ["alias"], "repository": member ["repository"], "plan": child })
+   groups = group.get ("groups") or [ group ]
+   all_features = "groups" in group
+   targets = {}
+   for entry in groups:
+      for member in entry ["members"]:
+         with workspace.inside (member ["repository"]):
+            feature = features.resolve (
+               str (member ["feature_id"]), states={ "active", "awaiting-merge" }, title="Select feature",
+            )
+            target = str (feature.get ("target") or git.base_branch ())
+            key = (str (member ["repository"]), target)
+            resolved = targets.get (key) or integration.target_state (target)
+            child = integration.plan_done (feature, resolved_target=resolved)
+         payload = child ["payload"]
+         targets [key] = (payload ["candidate_oid"], payload ["remote_target_oid"], payload ["candidate_oid"])
+         label = _member_label (entry, member, all_features)
+         blockers.extend (f"{label}: {reason}" for reason in child ["blockers"])
+         children.append ({
+            "alias": member ["alias"],
+            "feature": entry ["name"],
+            "label": label,
+            "repository": member ["repository"],
+            "plan": child,
+         })
    return plans.build (
       "done",
       str (group ["name"]),
-      scope={ "feature": str (group ["name"]), "workspace": str (group ["workspace"] ["name"]) },
+      scope={ "workspace": str (group ["workspace"] ["name"]) },
       items=[
          {
             "action": "integrate",
             "alias": child ["alias"],
             "candidate": child ["plan"] ["payload"] ["candidate_oid"],
+            "feature": child ["feature"],
          }
          for child in children
       ],
       payload_schema="imp.promote-plan.v2",
       payload={
+         "all": all_features,
          "feature": str (group ["name"]),
-         "order": [ child ["alias"] for child in children ],
+         "features": [ str (entry ["name"]) for entry in groups ],
+         "order": [ child ["label"] for child in children ],
          "members": children,
       },
       blockers=blockers,
@@ -168,17 +218,17 @@ def _plan_group (group: dict) -> dict:
 
 
 def _apply_group (plan: dict) -> dict:
-   completed = []
+   landed = []
    for child in plan ["payload"] ["members"]:
       try:
          with workspace.inside (child ["repository"]):
             integration.apply_done (child ["plan"])
       except (state.StateError, ValueError) as error:
-         landed = ", ".join (completed) or "nothing"
-         raise state.StateError (f"{child ['alias']} failed after integrating {landed}: {error}") from error
-      completed.append (str (child ["alias"]))
+         detail = ", ".join (landed) or "nothing"
+         raise state.StateError (f"{child ['label']} failed after integrating {detail}: {error}") from error
+      landed.append (str (child ["label"]))
    return {
-      "completed": completed,
+      "completed": plan ["payload"] ["features"] if plan ["payload"] ["all"] else landed,
       "feature": plan ["payload"] ["feature"],
       "order": plan ["payload"] ["order"],
    }
@@ -199,7 +249,8 @@ def _promote (group: dict, *, warnings: list [str]):
       apply=_apply_group,
       show=_show_group,
       success=lambda data: console.success (
-         f"Feature completed across {len (data ['completed'])} repositories"
+         f"Completed {len (data ['completed'])} features"
+         if "groups" in group else f"Feature completed across {len (data ['completed'])} repositories"
       ),
       dry_run=runtime.options.dry_run,
       yes=runtime.options.yes,

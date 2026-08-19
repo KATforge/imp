@@ -38,7 +38,7 @@ description: Use for source-code changes in Git repositories. Route every Git op
    - Commit and integrate to trunk freely. Never push as part of a commit.
    - Changing a remote needs approval first. Pushing and the QA release that follows are one grant; production is a second grant, often given in the same breath.
    - Read intent, not wording. Any plain request to send work up grants the push and QA bundle. Without the production grant, stop at QA and say so.
-   - `imp done` lands a feature on trunk locally. `imp pr` proposes a branch for review; `--into <branch>` targets a nondefault base. `imp release` increments patch by default; use a version or `--major`, `--minor`, `--patch`, `--rc`, or `--stable`. `--local` only tags it.
+   - `imp done` lands a feature on trunk locally; `--all` lands every open feature in the current scope as one exact batch. `imp pr` proposes a branch for review; `--into <branch>` targets a nondefault base. `imp release` increments patch by default; use a version or `--major`, `--minor`, `--patch`, `--rc`, or `--stable`. `--local` only tags it.
    - Release notes contain the commit subjects since the previous tag, so keep every subject short and publishable.
 
 5. Keep authorship human.

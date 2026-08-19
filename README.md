@@ -28,6 +28,8 @@ imp done
 
 `imp done` runs configured checks, shows the complete candidate diff, asks once, integrates locally, then removes the feature worktree, branch, claim, and record.
 
+`imp done --all` does this for every open feature in the current repository or directory of repositories, oldest first, as one exact batch.
+
 Humans and agents may edit the current checkout for focused work. Use `imp start` for parallel, large, risky, or clean-checkout work.
 
 ## AI

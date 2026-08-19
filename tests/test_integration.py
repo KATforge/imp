@@ -2,8 +2,10 @@ import sys
 from pathlib import Path
 
 import pytest
+import typer
 
 from imp_git import features, git, integration, state
+from imp_git.commands import done as done_command
 from imp_git.commands import release as release_command
 from tests.conftest import commit_file
 
@@ -54,6 +56,31 @@ class TestIntegration:
          integration.apply_done (plan)
 
       assert features.find (feature ["feature_id"]) ["state"] == "active"
+
+   def test_done_all_integrates_every_feature_in_order (self, repo):
+      first = _feature ("first")
+      second = _feature ("second")
+
+      receipt = done_command.done (all_features=True)
+
+      assert receipt ["completed"] == [ "first", "second" ]
+      assert git.capture ("show", "main:first.txt").strip () == "first"
+      assert git.capture ("show", "main:second.txt").strip () == "second"
+      assert features.find (first ["feature_id"]) is None
+      assert features.find (second ["feature_id"]) is None
+
+   def test_done_all_changes_nothing_when_one_feature_is_dirty (self, repo):
+      first = _feature ("first")
+      second = _feature ("second")
+      target = git.rev_parse ("main")
+      (Path (second ["path"]) / "loose.txt").write_text ("dirty\n")
+
+      with pytest.raises (typer.Exit):
+         done_command.done (all_features=True)
+
+      assert git.rev_parse ("main") == target
+      assert features.find (first ["feature_id"])
+      assert features.find (second ["feature_id"])
 
 
 class TestRelease:

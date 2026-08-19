@@ -161,3 +161,13 @@ class TestSpan:
          done_cmd.done ("checkout")
 
       assert json.loads (capsys.readouterr ().out) ["schema"] == "imp.error.v1"
+
+   def test_done_all_integrates_the_workspace (self, demo):
+      from imp_git.commands import done as done_cmd
+
+      self._ready (demo)
+
+      receipt = done_cmd.done (all_features=True)
+
+      assert receipt ["completed"] == [ "checkout" ]
+      assert roster.collect (workspace.here (str (demo))) == []

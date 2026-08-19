@@ -77,12 +77,12 @@ class TestSurface:
 
       assert seen == commands
 
-   def test_done_has_no_workflow_options (self):
+   def test_done_exposes_only_all (self):
       result = runner.invoke (app, [ "done", "--help" ])
 
       assert result.exit_code == 0
       assert "--approve" not in result.output
-      assert "--all" not in result.output
+      assert "--all" in result.output
       assert "--keep" not in result.output
       assert "--strategy" not in result.output
 
