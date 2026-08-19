@@ -113,6 +113,9 @@ def main (
      commit sends its diff for a message (-m sends nothing); review and
      cleanup send diffs for annotations and verdicts; doctor only pings;
      start, done, undo, status, pr, and release are deterministic
+
+   [muted]imp <command> --help tells each command's whole story;
+   imp doctor checks the machine and shows the imp.* configuration[/muted]
    """
 
    if repo_path:

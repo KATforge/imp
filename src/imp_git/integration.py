@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from imp_git import features, fingerprint, git, locks, plans, state
+from imp_git import features, fingerprint, git, layers, locks, plans, state
 
 
 def _configured_checks () -> list [dict [str, Any]] | None:
@@ -313,6 +313,11 @@ def apply_done (plan: dict [str, Any]) -> dict [str, Any]:
       )
       for path in git.ref_worktrees (str (payload ["target_ref"])):
          git.reset_at (path, str (payload ["candidate_oid"]))
+      layers.record (
+         str (payload ["branch"]).removeprefix (features.PREFIX),
+         str (payload ["candidate_oid"]),
+         str (payload ["local_target_oid"]),
+      )
    plans.mark (plan, "applied", applied_at=state.now ())
    features.complete (feature, branch_oid=str (payload ["feature_oid"]))
    return {

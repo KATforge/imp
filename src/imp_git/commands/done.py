@@ -10,6 +10,7 @@ from imp_git import (
    git,
    identity,
    integration,
+   layers,
    locks,
    plans,
    result,
@@ -81,14 +82,16 @@ def _my_locks (value: dict [str, Any], feature: str) -> list [tuple [str, str, d
 
 
 def _release (value: dict [str, Any], feature: str) -> dict [str, Any] | None:
-   """Release this actor's trunk locks: the trunk-mode counterpart of completing a feature."""
+   """Release this actor's trunk locks, recording each session as one undoable layer."""
 
    held = _my_locks (value, feature)
    if not held:
       return None
    released = []
-   for repository, trunk, _lock in held:
+   for repository, trunk, lock in held:
       with workspace.inside (repository):
+         bare = features.branch_for (lock ["name"], lock ["ticket"]).removeprefix (features.PREFIX)
+         layers.record (bare, git.rev_parse (trunk), lock ["base"])
          locks.release (trunk)
       released.append (trunk)
    data = {

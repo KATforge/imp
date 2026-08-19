@@ -44,11 +44,13 @@ class TestTrunkFirst:
 
       assert data ["mode"] == "worktree"
 
-   def test_ticket_implies_a_worktree (self, repo):
+   def test_ticket_rides_the_trunk_lock (self, repo):
       data = start_cmd.start (name="quick", ticket="SPK-9")
 
-      assert data ["mode"] == "worktree"
-      assert git.ref_exists ("feature/SPK-9-quick")
+      assert data ["mode"] == "trunk"
+      lock = locks.holder ("main")
+      assert lock ["ticket"] == "SPK-9"
+      assert lock ["base"] == git.rev_parse ("main")
 
    def test_expired_foreign_lock_is_free (self, repo):
       git_run (repo, "config", "imp.lock.main.holder", EXPIRED)
@@ -145,3 +147,84 @@ class TestTrunkRelease:
       cleanup_cmd.cleanup ()
 
       assert git.config_get ("imp.lock.main.holder") == ""
+
+
+class TestTrunkSessions:
+
+   def test_a_released_session_is_one_undoable_layer (self, repo):
+      from imp_git import layers
+      from imp_git.commands import undo as undo_cmd
+
+      before = git.rev_parse ("main")
+      start_cmd.start (name="quick")
+      commit_file (repo, "quick.txt", "quick\n", "feat: add quick change")
+      landed = git.rev_parse ("main")
+
+      done_cmd.done ()
+
+      layer = layers.at_head (landed)
+      assert layer ["bare"] == "quick"
+      assert layer ["base"] == before
+
+      receipt = undo_cmd.undo ()
+
+      assert git.rev_parse ("main") == before
+      assert git.rev_parse ("feature/quick") == landed
+      assert receipt ["path"]
+      assert layers.all () == []
+
+   def test_a_live_session_can_be_undone_midway (self, repo):
+      from imp_git.commands import undo as undo_cmd
+
+      before = git.rev_parse ("main")
+      start_cmd.start (name="risky", ticket="SPK-7")
+      commit_file (repo, "risky.txt", "risky\n", "feat: add risky change")
+
+      undo_cmd.undo ()
+
+      assert git.rev_parse ("main") == before
+      assert git.ref_exists ("feature/SPK-7-risky")
+      assert locks.holder ("main") is None
+
+   def test_an_empty_session_records_no_layer (self, repo):
+      from imp_git import layers
+
+      start_cmd.start (name="idle")
+
+      done_cmd.done ()
+
+      assert layers.all () == []
+
+   def test_trunk_commits_carry_the_lock_ticket (self, repo, monkeypatch):
+      seen = {}
+
+      def spy (prompt):
+         seen ["prompt"] = prompt
+         return "fix: SPK-9 update value"
+
+      start_cmd.start (name="quick", ticket="SPK-9")
+      (repo / "file.txt").write_text ("changed\n")
+      monkeypatch.setattr (ai, "fast", spy)
+
+      commit_plan.apply (commit_plan.create ())
+
+      assert "SPK-9" in seen ["prompt"]
+
+
+class TestRegressions:
+
+   def test_diffs_with_markup_render_verbatim (self):
+      from imp_git import console
+
+      console.raw ("+ out.print (f\"[/{'style'}]\") [bold [/nope]")
+
+   def test_worktree_path_is_never_wrapped (self, repo, capsys):
+      from imp_git.commands import worktree as worktree_cmd
+
+      name = "a-very-long-feature-name-that-would-certainly-exceed-an-eighty-column-terminal-width-limit"
+      features.apply_start (features.plan_start (name))
+      capsys.readouterr ()
+
+      path = worktree_cmd.path (name)
+
+      assert capsys.readouterr ().out == path + "\n"

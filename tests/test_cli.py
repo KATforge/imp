@@ -246,7 +246,7 @@ class TestHelpOrdering:
       return [
          value.split () [0]
          for line in result.output.splitlines ()
-         if (value := line.strip ("│ ").strip ()).startswith ("--")
+         if line.startswith ("│") and (value := line.strip ("│ ").strip ()).startswith ("--")
       ]
 
    def test_help_shows_the_workflow_diagrams (self):

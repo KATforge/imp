@@ -27,13 +27,13 @@ imp review     # AI-annotated diff of unpushed trunk; ask questions at the promp
 imp push
 ```
 
-`imp start` is trunk-first: when the trunk lock is free and the checkout is clean and on trunk, it claims `imp.lock.<trunk>` for 8 hours and work lands directly on trunk; `imp done` releases it. A trunk locked by someone else, a dirty checkout, `--ticket`, `--repo`, or `--worktree` isolates in one branch plus one worktree off fresh trunk instead, so concurrent agents cascade: the first takes trunk, the rest take worktrees. `imp commit` on trunk claims or renews the lock automatically. `--ticket` shapes the branch (`feature/SPK-12345-payment-retries`), and Imp warns when existing branches carry tickets and yours does not.
+`imp start` is trunk-first: when the trunk lock is free and the checkout is clean and on trunk, it claims `imp.lock.<trunk>` for 8 hours and work lands directly on trunk; `imp done` releases it. A trunk locked by someone else, a dirty checkout, `--repo`, or `--worktree` isolates in one branch plus one worktree off fresh trunk instead, so concurrent agents cascade: the first takes trunk, the rest take worktrees. `imp commit` on trunk claims or renews the lock automatically. `--ticket` rides the trunk lock or shapes the branch (`feature/SPK-12345-payment-retries`), reaching commit subjects either way; Imp warns when existing branches carry tickets and yours does not.
 
 `imp commit` uses staged changes, or every dirty path when nothing is staged. It builds one commit off-ref and moves the branch only when it succeeds.
 
 `imp done` builds the exact candidate, runs the project's checks against it in a throwaway worktree, shows the complete diff, integrates by compare-and-swap, and removes the branch and worktree. The move is stamped in trunk's reflog. `--all` integrates every open feature, oldest first, as one exact batch.
 
-`imp undo` backs the most recent unpushed layer off trunk and restores it as a feature, so a failed trunk test costs one command.
+`imp undo` backs the most recent unpushed layer off trunk and restores it as a feature worktree, so a failed trunk test costs one command. Every unit of work is one layer — an integrated feature or a released trunk session, recorded under `refs/imp/layer` — and layers unwind newest-first. A live trunk session undoes midway too, turning abandoned trunk work into a branch.
 
 `imp cleanup` judges every open feature with AI (integrate, discard, or hold), shows the verdict table for approval, and flattens the workspace. Discarded tips park under `refs/imp/attic` for 30 days. `--keep <name>` exempts a feature.
 
@@ -47,7 +47,7 @@ Agents approve their own reversible work: `start`, `commit`, and `done` run with
 
 ## State
 
-Git is the database. A feature is its `feature/*` branch plus its worktree; age comes from the reflog, integration history from trunk's reflog, discarded work from `refs/imp/attic`. Trunk locks, multi-repository order, and machine knobs live in Git configuration under `imp.*`. Imp writes no state files.
+Git is the database. A feature is its `feature/*` branch plus its worktree; age comes from the reflog, layers from `refs/imp/layer`, discarded work from `refs/imp/attic`. Trunk locks, multi-repository order, and machine knobs live in Git configuration under `imp.*`. Imp writes no state files.
 
 ```bash
 git config imp.worktrees ~/.worktrees    # managed worktree root (default)

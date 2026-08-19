@@ -34,7 +34,7 @@ def _trunk_state () -> tuple [bool, str]:
    return True, ""
 
 
-def _plan_trunk (name: str) -> dict [str, Any]:
+def _plan_trunk (name: str, ticket: str) -> dict [str, Any]:
    trunk = git.base_branch ()
    slug = identity.slug (name)
    return plans.build (
@@ -47,6 +47,7 @@ def _plan_trunk (name: str) -> dict [str, Any]:
          "mode": "trunk",
          "name": slug,
          "path": git.repo_root (),
+         "ticket": ticket.upper (),
          "trunk": trunk,
       },
    )
@@ -54,18 +55,21 @@ def _plan_trunk (name: str) -> dict [str, Any]:
 
 def _apply_trunk (plan: dict [str, Any]) -> dict [str, Any]:
    payload = plan ["payload"]
-   lock = locks.acquire (str (payload ["trunk"]), str (payload ["name"]))
+   lock = locks.acquire (str (payload ["trunk"]), str (payload ["name"]), str (payload ["ticket"]))
    return { **payload, "lock": lock }
 
 
 def _show_trunk (plan: dict [str, Any]):
    payload = plan ["payload"]
    console.header (f"Start on trunk: {plan ['label']}")
-   console.table ([ "Field", "Value" ], [
+   rows = [
       [ "Mode", "direct to trunk" ],
       [ "Branch", str (payload ["trunk"]) ],
       [ "Checkout", str (payload ["path"]) ],
-   ])
+   ]
+   if payload ["ticket"]:
+      rows.append ([ "Ticket", str (payload ["ticket"]) ])
+   console.table ([ "Field", "Value" ], rows)
 
 
 def _success_trunk (data: dict [str, Any]):
@@ -188,8 +192,8 @@ def start (
       str,
       typer.Option (
          "--ticket",
-         help="Ticket ID such as SPK-12345; prefixes the branch (feature/SPK-12345-<name>) "
-              "and flows into commit subjects. Implies a worktree",
+         help="Ticket ID such as SPK-12345; flows into commit subjects, and shapes the "
+              "branch (feature/SPK-12345-<name>) when isolated",
       ),
    ] = "",
    worktree: Annotated [
@@ -200,14 +204,16 @@ def start (
    """Start work trunk-first: claim the trunk lock when it is free, else isolate in a worktree.
 
    With trunk free, on it, and clean, this claims `imp.lock.<trunk>` for 8 hours and
-   work happens directly in the current checkout, committed straight to trunk;
-   `imp done <name>` releases the lock. Anyone else's live lock, a dirty checkout, a
-   ticket, a span, or --worktree falls through to isolation.
+   work happens directly in the current checkout, committed straight to trunk. The
+   session is one layer: `imp done <name>` releases the lock and records it, and
+   `imp undo` can back it out. Anyone else's live lock, a dirty checkout, a span, or
+   --worktree falls through to isolation.
 
    A worktree feature is one branch plus one worktree off fresh trunk, under
    ~/.worktrees/<repo>/<name> (override with `git config imp.worktrees <dir>`), based
-   on origin's trunk or on local trunk when it only leads the remote. --ticket shapes
-   the branch (feature/SPK-12345-<name>).
+   on origin's trunk or on local trunk when it only leads the remote. --ticket rides
+   the trunk lock or shapes the branch (feature/SPK-12345-<name>), either way reaching
+   commit subjects.
 
    Spanning: run from a directory of checkouts with repeated --repo flags to create
    one feature across several repositories. The order you name them is recorded as
@@ -223,12 +229,12 @@ def start (
    notes = []
    try:
       direct = False
-      if not worktree and not repos and not ticket:
+      if not worktree and not repos:
          direct, note = _trunk_state ()
          if note:
             notes.append (note)
       if direct:
-         plan = _plan_trunk (name)
+         plan = _plan_trunk (name, ticket)
       else:
          scope_name, members = _members (repos)
          plan = _plan (name, ticket, scope_name, members)

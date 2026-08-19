@@ -243,7 +243,8 @@ def status ():
    console.label ("Branch")
    console.out.print (f"  [muted]{branch}[/muted]{_sync ()}")
    if lock:
-      console.out.print (f"  [muted]{trunk} locked by {lock ['actor']} ({lock ['name']})[/muted]")
+      mark = f" {lock ['ticket']}" if lock ["ticket"] else ""
+      console.out.print (f"  [muted]{trunk} locked by {lock ['actor']} ({lock ['name']}{mark})[/muted]")
    console.out.print ()
    _show_changes (changes)
 

@@ -44,23 +44,27 @@ def create (*, message: str = "") -> dict [str, Any]:
    if not paths:
       raise state.StateError ("Nothing selected to commit")
    tree, diff = _candidate (paths, mode)
-   if message:
-      if not validate.commit (message):
-         raise state.StateError ("Message must use Conventional Commits")
-   else:
-      message = ai.commit_message (prompts.commit (ai.truncate (diff), git.branch ()))
    feature = features.current ()
    branch = git.branch ()
    branch_ref = git.current_ref ()
    if not branch_ref:
       raise state.StateError ("Commit planning requires an attached branch")
    trunk_claim = _trunk_claim ()
+   ticket = str (feature ["ticket"]) if feature else ""
    if trunk_claim:
       taken = locks.foreign (trunk_claim)
       if taken:
          raise state.StateError (
             f"{trunk_claim} is locked by {taken ['actor']} ({taken ['name']}); imp start to get a worktree"
          )
+      held = locks.holder (trunk_claim)
+      if held:
+         ticket = held ["ticket"]
+   if message:
+      if not validate.commit (message):
+         raise state.StateError ("Message must use Conventional Commits")
+   else:
+      message = ai.commit_message (prompts.commit (ai.truncate (diff), branch, ticket))
    payload = {
       "branch": branch,
       "branch_ref": branch_ref,

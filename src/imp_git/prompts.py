@@ -4,20 +4,20 @@ from imp_git.validate import COMMIT_TYPES
 
 _TYPES_STR = ", ".join (COMMIT_TYPES)
 
-def _ticket_rule (branch: str) -> str:
-   match = re.search (r"([A-Z]+-[0-9]+)", branch)
+def _ticket_rule (branch: str, ticket: str = "") -> str:
+   match = re.search (r"([A-Z]+-[0-9]+)", ticket or branch)
    if not match:
       return ""
 
-   ticket = match.group (1)
-   return f'- Include ticket {ticket} after the type, e.g. "fix: {ticket} message"\n'
+   value = match.group (1)
+   return f'- Include ticket {value} after the type, e.g. "fix: {value} message"\n'
 
-def commit (diff: str, branch: str = "") -> str:
+def commit (diff: str, branch: str = "", ticket: str = "") -> str:
    return f"""\
 Generate a Conventional Commits message for this diff.
 Format: type: message
 Types: {_TYPES_STR}
-{_ticket_rule (branch)}
+{_ticket_rule (branch, ticket)}
 Rules:
 - Subject only, one line, max 72 chars, no period
 - ALL LOWERCASE after the colon (except ticket IDs like IMP-123)
