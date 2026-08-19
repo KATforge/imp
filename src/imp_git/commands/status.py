@@ -47,7 +47,7 @@ def _stats () -> dict [str, tuple [str, str]]:
 _CONDITION_STYLE = {
    "open": "green",
    "dirty": "yellow",
-   "missing": "red",
+   "branch-only": "red",
 }
 
 
@@ -57,25 +57,24 @@ def _condition (value: str) -> str:
    return f"[{style}]{value}[/{style}]"
 
 
-def _show_roster (value: dict, entries: list [dict]):
+def _show_roster (entries: list [dict]):
    if not entries:
       return
    console.label ("Features")
    console.table (
-      [ "Feature", "Repositories", "State", "Writer", "Age" ],
+      [ "Feature", "Repositories", "State", "Age" ],
       [
          [
             str (entry ["name"]),
             " ".join (entry ["repositories"]),
             _condition (str (entry ["condition"])),
-            ", ".join (writer.rpartition (":") [0].removeprefix ("actor:") for writer in entry ["writers"]),
             str (entry ["age"]),
          ]
          for entry in entries
       ],
    )
    console.out.print ()
-   console.hint ("imp done to integrate")
+   console.hint ("imp done to integrate, imp cleanup to flatten")
 
 
 def _workspace_status (json_output: bool):
@@ -90,10 +89,10 @@ def _workspace_status (json_output: bool):
       "members": roster.repositories (value),
    }
    if json_output:
-      return result.emit ("imp.roster.v2", "imp status", data, json_output=True)
+      return result.emit ("imp.roster.v3", "imp status", data, json_output=True)
    console.header (str (value ["name"]))
    _show_members (data ["members"])
-   _show_roster (value, entries)
+   _show_roster (entries)
 
    return data
 
@@ -133,13 +132,19 @@ def _show_members (values: list [dict]):
 def _show_features (managed: list [dict]):
    if not managed:
       return
-   rows = []
-   for feature in managed:
-      claim = feature.get ("claim", {})
-      writer = claim.get ("held_by", "unclaimed") if claim else "unclaimed"
-      rows.append ([ str (feature ["name"]), str (feature ["branch"]), str (writer), str (feature ["path"]) ])
    console.label ("Features")
-   console.table ([ "Feature", "Branch", "Writer", "Path" ], rows)
+   console.table (
+      [ "Feature", "Branch", "State", "Path" ],
+      [
+         [
+            str (feature ["name"]),
+            str (feature ["branch"]),
+            _condition ("open" if feature ["worktree_state"] == "live" else "branch-only"),
+            str (feature ["path"]),
+         ]
+         for feature in managed
+      ],
+   )
    console.out.print ()
 
 
@@ -171,14 +176,36 @@ def _show_worktrees ():
       console.item (f"{line} (here)" if line.startswith (current) else line)
    console.out.print ()
 
-def status (
 
-):
-   """Show repository overview.
+def _unreviewed () -> str:
+   if not git.remote_exists ():
+      return ""
+   trunk = git.base_branch ()
+   remote = f"origin/{trunk}"
+   if not git.rev_parse (remote) or git.branch () != trunk:
+      return ""
+   return git.log_oneline (rev_range=f"{remote}..{trunk}")
 
-   Displays the current branch, file changes with line-level stats,
-   commits since the last tag, worktrees, and the last release version.
-   Suggests a next action based on the current state.
+
+def _hint (changes: str, unreviewed: str, unpushed: str):
+   if changes:
+      console.hint ("imp commit to plan local commits")
+   elif unreviewed:
+      console.hint ("imp review to inspect unpushed trunk, then push")
+   elif unpushed:
+      console.hint ("imp release when trunk is ready")
+   else:
+      console.hint ("make changes, then imp commit")
+
+
+def status ():
+   """Show the current repository or workspace at a glance, with the next step.
+
+   From a directory of checkouts: every member repository, its drift against origin,
+   and every open feature grouped by name. From inside a repository: open features,
+   the current branch and its sync state, file changes with line stats, commits since
+   the last release, and worktrees. Ends with the most useful next imp command.
+   Deterministic; sends nothing to AI.
    """
 
    json_output = runtime.options.json
@@ -191,7 +218,7 @@ def status (
    name = git.repo_name ()
    branch = git.branch ()
    tag = git.last_tag ()
-   managed = features.eligible ({ "active", "awaiting-merge" }, live=False)
+   managed = features.all ()
    changes = git.status_short ()
    hygiene_warnings = hygiene.inspect (git.changed_paths (all_changes=True))
 
@@ -206,7 +233,7 @@ def status (
       "last_release": tag or None,
    }
    if json_output:
-      return result.emit ("imp.status.v4", "imp status", data, json_output=True)
+      return result.emit ("imp.status.v5", "imp status", data, json_output=True)
 
    console.header (name)
    _show_features (managed)
@@ -233,11 +260,6 @@ def status (
    if tag:
       console.muted (f"Last release: {tag}")
 
-   if changes:
-      console.hint ("imp commit to plan local commits")
-   elif unpushed:
-      console.hint ("imp release when trunk is ready")
-   else:
-      console.hint ("make changes, then imp commit")
+   _hint (changes, _unreviewed (), unpushed)
 
    return data

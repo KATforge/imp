@@ -1,136 +1,105 @@
 import os
-import subprocess
-from datetime import datetime, timedelta, timezone
+import re
 from pathlib import Path
 from typing import Any
 
-from imp_git import config, console, fingerprint, git, identity, plans, runtime, state
+from imp_git import config, console, git, identity, plans, runtime, state
+from imp_git import fingerprint as fingerprints
 
-_OPEN = { "active", "awaiting-merge" }
+PREFIX = "feature/"
+ATTIC = "refs/imp/attic"
+ATTIC_DAYS = 30
 
-
-def _directory () -> Path:
-   return state.root () / "features"
-
-
-def _path (feature_id: str) -> Path:
-   return _directory () / f"{identity.key (feature_id)}.json"
+_TICKET_RE = re.compile (r"^([A-Za-z]+-[0-9]+)(?:-|$)")
 
 
-def _legacy_claim_path (feature_id: str) -> Path:
-   return state.root () / "claims" / f"{identity.key (feature_id)}.json"
+def ticket_of (branch: str) -> str:
+   match = _TICKET_RE.match (branch.removeprefix (PREFIX))
+   return match.group (1).upper () if match else ""
 
 
-def _expires_at () -> str:
-   value = datetime.now (timezone.utc) + timedelta (hours=8)
-   return value.isoformat ().replace ("+00:00", "Z")
+def name_of (branch: str) -> str:
+   bare = branch.removeprefix (PREFIX)
+   return _TICKET_RE.sub ("", bare) or bare
 
 
-def _is_expired (claim_record: dict [str, Any]) -> bool:
-   raw = str (claim_record.get ("expires_at", ""))
-   if not raw:
-      return True
-   try:
-      expires = datetime.fromisoformat (raw.replace ("Z", "+00:00"))
-   except ValueError:
-      return True
-   return expires <= datetime.now (timezone.utc)
+def span_key (name: str) -> str:
+   return f"imp.span.{name}.order"
 
 
-def _claim (value: Any) -> dict [str, str] | None:
-   if not isinstance (value, dict) or not value.get ("held_by") or not value.get ("expires_at"):
-      return None
-   return { "held_by": str (value ["held_by"]), "expires_at": str (value ["expires_at"]) }
+def span_of (name: str) -> list [str]:
+   value = git.config_get (span_key (name))
+   return value.split () if value else []
 
 
-def _compact (value: dict [str, Any]) -> dict [str, Any]:
+def _linked_worktrees () -> dict [str, str]:
+   """Map each branch checked out in a linked worktree to that worktree's path.
+
+   The first worktree is the primary checkout; a feature branch checked out
+   there is someone's working branch, never a managed feature.
+   """
+
+   entries = git.worktrees ()
    return {
-      "schema": "imp.feature.v3",
-      "feature_id": value ["feature_id"],
-      "name": value ["name"],
-      "branch": value ["branch"],
-      "path": value ["path"],
-      "target": value ["target"],
-      "created_at": value ["created_at"],
-      "span": list (value.get ("span") or []),
-      "state": value.get ("state", "active"),
-      "claim": _claim (value.get ("claim")),
+      entry ["branch"]: str (Path (entry ["worktree"]).resolve ())
+      for entry in entries [1:]
+      if entry.get ("branch") and entry.get ("worktree")
    }
 
 
-def _stored (path: Path) -> dict [str, Any]:
-   value = _compact (state.read (path))
-   legacy = _legacy_claim_path (str (value ["feature_id"]))
-   if not value ["claim"] and legacy.exists ():
-      value ["claim"] = _claim (state.read (legacy))
-   legacy.unlink (missing_ok=True)
-   if value ["claim"] and _is_expired (value ["claim"]):
-      value ["claim"] = None
-   return value
+def _created_at (branch: str) -> str:
+   entries = git.reflog_entries (branch)
+   return entries [-1] ["date"] if entries else ""
 
 
-def _worktree_state (feature: dict [str, Any]) -> str:
-   expected_path = str (Path (str (feature ["path"])).resolve ())
-   expected_branch = f"refs/heads/{feature ['branch']}"
-   for entry in git.worktrees ():
-      if str (Path (entry.get ("worktree", "")).resolve ()) != expected_path:
-         continue
-      return "live" if entry.get ("branch") == expected_branch else "branch-mismatch"
-   return "missing"
+def _derived (branch: str, path: str, target: str) -> dict [str, Any]:
+   name = name_of (branch)
+   return {
+      "branch": branch,
+      "created_at": _created_at (branch),
+      "name": name,
+      "path": path,
+      "span": span_of (name),
+      "target": target,
+      "ticket": ticket_of (branch),
+      "worktree_state": "live" if path else "branch-only",
+   }
 
 
 def all () -> list [dict [str, Any]]:
-   directory = _directory ()
-   values = []
-   if directory.exists ():
-      for path in directory.glob ("feature--*.json"):
-         try:
-            feature = _stored (path)
-            if feature ["state"] not in _OPEN:
-               path.unlink (missing_ok=True)
-               continue
-            if state.read (path) != feature:
-               state.atomic_write (path, feature)
-            feature ["worktree_state"] = _worktree_state (feature)
-            values.append (feature)
-         except state.StateError:
-            continue
-   state.prune ()
-   return sorted (values, key=lambda value: str (value.get ("created_at", "")))
+   """Derive every feature from Git itself: a feature/* branch and its worktree."""
+
+   target = git.base_branch ()
+   linked = _linked_worktrees ()
+   values = [
+      _derived (branch, linked.get (f"refs/heads/{branch}", ""), target)
+      for branch in git.branch_names (f"{PREFIX}*")
+   ]
+   return sorted (values, key=lambda value: str (value ["created_at"]))
 
 
 def find (value: str) -> dict [str, Any] | None:
-   matches = [
-      feature for feature in all ()
-      if feature.get ("feature_id") == value or feature.get ("name") == value
-   ]
+   features = all ()
+   exact = [ feature for feature in features if feature ["branch"] in (value, f"{PREFIX}{value}") ]
+   if exact:
+      return exact [0]
+   matches = [ feature for feature in features if feature ["name"] == value ]
    if len (matches) > 1:
-      raise state.StateError (f"Several features are named {value}; use the feature ID")
+      raise state.StateError (f"Several features are named {value}; use the branch name")
    return matches [0] if matches else None
 
 
-def eligible (
-   states: set [str] | None = None,
-   *,
-   live: bool = True,
-) -> list [dict [str, Any]]:
-   allowed = states or { "active" }
-   return [
-      feature
-      for feature in reversed (all ())
-      if feature.get ("state") in allowed and (not live or feature.get ("worktree_state") == "live")
-   ]
-
-
 def label (feature: dict [str, Any]) -> str:
-   return f"{feature ['name']} · {feature ['state']} · {feature ['branch']}"
+   return f"{feature ['name']} · {feature ['branch']} · {feature ['worktree_state']}"
 
 
 def pick (title: str, values: list [dict [str, Any]]) -> dict [str, Any]:
    if not values:
-      raise state.StateError ("No eligible managed features")
+      raise state.StateError ("No open features")
+   if len (values) == 1:
+      return values [0]
    if runtime.options.json or runtime.options.no_input:
-      raise state.StateError ("Pass an explicit feature name or ID")
+      raise state.StateError ("Pass an explicit feature name")
    labels = [ label (feature) for feature in values ]
    selected = console.choose (title, labels)
    return values [labels.index (selected)]
@@ -139,26 +108,23 @@ def pick (title: str, values: list [dict [str, Any]]) -> dict [str, Any]:
 def resolve (
    value: str = "",
    *,
-   states: set [str] | None = None,
+   live: bool = False,
    title: str = "Select feature",
-   live: bool = True,
 ) -> dict [str, Any]:
-   allowed = states or { "active" }
    if not value:
-      return pick (title, eligible (allowed, live=live))
+      candidates = [ feature for feature in all () if not live or feature ["worktree_state"] == "live" ]
+      return pick (title, candidates)
    feature = find (value)
    if not feature:
-      raise state.StateError (f"Unknown managed feature: {value}")
-   if feature.get ("state") not in allowed:
-      raise state.StateError (f"Feature {feature ['name']} is {feature.get ('state')}")
-   if live and feature.get ("worktree_state") != "live":
-      raise state.StateError (f"Feature {feature ['name']} worktree is {feature.get ('worktree_state')}")
+      raise state.StateError (f"Unknown feature: {value}")
+   if live and feature ["worktree_state"] != "live":
+      raise state.StateError (f"Feature {feature ['name']} has no worktree")
    return feature
 
 
 def current () -> dict [str, Any] | None:
-   root = Path (git.repo_root ()).resolve ()
-   return next ((feature for feature in all () if Path (str (feature ["path"])).resolve () == root), None)
+   root = str (Path (git.repo_root ()).resolve ())
+   return next ((feature for feature in all () if feature ["path"] == root), None)
 
 
 def _primary_path () -> str:
@@ -169,13 +135,25 @@ def _primary_path () -> str:
 
 
 def _managed_root () -> Path:
-   configured = config.get ("worktree:root")
+   configured = config.get ("worktrees")
    base = Path (configured).expanduser () if configured else Path.home () / ".worktrees"
    return base / git.repo_name ()
 
 
-def _default_path (name: str) -> Path:
-   return _managed_root () / identity.slug (name)
+def worktree_path (name: str) -> Path:
+   return (_managed_root () / identity.slug (name)).resolve ()
+
+
+def branch_for (name: str, ticket: str = "") -> str:
+   slug = identity.slug (name)
+   return f"{PREFIX}{ticket.upper ()}-{slug}" if ticket else f"{PREFIX}{slug}"
+
+
+def ticket_convention () -> bool:
+   """Return whether existing feature branches already carry ticket prefixes."""
+
+   branches = git.branch_names (f"{PREFIX}*")
+   return any (ticket_of (branch) for branch in branches)
 
 
 def _trunk_base (trunk: str) -> tuple [str, str]:
@@ -199,20 +177,14 @@ def _remote_oid (trunk: str) -> str:
    return lines [0].split () [0] if lines else ""
 
 
-def _descriptor (
-   name: str,
-   *,
-   actor_id: str,
-   span: list [str] | None = None,
-) -> dict [str, Any]:
+def _descriptor (name: str, *, ticket: str = "", span: list [str] | None = None) -> dict [str, Any]:
    slug = identity.slug (name)
-   feature_id = identity.resource ("feature", slug)
-   if find (name) or find (feature_id):
+   branch_name = branch_for (name, ticket)
+   if find (branch_name) or find (slug):
       raise state.StateError (f"Feature already exists: {name}")
-   branch_name = f"feature/{slug}"
    if git.ref_exists (branch_name):
       raise state.StateError (f"Branch already exists: {branch_name}")
-   feature_path = _default_path (slug).resolve ()
+   feature_path = worktree_path (slug)
    if feature_path.exists ():
       raise state.StateError (f"Worktree path already exists: {feature_path}")
    trunk = git.base_branch ()
@@ -226,14 +198,13 @@ def _descriptor (
    if not base_oid:
       raise state.StateError (f"Cannot resolve feature base: {base_ref}")
    return {
-      "feature_id": feature_id,
       "name": slug,
       "branch": branch_name,
       "path": str (feature_path),
       "base:ref": base_ref,
       "base:oid": base_oid,
       "target": trunk,
-      "created_by": actor_id,
+      "ticket": ticket.upper (),
       "span": list (span or []),
    }
 
@@ -241,45 +212,41 @@ def _descriptor (
 def plan_start (
    name: str,
    *,
-   actor_id: str,
+   ticket: str = "",
    span: list [str] | None = None,
 ) -> dict [str, Any]:
    """Create an immutable feature-start plan without reserving Git state."""
 
-   descriptor = _descriptor (
-      name,
-      actor_id=actor_id,
-      span=span,
-   )
+   descriptor = _descriptor (name, ticket=ticket, span=span)
    bound = {
       "base:oid": descriptor ["base:oid"],
       "branch": descriptor ["branch"],
-      "feature_id": descriptor ["feature_id"],
       "path": descriptor ["path"],
    }
    items = [
       { "action": "create_branch", "branch": descriptor ["branch"], "base": descriptor ["base:oid"] },
       { "action": "create_worktree", "path": descriptor ["path"] },
-      { "action": "claim", "held_by": actor_id },
    ]
+   warnings = []
+   if not ticket and ticket_convention ():
+      warnings.append ("Existing feature branches carry ticket prefixes; consider --ticket")
    return plans.build (
       "start",
       str (descriptor ["name"]),
-      scope={ "repository": git.repo_name (), "feature": descriptor ["feature_id"] },
+      scope={ "repository": git.repo_name (), "branch": descriptor ["branch"] },
       items=items,
-      fingerprint=fingerprint.values (bound),
-      payload_schema="imp.start-plan.v1",
+      fingerprint=fingerprints.values (bound),
+      payload_schema="imp.start-plan.v2",
       payload=descriptor,
+      warnings=warnings,
    )
 
 
 def _validate_start (plan: dict [str, Any]) -> dict [str, Any]:
    descriptor = dict (plan.get ("payload", {}))
-   if plan.get ("payload_schema") != "imp.start-plan.v1":
+   if plan.get ("payload_schema") != "imp.start-plan.v2":
       raise state.StateError ("Unsupported feature-start plan payload")
-   if find (str (descriptor ["name"])) or git.ref_exists (str (descriptor ["branch"])):
-      raise state.StateError ("Feature-start plan is stale")
-   if Path (str (descriptor ["path"])).exists ():
+   if git.ref_exists (str (descriptor ["branch"])) or Path (str (descriptor ["path"])).exists ():
       raise state.StateError ("Feature-start plan is stale")
    base_ref = str (descriptor ["base:ref"])
    if base_ref.startswith ("origin/"):
@@ -289,30 +256,16 @@ def _validate_start (plan: dict [str, Any]) -> dict [str, Any]:
    bound = {
       "base:oid": current_oid,
       "branch": descriptor ["branch"],
-      "feature_id": descriptor ["feature_id"],
       "path": descriptor ["path"],
    }
-   if fingerprint.values (bound) != plan.get ("fingerprint"):
+   if fingerprints.values (bound) != plan.get ("fingerprint"):
       plans.mark (plan, "stale", stale_at=state.now ())
       raise state.StateError ("Feature-start plan is stale")
    return descriptor
 
 
-def _new_claim (actor_id: str) -> dict [str, str]:
-   return { "held_by": actor_id, "expires_at": _expires_at () }
-
-
-def _discard_start (path: str, branch: str, feature_id: str):
-   if Path (path).exists ():
-      git.worktree_remove (path, force=True)
-   if git.ref_exists (branch):
-      git.delete_branch (branch, force=True)
-   _path (feature_id).unlink (missing_ok=True)
-   _legacy_claim_path (feature_id).unlink (missing_ok=True)
-
-
 def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
-   """Apply one exact feature-start plan and return the feature record."""
+   """Apply one exact feature-start plan and return the derived feature."""
 
    if plan.get ("state") != "ready":
       raise state.StateError (f"Plan is {plan.get ('state')}, not ready")
@@ -320,139 +273,113 @@ def apply_start (plan: dict [str, Any]) -> dict [str, Any]:
    if base_ref.startswith ("origin/"):
       target = str (plan ["payload"] ["target"])
       git.fetch (remote="origin", refspec=f"+refs/heads/{target}:refs/remotes/origin/{target}")
-   with state.lock ("features"):
-      descriptor = _validate_start (plan)
-      if base_ref.startswith ("origin/") and git.rev_parse (base_ref) != descriptor ["base:oid"]:
-         plans.mark (plan, "stale", stale_at=state.now ())
-         raise state.StateError ("Remote trunk moved after the feature plan")
-      path = str (descriptor ["path"])
-      branch = str (descriptor ["branch"])
-      feature_id = str (descriptor ["feature_id"])
-      try:
-         git.worktree_add (path, branch, str (descriptor ["base:oid"]))
-         record = {
-            "schema": "imp.feature.v3",
-            "feature_id": feature_id,
-            "name": descriptor ["name"],
-            "branch": branch,
-            "path": path,
-            "target": descriptor ["target"],
-            "created_at": state.now (),
-            "span": list (descriptor.get ("span") or []),
-            "state": "active",
-            "claim": _new_claim (str (descriptor ["created_by"])),
-         }
-         state.atomic_write (_path (feature_id), record)
-      except Exception:
-         _discard_start (path, branch, feature_id)
-         raise
+   descriptor = _validate_start (plan)
+   if base_ref.startswith ("origin/") and git.rev_parse (base_ref) != descriptor ["base:oid"]:
+      plans.mark (plan, "stale", stale_at=state.now ())
+      raise state.StateError ("Remote trunk moved after the feature plan")
+   path = str (descriptor ["path"])
+   branch = str (descriptor ["branch"])
+   try:
+      git.worktree_add (path, branch, str (descriptor ["base:oid"]))
+      span = list (descriptor.get ("span") or [])
+      if span:
+         git.config_set (span_key (str (descriptor ["name"])), " ".join (span))
+   except Exception:
+      discard (branch, path)
+      raise
    plans.mark (plan, "applied", applied_at=state.now ())
-   return { **record, "worktree_state": "live" }
+   return _derived (branch, path, str (descriptor ["target"]))
 
 
-def discard_start (feature: dict [str, Any]):
-   """Undo one applied feature start, so a partial span leaves nothing behind."""
+def discard (branch: str, path: str):
+   """Remove one feature's worktree, branch, and span order, leaving no trace."""
 
-   _discard_start (str (feature ["path"]), str (feature ["branch"]), str (feature ["feature_id"]))
-
-
-def claim (feature: dict [str, Any], actor_id: str) -> dict [str, Any]:
-   """Acquire or renew a feature's sole writer claim."""
-
-   feature_id = str (feature ["feature_id"])
-   with state.lock (identity.key (feature_id)):
-      record = _stored (_path (feature_id))
-      existing = record ["claim"]
-      if existing:
-         held_by = existing.get ("held_by")
-         if held_by != actor_id:
-            raise state.StateError (
-               f"Feature has an active claim held by {held_by} until {existing.get ('expires_at')}"
-            )
-      value = _new_claim (actor_id)
-      record ["claim"] = value
-      state.atomic_write (_path (feature_id), record)
-      return value
+   if path and Path (path).exists ():
+      _leave (path)
+      git.worktree_remove (path, force=True)
+   if git.ref_exists (branch):
+      git.delete_branch (branch, force=True)
+   git.config_unset (span_key (name_of (branch)))
 
 
-def assert_write_access (actor_id: str):
-   feature = current ()
-   if not feature:
-      return
-   claim (feature, actor_id)
+def to_attic (branch: str) -> str:
+   """Park one branch tip under an expiring attic ref before it is discarded."""
+
+   oid = git.rev_parse (branch)
+   if not oid:
+      return ""
+   ref = f"{ATTIC}/{name_of (branch)}/{state.stamp ()}"
+   git.update_ref_checked (ref, oid, "")
+   return ref
+
+
+def expire_attic (days: int = ATTIC_DAYS) -> list [str]:
+   """Drop attic refs older than the retention window and return what was removed."""
+
+   from datetime import datetime, timedelta, timezone
+
+   cutoff = (datetime.now (timezone.utc) - timedelta (days=days)).strftime ("%Y%m%dT%H%M%SZ")
+   removed = []
+   for ref, oid in git.refs (ATTIC).items ():
+      when = ref.rsplit ("/", 1) [-1]
+      if when < cutoff:
+         git.delete_ref_checked (ref, oid)
+         removed.append (ref)
+   return removed
 
 
 def _remove_fingerprint (feature: dict [str, Any]) -> str:
    path = str (feature ["path"])
-   return fingerprint.values ({
+   return fingerprints.values ({
       "branch": feature ["branch"],
       "branch_oid": git.rev_parse (str (feature ["branch"])),
-      "claim": feature.get ("claim"),
-      "feature_id": feature ["feature_id"],
       "path": path,
-      "status": git.capture ("-C", path, "status", "--porcelain=v1"),
+      "status": git.capture ("-C", path, "status", "--porcelain=v1") if path else "",
    })
 
 
-def plan_remove (
-   feature: dict [str, Any],
-   *,
-   actor_id: str,
-) -> dict [str, Any]:
-   """Plan removal of one clean managed worktree."""
+def plan_remove (feature: dict [str, Any]) -> dict [str, Any]:
+   """Plan removal of one clean feature worktree and its branch."""
 
    blockers = []
-   claim_record = feature.get ("claim")
-   if claim_record and claim_record.get ("held_by") != actor_id and not _is_expired (claim_record):
-      blockers.append (f"Active writer claim held by {claim_record.get ('held_by')}")
-   dirty = git.capture ("-C", str (feature ["path"]), "status", "--porcelain=v1")
-   if dirty:
-      blockers.append ("Worktree has uncommitted changes")
-   if feature.get ("worktree_state") != "live":
-      blockers.append (f"Worktree record is {feature.get ('worktree_state')}")
+   if feature ["worktree_state"] == "live":
+      dirty = git.capture ("-C", str (feature ["path"]), "status", "--porcelain=v1")
+      if dirty:
+         blockers.append ("Worktree has uncommitted changes")
    return plans.build (
       "worktree-remove",
       str (feature ["name"]),
-      scope={ "feature_id": feature ["feature_id"] },
+      scope={ "branch": feature ["branch"] },
       items=[
+         { "action": "attic", "branch": feature ["branch"] },
          { "action": "remove_worktree", "path": feature ["path"] },
          { "action": "delete_branch", "branch": feature ["branch"] },
-         { "action": "delete_record", "feature": feature ["feature_id"] },
       ],
       fingerprint=_remove_fingerprint (feature),
-      payload_schema="imp.remove-plan.v2",
-      payload={
-         "actor_id": actor_id,
-         "feature_id": feature ["feature_id"],
-      },
+      payload_schema="imp.remove-plan.v3",
+      payload={ "branch": feature ["branch"], "path": feature ["path"] },
       blockers=blockers,
    )
 
 
-def apply_remove (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
-   """Apply an exact clean-worktree removal plan."""
+def apply_remove (plan: dict [str, Any]) -> dict [str, Any]:
+   """Apply an exact clean-feature removal plan, parking the tip in the attic."""
 
    if plan.get ("state") != "ready":
       raise state.StateError (f"Plan is {plan.get ('state')}, not ready")
-   if plan.get ("payload_schema") != "imp.remove-plan.v2":
+   if plan.get ("payload_schema") != "imp.remove-plan.v3":
       raise state.StateError ("Unsupported worktree removal plan")
    payload = dict (plan ["payload"])
-   if payload.get ("actor_id") != actor_id:
-      raise state.StateError (f"Worktree removal plan belongs to {payload.get ('actor_id')}")
-   feature = find (str (payload ["feature_id"]))
+   feature = find (str (payload ["branch"]))
    if not feature or _remove_fingerprint (feature) != plan.get ("fingerprint"):
       plans.mark (plan, "stale", stale_at=state.now ())
       raise state.StateError ("Worktree removal plan is stale")
-   with state.lock (f"feature-{identity.key (str (feature ['feature_id']))}"):
-      _leave (str (feature ["path"]))
-      git.worktree_remove (str (feature ["path"]))
-      if not git.delete_branch (str (feature ["branch"]), force=True):
-         raise state.StateError (f"Could not delete branch {feature ['branch']}")
-      _legacy_claim_path (str (feature ["feature_id"])).unlink (missing_ok=True)
-      _path (str (feature ["feature_id"])).unlink (missing_ok=True)
-      plans.mark (plan, "applied", applied_at=state.now ())
+   attic_ref = to_attic (str (feature ["branch"]))
+   discard (str (feature ["branch"]), str (feature ["path"]))
+   plans.mark (plan, "applied", applied_at=state.now ())
    return {
-      "feature_id": feature ["feature_id"],
+      "attic": attic_ref,
+      "branch": feature ["branch"],
       "path": feature ["path"],
    }
 
@@ -462,33 +389,30 @@ def _leave (path: str):
 
    target = Path (path).resolve ()
    try:
-      current = Path.cwd ().resolve ()
+      current_path = Path.cwd ().resolve ()
    except OSError:
-      current = None
-   if current and (current == target or target in current.parents):
+      current_path = None
+   if current_path and (current_path == target or target in current_path.parents):
       os.chdir (_primary_path ())
 
 
-def complete (
-   feature: dict [str, Any],
-   *,
-   branch_oid: str = "",
-) -> dict [str, Any]:
-   feature_id = str (feature ["feature_id"])
+def complete (feature: dict [str, Any], *, branch_oid: str = ""):
+   """Remove one integrated feature's worktree, branch, and span order."""
+
+   import subprocess
+
    branch = str (feature ["branch"])
    if branch_oid and git.rev_parse (branch) != branch_oid:
       raise state.StateError (f"Feature branch changed: {branch}")
-   with state.lock (f"feature-{identity.key (feature_id)}"):
-      if Path (str (feature ["path"])).exists ():
-         if not git.clean_at (str (feature ["path"])):
-            raise state.StateError ("Completed feature worktree became dirty")
-         _leave (str (feature ["path"]))
-         git.worktree_remove (str (feature ["path"]), force=True)
-      if git.ref_exists (branch):
-         try:
-            git.delete_branch_checked (branch, branch_oid or git.rev_parse (branch))
-         except subprocess.CalledProcessError as error:
-            raise state.StateError (f"Integrated branch changed: {branch}") from error
-      _legacy_claim_path (feature_id).unlink (missing_ok=True)
-      _path (feature_id).unlink ()
-   return { **feature, "state": "completed", "completed_at": state.now () }
+   path = str (feature ["path"])
+   if path and Path (path).exists ():
+      if not git.clean_at (path):
+         raise state.StateError ("Completed feature worktree became dirty")
+      _leave (path)
+      git.worktree_remove (path, force=True)
+   if git.ref_exists (branch):
+      try:
+         git.delete_branch_checked (branch, branch_oid or git.rev_parse (branch))
+      except subprocess.CalledProcessError as error:
+         raise state.StateError (f"Integrated branch changed: {branch}") from error
+   git.config_unset (span_key (str (feature ["name"])))

@@ -1,10 +1,11 @@
 import shutil
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import typer
 
-from imp_git import ai, config, console, git, repo, result, runtime
+from imp_git import ai, config, console, git, result, runtime
 
 TOOLS = [
    { "command": "git", "name": "git", "required": True, "url": "https://git-scm.com" },
@@ -46,31 +47,41 @@ def _report (tools: list [dict [str, Any]]):
       console.item (str (tool ["url"]))
 
 
-def _show_settings (settings: dict [str, Any], policy: dict [str, Any], inside: bool):
-   console.label ("Machine configuration")
+def _show_settings (settings: dict [str, Any]):
+   console.label ("Configuration")
    console.table ([ "Key", "Value" ], [ [ key, str (value) ] for key, value in sorted (settings.items ()) ])
-   console.item (str (config.path ()))
-   console.muted ("  Edit that file by hand; imp has no config command")
+   console.muted ("  Stored in Git configuration: git config [--global] imp.<key> <value>")
    console.out.print ()
-   if not inside:
-      return
-   console.label ("Repository policy")
-   if policy:
-      console.table ([ "Key", "Value" ], [ [ key, str (value) ] for key, value in sorted (policy.items ()) ])
-      console.item (str (repo.path ()))
-   else:
-      console.muted ("  None; this repository uses the defaults")
-   console.out.print ()
+
+
+def _sweep_legacy () -> str:
+   """Remove pre-derivation state directories; every fact now lives in Git itself."""
+
+   if not git.succeeds ("rev-parse", "--git-dir"):
+      return ""
+   common = Path (git.common_dir ())
+   if not common.is_absolute ():
+      common = Path (git.repo_root ()) / common
+   legacy = common.resolve () / "imp"
+   if not legacy.is_dir ():
+      return ""
+   shutil.rmtree (legacy, ignore_errors=True)
+   return str (legacy)
 
 
 def doctor ():
-   """Check Git and configuration, then ping the AI provider."""
+   """Check tools and configuration, ping the AI provider, and sweep legacy state.
+
+   Reports git, gh, and AI provider availability, shows the effective imp.* Git
+   configuration, and sends one fixed ping to the provider. Inside a repository it
+   also deletes any pre-Git-native .git/imp state directory. The ping is the only
+   thing sent anywhere.
+   """
 
    machine = runtime.options.json
    tools = _inspect ()
-   settings = config.load ()
-   inside = git.succeeds ("rev-parse", "--git-dir")
-   policy = repo.load () if inside else {}
+   settings = config.snapshot ()
+   swept = _sweep_legacy ()
    missing = [ tool ["name"] for tool in tools if tool ["required"] and not tool ["present"] ]
    provider_found = any (tool ["present"] for tool in tools if tool ["name"] in PROVIDERS)
 
@@ -80,7 +91,9 @@ def doctor ():
       console.out.print ()
       if not provider_found:
          console.err ("No AI provider found (need claude or ollama)")
-      _show_settings (settings, policy, inside)
+      _show_settings (settings)
+      if swept:
+         console.muted (f"Removed legacy state: {swept}")
 
    responding = None
    if provider_found:
@@ -99,15 +112,13 @@ def doctor ():
    ok = not missing and provider_found and responding is not False
    data = {
       "configuration": settings,
-      "configuration_path": str (config.path ()),
+      "legacy_removed": swept,
       "ok": ok,
-      "policy": policy,
       "provider_responding": responding,
-      "repository": inside,
       "tools": tools,
    }
    if machine:
-      result.emit ("imp.doctor.v1", "imp doctor", data, json_output=True)
+      result.emit ("imp.doctor.v2", "imp doctor", data, json_output=True)
       if not ok:
          raise typer.Exit (1)
       return data

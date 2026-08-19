@@ -7,15 +7,13 @@ import typer
 from imp_git import features, git, integration, state
 from imp_git.commands import done as done_command
 from imp_git.commands import release as release_command
-from tests.conftest import commit_file
-
-ACTOR = "actor:human:anders"
+from tests.conftest import commit_file, git_run
 
 
 def _feature (name: str = "checkout") -> dict:
-   feature = features.apply_start (features.plan_start (name, actor_id=ACTOR))
+   feature = features.apply_start (features.plan_start (name))
    commit_file (Path (feature ["path"]), f"{name}.txt", f"{name}\n", f"feat: add {name}")
-   return features.find (feature ["feature_id"])
+   return features.find (name)
 
 
 class TestIntegration:
@@ -44,8 +42,16 @@ class TestIntegration:
 
       assert receipt ["candidate_oid"] == git.rev_parse ("main")
       assert git.capture ("show", "main:checkout.txt").strip () == "checkout"
-      assert features.find (feature ["feature_id"]) is None
+      assert features.find ("checkout") is None
       assert not Path (feature ["path"]).exists ()
+
+   def test_done_stamps_the_trunk_reflog (self, repo):
+      feature = _feature ()
+
+      integration.apply_done (integration.plan_done (feature))
+
+      entries = git.reflog_entries ("refs/heads/main")
+      assert entries [0] ["subject"] == "imp done: feature/checkout"
 
    def test_apply_refuses_a_moved_target (self, repo):
       feature = _feature ()
@@ -55,22 +61,36 @@ class TestIntegration:
       with pytest.raises (state.StateError, match="target moved"):
          integration.apply_done (plan)
 
-      assert features.find (feature ["feature_id"]) ["state"] == "active"
+      assert features.find ("checkout") is not None
+
+   def test_configured_checks_come_from_git_config (self, repo):
+      git_run (repo, "config", "--add", "imp.check", "pytest -q")
+
+      assert integration.configured_checks () == [ { "name": "pytest -q", "run": [ "pytest", "-q" ] } ]
+
+      git_run (repo, "config", "--replace-all", "imp.check", "none")
+
+      assert integration.configured_checks () == []
+
+   def test_checks_are_detected_from_the_project (self, repo):
+      (repo / "package.json").write_text ('{"scripts": {"test": "node test.js"}}')
+
+      assert integration.configured_checks () == [ { "name": "npm test", "run": [ "npm", "test" ] } ]
 
    def test_done_all_integrates_every_feature_in_order (self, repo):
-      first = _feature ("first")
-      second = _feature ("second")
+      _feature ("first")
+      _feature ("second")
 
       receipt = done_command.done (all_features=True)
 
       assert receipt ["completed"] == [ "first", "second" ]
       assert git.capture ("show", "main:first.txt").strip () == "first"
       assert git.capture ("show", "main:second.txt").strip () == "second"
-      assert features.find (first ["feature_id"]) is None
-      assert features.find (second ["feature_id"]) is None
+      assert features.find ("first") is None
+      assert features.find ("second") is None
 
    def test_done_all_changes_nothing_when_one_feature_is_dirty (self, repo):
-      first = _feature ("first")
+      _feature ("first")
       second = _feature ("second")
       target = git.rev_parse ("main")
       (Path (second ["path"]) / "loose.txt").write_text ("dirty\n")
@@ -79,8 +99,8 @@ class TestIntegration:
          done_command.done (all_features=True)
 
       assert git.rev_parse ("main") == target
-      assert features.find (first ["feature_id"])
-      assert features.find (second ["feature_id"])
+      assert features.find ("first")
+      assert features.find ("second")
 
 
 class TestRelease:

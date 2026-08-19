@@ -2,7 +2,7 @@ from typing import Annotated, Any
 
 import typer
 
-from imp_git import approval, console, fingerprint, gh, git, plans, runtime, state, validate
+from imp_git import approval, console, fingerprint, gh, git, plans, state, validate
 
 
 def _fingerprint (payload: dict [str, Any]) -> str:
@@ -82,9 +82,15 @@ def _show (plan: dict [str, Any]):
 
 
 def pr (
-   into: Annotated [str, typer.Option ("--into", help="Target branch")] = "",
+   into: Annotated [str, typer.Option ("--into", help="Target branch; defaults to trunk")] = "",
 ):
-   """Push the current branch and open or update its pull request."""
+   """Push the current branch and open or update its GitHub pull request.
+
+   The title is the branch tip's subject and the body lists every commit subject since
+   the base, so a ticket in the subjects carries through. Refuses text containing AI
+   attribution or actor IDs. Requires origin and the GitHub CLI; always confirms, since
+   it writes to a remote. Deterministic; sends nothing to AI.
+   """
 
    git.require ()
    try:
@@ -93,15 +99,11 @@ def pr (
       console.fatal (str (error))
    return approval.run (
       plan,
-      command="imp pr",
       noun="pull request",
       confirm="Push and open this pull request?",
-      plan_schema="imp.pr-plan.v1",
       result_schema="imp.pr.v1",
       apply=apply_pr,
       show=_show,
       success=lambda data: console.success (f"Pull request ready: {data ['url']}"),
-      dry_run=runtime.options.dry_run,
-      yes=runtime.options.yes,
-      json_output=runtime.options.json,
+      destructive=True,
    )

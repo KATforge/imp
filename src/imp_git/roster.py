@@ -4,7 +4,7 @@ from typing import Any
 
 from imp_git import features, git, workspace
 
-_ORDER = { "open": 0, "dirty": 1, "missing": 2 }
+_ORDER = { "open": 0, "dirty": 1, "branch-only": 2 }
 
 
 def _age (value: str) -> str:
@@ -23,29 +23,25 @@ def _age (value: str) -> str:
 
 def _member (feature: dict [str, Any], alias: str, repository: str) -> dict [str, Any]:
    path = str (feature ["path"])
-   branch = str (feature ["branch"])
-   target = str (feature.get ("target") or git.base_branch ())
-   live = feature.get ("worktree_state") == "live"
+   live = feature ["worktree_state"] == "live"
    dirty = 0 if not live else len (git.run_at (path, "status", "--porcelain", check=False).stdout.splitlines ())
-   claim = feature.get ("claim") or {}
 
    return {
       "alias": alias,
-      "branch": branch,
-      "condition": "missing" if not live else "dirty" if dirty else "open",
+      "branch": feature ["branch"],
+      "condition": "branch-only" if not live else "dirty" if dirty else "open",
       "dirty": dirty,
-      "feature_id": feature ["feature_id"],
+      "name": feature ["name"],
       "path": path,
       "repository": repository,
-      "repository_name": git.repo_name (),
-      "target": target,
-      "worktree_state": feature.get ("worktree_state"),
-      "writer": claim.get ("held_by", "") if claim else "",
+      "target": feature ["target"],
+      "ticket": feature ["ticket"],
+      "worktree_state": feature ["worktree_state"],
    }
 
 
 def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
-   """Every open managed feature across the workspace, grouped by name."""
+   """Every open feature across the workspace, derived from Git and grouped by name."""
 
    grouped: dict [str, dict [str, Any]] = {}
 
@@ -54,19 +50,18 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
          continue
       with workspace.inside (repository):
          for feature in features.all ():
-            if feature.get ("state") not in { "active", "awaiting-merge" }:
-               continue
             name = str (feature ["name"])
             entry = grouped.setdefault (name, {
                "name": name,
-               "created_at": feature.get ("created_at", ""),
+               "created_at": feature ["created_at"],
                "members": [],
                "span": [],
+               "ticket": feature ["ticket"],
             })
-            entry ["span"] = entry ["span"] or list (feature.get ("span") or [])
+            entry ["span"] = entry ["span"] or list (feature ["span"])
             entry ["members"].append (_member (feature, alias, repository))
-            if str (feature.get ("created_at", "")) < str (entry ["created_at"]):
-               entry ["created_at"] = feature.get ("created_at", "")
+            if str (feature ["created_at"]) < str (entry ["created_at"]):
+               entry ["created_at"] = feature ["created_at"]
 
    values = []
    for entry in grouped.values ():
@@ -76,7 +71,6 @@ def collect (value: dict [str, Any]) -> list [dict [str, Any]]:
       )
       entry ["age"] = _age (str (entry ["created_at"]))
       entry ["repositories"] = sorted (member ["alias"] for member in entry ["members"])
-      entry ["writers"] = sorted ({ member ["writer"] for member in entry ["members"] if member ["writer"] })
       entry ["members"] = ordered_members (entry)
       values.append (entry)
 
@@ -111,8 +105,9 @@ def repositories (value: dict [str, Any]) -> list [dict [str, Any]]:
 def ordered_members (entry: dict [str, Any]) -> list [dict [str, Any]]:
    """Return one feature's members in the order its span named, then by alias.
 
-   A spanning feature records that order in every member, so integration follows the
-   dependency the caller declared. Anything unnamed sorts after it.
+   A spanning feature records that order as imp.span.<name>.order in every member,
+   so integration follows the dependency the caller declared. Anything unnamed
+   sorts after it.
    """
 
    rank = { alias: index for index, alias in enumerate (entry.get ("span") or []) }

@@ -35,28 +35,25 @@ def commit_count (repo):
 
 @pytest.fixture (autouse=True)
 def _reset_process_state (tmp_path_factory, monkeypatch):
-   """Isolate cached state, machine configuration, and managed worktrees per test.
+   """Isolate Git configuration and managed worktrees per test.
 
    The home sits outside any test's `tmp_path`, because several fixtures make that
-   directory the repository itself and would see the config file as dirty work.
+   directory the repository itself and would see stray files as dirty work. The
+   isolated global Git config keeps the user's real imp.* settings out and pins the
+   managed worktree root.
    """
-   from imp_git import config
-   from imp_git import repo as repo_mod
 
    home = tmp_path_factory.mktemp ("imp-home")
+   gitconfig = home / "gitconfig"
+   gitconfig.write_text (f"[imp]\n\tworktrees = {home / 'worktrees'}\n")
    monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
    monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)
-   monkeypatch.setenv ("XDG_CONFIG_HOME", str (home / "config"))
-   monkeypatch.setenv ("XDG_STATE_HOME", str (home / "state"))
-   config.load.cache_clear ()
-   config.save ({ "worktree:root": str (home / "worktrees") })
-   repo_mod.load.cache_clear ()
+   monkeypatch.setenv ("GIT_CONFIG_GLOBAL", str (gitconfig))
+   monkeypatch.setenv ("GIT_CONFIG_SYSTEM", os.devnull)
    runtime.configure (yes=True)
    try:
       yield
    finally:
-      config.load.cache_clear ()
-      repo_mod.load.cache_clear ()
       runtime.reset ()
 
 
@@ -110,9 +107,9 @@ def repo_with_origin (tmp_path):
    """Repo with an 'origin' remote pointing at a bare clone; primary branch 'master'.
 
    Mirrors a real working clone: there's a local 'master' tracking 'origin/master',
-   plus a feature branch 'feat/wip' checked out at HEAD with a divergent commit.
+   plus a working branch 'feat/wip' checked out at HEAD with a divergent commit.
    Used to verify worktree-add defaults branch off origin/master, not whatever
-   feature branch the host worktree happens to be on.
+   branch the host worktree happens to be on.
    """
 
    origin = tmp_path / "origin.git"

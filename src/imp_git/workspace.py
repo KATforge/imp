@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from imp_git import git, repo, state
+from imp_git import git, state
 
 SKIP = {
    ".git", ".venv", "__pycache__", "build", "dist", "node_modules", "obsolete",
@@ -112,9 +112,7 @@ def inside (repository: str) -> Iterator [None]:
 
    previous = Path.cwd ()
    os.chdir (repository)
-   repo.load.cache_clear ()
    try:
       yield
    finally:
       os.chdir (previous)
-      repo.load.cache_clear ()

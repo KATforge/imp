@@ -258,11 +258,14 @@ def is_merged (branch_name: str, into: str) -> bool:
    result = _run ("merge-base", "--is-ancestor", branch_name, into, check=False)
    return result.returncode == 0
 
-def update_ref_checked (name: str, ref: str, previous: str):
+def update_ref_checked (name: str, ref: str, previous: str, message: str = ""):
    """Move one ref only when it still names the expected object."""
 
    expected = previous or null_oid ()
-   _run ("update-ref", name, ref, expected)
+   args = [ "update-ref" ]
+   if message:
+      args.extend ([ "-m", message ])
+   _run (*args, name, ref, expected)
 
 def delete_ref_checked (name: str, previous: str):
    """Delete one ref only when it still names the expected object."""
@@ -525,3 +528,66 @@ def parent (ref: str = "HEAD") -> str:
 def ref_exists (ref: str) -> bool:
    result = _run ("rev-parse", "--verify", "--quiet", ref, check=False)
    return result.returncode == 0
+
+def branch_names (pattern: str) -> list [str]:
+   output = _run (
+      "for-each-ref", "--format=%(refname:short)", f"refs/heads/{pattern}", check=False,
+   ).stdout
+   return [ line for line in output.splitlines () if line ]
+
+def refs (prefix: str) -> dict [str, str]:
+   """Map every ref below one prefix to its object ID."""
+
+   output = _run ("for-each-ref", "--format=%(refname)%00%(objectname)", prefix, check=False).stdout
+   entries = {}
+   for line in output.splitlines ():
+      name, _, oid = line.partition ("\0")
+      if name and oid:
+         entries [name] = oid
+   return entries
+
+def reflog_entries (ref: str) -> list [dict [str, str]]:
+   """Return one ref's reflog as new-value, subject, and entry date, newest first."""
+
+   output = _run (
+      "log", "-g", "--date=iso-strict", "--format=%H%x00%gs%x00%gd", ref, check=False,
+   ).stdout
+   entries = []
+   for line in output.splitlines ():
+      oid, _, rest = line.partition ("\0")
+      subject, _, selector = rest.partition ("\0")
+      date = selector [selector.find ("{") + 1:selector.rfind ("}")] if "{" in selector else ""
+      entries.append ({ "oid": oid, "subject": subject, "date": date })
+   return entries
+
+def worktree_add_existing (path: str, branch: str):
+   """Attach an existing branch to a new worktree."""
+
+   _run ("worktree", "add", path, branch)
+
+def config_get (key: str) -> str:
+   result = _run ("config", "--get", key, check=False)
+   return result.stdout.strip () if result.returncode == 0 else ""
+
+def config_get_all (key: str) -> list [str]:
+   result = _run ("config", "--get-all", key, check=False)
+   if result.returncode != 0:
+      return []
+   return [ line for line in result.stdout.splitlines () if line ]
+
+def config_set (key: str, value: str):
+   _run ("config", key, value)
+
+def config_unset (key: str):
+   _run ("config", "--unset-all", key, check=False)
+
+def config_entries (pattern: str) -> dict [str, str]:
+   """Return every configuration entry whose key matches one regexp."""
+
+   result = _run ("config", "--get-regexp", pattern, check=False)
+   entries = {}
+   for line in result.stdout.splitlines ():
+      key, _, value = line.partition (" ")
+      if key:
+         entries [key] = value
+   return entries

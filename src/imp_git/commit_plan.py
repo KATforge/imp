@@ -23,24 +23,27 @@ def _candidate (paths: list [str], mode: str) -> tuple [str, str]:
       index.unlink (missing_ok=True)
 
 
-def create (*, actor_id: str) -> dict [str, Any]:
+def create (*, message: str = "") -> dict [str, Any]:
    mode, selected = _scope ()
    staged = git.changed_paths (staged=True)
    paths = git.committable_paths (selected)
    if not paths:
       raise state.StateError ("Nothing selected to commit")
    tree, diff = _candidate (paths, mode)
-   message = ai.commit_message (prompts.commit (ai.truncate (diff), git.branch ()))
+   if message:
+      if not validate.commit (message):
+         raise state.StateError ("Message must use Conventional Commits")
+   else:
+      message = ai.commit_message (prompts.commit (ai.truncate (diff), git.branch ()))
    feature = features.current ()
    branch = git.branch ()
    branch_ref = git.current_ref ()
    if not branch_ref:
       raise state.StateError ("Commit planning requires an attached branch")
    payload = {
-      "actor_id": actor_id,
       "branch": branch,
       "branch_ref": branch_ref,
-      "feature_id": feature.get ("feature_id") if feature else None,
+      "feature": feature ["branch"] if feature else None,
       "head_oid": git.rev_parse ("HEAD"),
       "message": message,
       "mode": mode,
@@ -55,32 +58,29 @@ def create (*, actor_id: str) -> dict [str, Any]:
    return plans.build (
       "commit",
       str (feature ["name"]) if feature else identity.slug (branch or "detached"),
-      scope={ "branch": branch, "feature_id": payload ["feature_id"], "mode": mode },
+      scope={ "branch": branch, "feature": payload ["feature"], "mode": mode },
       items=[ { "action": "commit", "message": message, "paths": paths } ],
       fingerprint=fingerprint.repository (),
-      payload_schema="imp.commit-plan.v3",
+      payload_schema="imp.commit-plan.v4",
       payload=payload,
       warnings=hygiene.inspect (paths),
    )
 
 
-def _payload (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
+def _payload (plan: dict [str, Any]) -> dict [str, Any]:
    if plan.get ("state") != "ready":
       raise state.StateError (f"Plan is {plan.get ('state')}, not ready")
-   if plan.get ("payload_schema") != "imp.commit-plan.v3":
+   if plan.get ("payload_schema") != "imp.commit-plan.v4":
       raise state.StateError ("Commit plan uses an older format; create a new plan")
    if fingerprint.repository () != plan.get ("fingerprint"):
       plans.mark (plan, "stale", stale_at=state.now ())
       raise state.StateError ("Commit plan is stale because repository state changed")
    payload = dict (plan ["payload"])
-   if payload.get ("actor_id") != actor_id:
-      raise state.StateError (f"Commit plan belongs to {payload.get ('actor_id')}")
    if git.current_ref () != payload ["branch_ref"] or git.rev_parse ("HEAD") != payload ["head_oid"]:
       plans.mark (plan, "stale", stale_at=state.now ())
       raise state.StateError ("Commit plan branch or HEAD changed")
    if not validate.commit (str (payload ["message"])):
       raise state.StateError ("Commit plan contains an invalid message")
-   features.assert_write_access (actor_id)
    return payload
 
 
@@ -107,17 +107,16 @@ def _move (payload: dict [str, Any], candidate: str, backup):
       raise
 
 
-def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
-   payload = _payload (plan, actor_id)
+def apply (plan: dict [str, Any]) -> dict [str, Any]:
+   payload = _payload (plan)
    backup = state.temporary ("real-index-")
    try:
-      with state.lock (f"commit-{identity.slug (str (payload ['branch']))}"):
-         candidate = git.commit_tree (
-            str (payload ["tree_oid"]), str (payload ["head_oid"]), str (payload ["message"]),
-         )
-         if fingerprint.repository () != plan ["fingerprint"]:
-            raise state.StateError ("Repository state changed while the commit was prepared")
-         _move (payload, candidate, backup)
+      candidate = git.commit_tree (
+         str (payload ["tree_oid"]), str (payload ["head_oid"]), str (payload ["message"]),
+      )
+      if fingerprint.repository () != plan ["fingerprint"]:
+         raise state.StateError ("Repository state changed while the commit was prepared")
+      _move (payload, candidate, backup)
    except Exception as error:
       value = "stale" if fingerprint.repository () != plan ["fingerprint"] else "failed"
       plans.mark (plan, value, failed_at=state.now (), error=str (error))
@@ -126,4 +125,4 @@ def apply (plan: dict [str, Any], actor_id: str) -> dict [str, Any]:
       backup.unlink (missing_ok=True)
    commit = { "oid": candidate, "message": payload ["message"], "paths": payload ["paths"] }
    plans.mark (plan, "applied", applied_at=state.now (), commit_oids=[ candidate ])
-   return { "branch": payload ["branch"], "commits": [ commit ], "feature_id": payload ["feature_id"] }
+   return { "branch": payload ["branch"], "commits": [ commit ], "feature": payload ["feature"] }

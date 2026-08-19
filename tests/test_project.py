@@ -1,47 +1,55 @@
-import json
-
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from imp_git import identity
-from imp_git import repo as repo_mod
+from imp_git import config, identity
 from imp_git.main import app
+from tests.conftest import git_run
 
 
-class TestRepoConfig:
+class TestConfiguration:
 
-   def test_missing_returns_defaults (self, repo):
-      assert repo_mod.load () == {}
-      assert repo_mod.get ("check:commands", []) == []
+   def test_defaults_need_no_configuration (self, repo):
+      assert config.get ("provider") == "claude"
+      assert config.get ("fastmodel") == "haiku"
+      assert config.get ("smartmodel") == "sonnet"
 
-   def test_reads_imp (self, repo):
-      (repo / ".imp").write_text (json.dumps ({
-         "check:commands": [ { "name": "test", "run": [ "pytest" ] } ],
-      }))
-      repo_mod.load.cache_clear ()
+   def test_git_config_overrides_defaults (self, repo):
+      git_run (repo, "config", "imp.provider", "ollama")
 
-      assert repo_mod.get ("check:commands") == [ { "name": "test", "run": [ "pytest" ] } ]
+      assert config.get ("provider") == "ollama"
+      assert config.snapshot () ["provider"] == "ollama"
 
-   def test_invalid_json_ignored (self, repo):
-      (repo / ".imp").write_text ("{ not json")
-      repo_mod.load.cache_clear ()
+   def test_check_commands_are_multi_valued (self, repo):
+      git_run (repo, "config", "--add", "imp.check", "pytest -q")
+      git_run (repo, "config", "--add", "imp.check", "ruff check")
 
-      assert repo_mod.load () == {}
+      assert config.get_all ("check") == [ "pytest -q", "ruff check" ]
 
 
 class TestIdentity:
 
    def test_actor_uses_native_agent_session (self, monkeypatch):
-      monkeypatch.setattr (identity.config, "get", lambda _key: None)
+      monkeypatch.setattr (identity.config, "get", lambda _key: "")
       monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
       monkeypatch.setenv ("CODEX_THREAD_ID", "Thread 123")
 
       assert identity.actor () == "actor:codex:thread-123"
+      assert identity.is_agent ()
 
       monkeypatch.delenv ("CODEX_THREAD_ID")
       monkeypatch.setenv ("CLAUDE_SESSION_ID", "Session 456")
 
       assert identity.actor () == "actor:claude:session-456"
+
+   def test_the_actor_ignores_the_environment (self, monkeypatch):
+      monkeypatch.setenv ("IMP_ACTOR_ID", "actor:human:someone-else")
+      monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)
+      monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
+      monkeypatch.setattr (identity.config, "get", lambda _key: "")
+
+      assert identity.actor ().startswith ("actor:human:")
+      assert "someone-else" not in identity.actor ()
+      assert not identity.is_agent ()
 
 
 class TestCommandsRegistered:
@@ -56,9 +64,24 @@ class TestCommandsRegistered:
       result = self._help ("start")
       assert result.exit_code == 0
       assert "--repo" in self._options ("start")
+      assert "--ticket" in self._options ("start")
 
    def test_commit (self):
       result = self._help ("commit")
+      assert result.exit_code == 0
+
+   def test_review (self):
+      result = self._help ("review")
+      assert result.exit_code == 0
+      assert "--ask" in self._options ("review")
+
+   def test_cleanup (self):
+      result = self._help ("cleanup")
+      assert result.exit_code == 0
+      assert "--keep" in self._options ("cleanup")
+
+   def test_undo (self):
+      result = self._help ("undo")
       assert result.exit_code == 0
 
    def test_worktree (self):
@@ -69,57 +92,3 @@ class TestCommandsRegistered:
       result = self._help ("doctor")
       assert result.exit_code == 0
       assert "--agents" not in self._options ("doctor")
-
-
-class TestMachineConfiguration:
-
-   def test_defaults_do_not_create_a_file (self, tmp_path, monkeypatch):
-      from imp_git import config
-
-      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path))
-      config.load.cache_clear ()
-      target = tmp_path / "imp" / "config.json"
-
-      assert not target.exists ()
-      settings = config.load ()
-
-      assert not target.exists ()
-      assert settings ["provider"] == "claude"
-      config.load.cache_clear ()
-
-   def test_an_existing_file_is_never_overwritten (self, tmp_path, monkeypatch):
-      from imp_git import config
-
-      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path))
-      target = tmp_path / "imp" / "config.json"
-      target.parent.mkdir (parents=True)
-      target.write_text (json.dumps ({ "schema": "imp.machine.v1", "provider": "ollama" }))
-      config.load.cache_clear ()
-
-      assert config.load () ["provider"] == "ollama"
-      assert json.loads (target.read_text ()) ["provider"] == "ollama"
-      config.load.cache_clear ()
-
-   def test_machine_configuration_ignores_the_environment (self, tmp_path, monkeypatch):
-      from imp_git import config
-
-      monkeypatch.setenv ("XDG_CONFIG_HOME", str (tmp_path))
-      monkeypatch.setenv ("IMP_AI_PROVIDER", "ollama")
-      monkeypatch.setenv ("IMP_AI_MODEL_FAST", "llama3.2")
-      config.load.cache_clear ()
-
-      assert config.load () ["provider"] == "claude"
-      assert config.load () ["model:fast"] == "haiku"
-      config.load.cache_clear ()
-
-   def test_the_actor_ignores_the_environment (self, monkeypatch):
-      from imp_git import identity, runtime
-
-      monkeypatch.setenv ("IMP_ACTOR_ID", "actor:human:someone-else")
-      monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)
-      monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
-      monkeypatch.setattr (identity.config, "get", lambda _key: None)
-      runtime.configure ()
-
-      assert identity.actor ().startswith ("actor:human:")
-      assert "someone-else" not in identity.actor ()

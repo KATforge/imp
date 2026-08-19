@@ -1,140 +1,59 @@
-from pathlib import Path
-from typing import Annotated
+import re
+from typing import Annotated, Any
 
 import typer
 
-from imp_git import approval, console, features, git, identity, plans, runtime, state, workspace
+from imp_git import approval, console, features, git, plans, state, workspace
+
+_TICKET = re.compile (r"^[A-Za-z]+-[0-9]+$")
 
 
-def _show (plan: dict):
-   payload = plan ["payload"]
-   console.header ("Start feature")
-   console.table (
-      [ "Field", "Value" ],
-      [
-         [ "Feature", str (payload ["name"]) ],
-         [ "Branch", str (payload ["branch"]) ],
-         [ "Base", f"{payload ['base:ref']} ({str (payload ['base:oid']) [:10]})" ],
-         [ "Worktree", str (payload ["path"]) ],
-         [ "Writer", str (payload ["created_by"]) ],
-      ],
-   )
-
-
-def start (
-   name: Annotated [str, typer.Argument (help="Readable feature or lane name")] = "",
-   repos: Annotated [
-      list [str] | None,
-      typer.Option ("--repo", help="Workspace repository to span; repeat as needed"),
-   ] = None,
-):
-   """Create and claim an isolated feature worktree."""
-
-   actor_id = runtime.options.actor_id
-   dry_run = runtime.options.dry_run
-   json_output = runtime.options.json
-   yes = runtime.options.yes
-
+def _members (repos: list [str] | None) -> tuple [str, list [tuple [str, str]]]:
    if repos:
-      return _span (
-         name, repos, actor_id=identity.actor (actor_id), dry_run=dry_run, yes=yes, json_output=json_output,
-      )
-
+      value = workspace.here ()
+      if not value:
+         raise state.StateError ("No repositories found here")
+      return str (value ["name"]), [ workspace.match (value, alias) for alias in repos ]
    git.require ()
-
-   try:
-      if not name:
-         raise state.StateError ("Feature name is required")
-      plan = features.plan_start (
-         name,
-         actor_id=identity.actor (actor_id),
-      )
-   except (state.StateError, ValueError) as error:
-      console.fatal (str (error))
-
-   def _success (feature: dict):
-      console.success (f"Feature ready: {feature ['name']}")
-      console.hint (f"cd {feature ['path']}")
-
-   return approval.run (
-      plan,
-      command="imp start",
-      noun="start",
-      confirm="Create this feature?",
-      plan_schema="imp.start-plan.v1",
-      result_schema="imp.start.v1",
-      apply=features.apply_start,
-      show=_show,
-      success=_success,
-      dry_run=dry_run,
-      yes=yes,
-      json_output=json_output,
-      wrap="feature",
-   )
+   return git.repo_name (), [ (git.repo_name (), git.repo_root ()) ]
 
 
-def _show_span (plan: dict):
-   console.header (f"Start feature: {plan ['label']}")
-   console.table (
-      [ "Repository", "Branch", "Worktree" ],
-      [
-         [
-            str (member ["alias"]),
-            str (member ["plan"] ["payload"] ["branch"]),
-            str (member ["plan"] ["payload"] ["path"]),
-         ]
-         for member in plan ["payload"] ["members"]
-      ],
-   )
-   for blocker in plan.get ("blockers", []):
-      console.err (str (blocker))
-
-
-def _plan_span (
-   name: str,
-   repos: list [str],
-   *,
-   actor_id: str,
-) -> dict:
-   """Plan one feature across several repositories, in the order the caller named."""
-
-   if not name:
-      raise state.StateError ("Feature name is required")
-   value = workspace.here ()
-   if not value:
-      raise state.StateError (f"No repository here and none below {Path.cwd ()}")
-
-   slug = identity.slug (name)
-   members = [ workspace.match (value, alias) for alias in repos ]
+def _plan (name: str, ticket: str, scope_name: str, members: list [tuple [str, str]]) -> dict [str, Any]:
    order = [ alias for alias, _ in members ]
+   span = order if len (members) > 1 else None
    children = []
    blockers = []
+   warnings = []
    for alias, repository in members:
       with workspace.inside (repository):
-         child = features.plan_start (
-            name, actor_id=actor_id, span=order,
-         )
+         child = features.plan_start (name, ticket=ticket, span=span)
       blockers.extend (f"{alias}: {reason}" for reason in child ["blockers"])
+      warnings.extend (f"{alias}: {reason}" for reason in child ["warnings"])
       children.append ({ "alias": alias, "repository": repository, "plan": child })
-
    return plans.build (
       "start",
-      slug,
-      scope={ "feature": identity.resource ("feature", slug), "workspace": value ["name"] },
+      str (children [0] ["plan"] ["payload"] ["name"]),
+      scope={ "workspace": scope_name },
       items=[
          { "action": "start", "alias": child ["alias"], "branch": child ["plan"] ["payload"] ["branch"] }
          for child in children
       ],
-      payload_schema="imp.span-plan.v1",
-      payload={ "name": slug, "span": order, "members": children },
+      payload_schema="imp.start-plan.v3",
+      payload={
+         "name": children [0] ["plan"] ["payload"] ["name"],
+         "ticket": ticket.upper (),
+         "span": order if span else [],
+         "members": children,
+      },
       blockers=blockers,
+      warnings=warnings,
    )
 
 
-def _apply_span (plan: dict) -> dict:
+def _apply (plan: dict [str, Any]) -> dict [str, Any]:
    """Create every member in order, unwinding completely if one fails."""
 
-   created: list [dict] = []
+   created: list [dict [str, Any]] = []
    try:
       for child in plan ["payload"] ["members"]:
          with workspace.inside (child ["repository"]):
@@ -145,45 +64,99 @@ def _apply_span (plan: dict) -> dict:
       for member in reversed (created):
          try:
             with workspace.inside (member ["repository"]):
-               features.discard_start (member)
+               features.discard (str (member ["branch"]), str (member ["path"]))
          except Exception:
             stranded.append (str (member ["path"]))
       if stranded:
          raise state.StateError (f"{error}; could not unwind {', '.join (stranded)}") from error
       raise
 
-   return { "name": plan ["payload"] ["name"], "span": plan ["payload"] ["span"], "members": created }
+   return {
+      "name": plan ["payload"] ["name"],
+      "ticket": plan ["payload"] ["ticket"],
+      "span": plan ["payload"] ["span"],
+      "members": created,
+   }
 
 
-def _span (
-   name: str,
-   repos: list [str],
-   *,
-   actor_id: str,
-   dry_run: bool,
-   yes: bool,
-   json_output: bool,
+def _show (plan: dict [str, Any]):
+   console.header (f"Start feature: {plan ['label']}")
+   console.table (
+      [ "Repository", "Branch", "Base", "Worktree" ],
+      [
+         [
+            str (child ["alias"]),
+            str (child ["plan"] ["payload"] ["branch"]),
+            f"{child ['plan'] ['payload'] ['base:ref']} ({str (child ['plan'] ['payload'] ['base:oid']) [:10]})",
+            str (child ["plan"] ["payload"] ["path"]),
+         ]
+         for child in plan ["payload"] ["members"]
+      ],
+   )
+   for blocker in plan ["blockers"]:
+      console.err (str (blocker))
+
+
+def _success (data: dict [str, Any]):
+   members = data ["members"]
+   if len (members) == 1:
+      console.success (f"Feature ready: {data ['name']}")
+      console.hint (f"cd {members [0] ['path']}")
+      return
+   console.success (f"Feature ready across {len (members)} repositories")
+   for member in members:
+      console.item (f"{member ['alias']}: {member ['path']}")
+
+
+def start (
+   name: Annotated [str, typer.Argument (help="Readable feature name; becomes feature/<name>")] = "",
+   repos: Annotated [
+      list [str] | None,
+      typer.Option (
+         "--repo",
+         help="Workspace repository to span; repeat per repository. "
+              "The order given is the order they integrate at done time",
+      ),
+   ] = None,
+   ticket: Annotated [
+      str,
+      typer.Option (
+         "--ticket",
+         help="Ticket ID such as SPK-12345; prefixes the branch (feature/SPK-12345-<name>) "
+              "and flows into commit subjects",
+      ),
+   ] = "",
 ):
-   """Create one feature across several repositories, integrated in the order given."""
+   """Create an isolated feature: one branch plus one worktree, based on fresh trunk.
 
+   The worktree lands under ~/.worktrees/<repo>/<name> (override with `git config
+   imp.worktrees <dir>`), so the current checkout is never disturbed. The branch bases
+   on origin's trunk, or on local trunk when it only leads the remote.
+
+   Spanning: run from a directory of checkouts with repeated --repo flags to create
+   one feature across several repositories. The order you name them is recorded as
+   `imp.span.<name>.order` in each member and replayed dependency-first by `imp done`.
+
+   Nothing is written outside Git: the feature IS the branch and its worktree.
+   Deterministic; sends nothing to AI.
+   """
+
+   if not name:
+      console.fatal ("Feature name is required")
+   if ticket and not _TICKET.fullmatch (ticket):
+      console.fatal ("Ticket must look like SPK-12345")
    try:
-      plan = _plan_span (name, repos, actor_id=actor_id)
+      scope_name, members = _members (repos)
+      plan = _plan (name, ticket, scope_name, members)
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
 
    return approval.run (
       plan,
-      command="imp start",
       noun="start",
-      confirm="Create this feature in every repository?",
-      plan_schema="imp.span-plan.v1",
-      result_schema="imp.span.v2",
-      apply=_apply_span,
-      show=_show_span,
-      success=lambda data: console.success (
-         f"Feature ready across {len (data ['members'])} repositories"
-      ),
-      dry_run=dry_run,
-      yes=yes,
-      json_output=json_output,
+      confirm="Create this feature?",
+      result_schema="imp.start.v2",
+      apply=_apply,
+      show=_show,
+      success=_success,
    )

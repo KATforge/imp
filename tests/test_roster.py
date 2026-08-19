@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp_git import features, roster, runtime, state, workspace
+from imp_git import features, git, roster, runtime, state, workspace
 from tests.conftest import commit_file, git_run
 
 
@@ -33,16 +33,12 @@ def demo (tmp_path, monkeypatch):
 
 
 def _start (repository: Path, name: str):
-   from imp_git import repo as repo_mod
-
    previous = Path.cwd ()
    os.chdir (repository)
    try:
-      repo_mod.load.cache_clear ()
-      return features.apply_start (features.plan_start (name, actor_id="actor:human:anders"))
+      return features.apply_start (features.plan_start (name))
    finally:
       os.chdir (previous)
-      repo_mod.load.cache_clear ()
 
 
 class TestRoster:
@@ -110,12 +106,16 @@ class TestSpan:
       for member in roster.collect (workspace.here (str (demo))) [0] ["members"]:
          commit_file (Path (member ["path"]), "new.txt", "work\n", "feat: work")
 
-   def test_start_records_the_requested_order (self, demo):
+   def test_start_records_the_requested_order_in_git_config (self, demo):
       from imp_git.commands import start as start_cmd
 
       data = start_cmd.start (name="checkout", repos=[ "web", "api" ])
 
       assert [ member ["alias"] for member in data ["members"] ] == [ "web", "api" ]
+      with workspace.inside (str (demo / "api")):
+         assert git.config_get ("imp.span.checkout.order") == "web api"
+      entry = roster.collect (workspace.here (str (demo))) [0]
+      assert [ member ["alias"] for member in entry ["members"] ] == [ "web", "api" ]
 
    def test_failed_start_unwinds_every_member (self, demo, monkeypatch):
       from imp_git.commands import start as start_cmd
@@ -146,11 +146,21 @@ class TestSpan:
       done_cmd.done ("checkout")
 
       value = json.loads (capsys.readouterr ().out)
-      assert value ["schema"] == "imp.promote.v3"
+      assert value ["schema"] == "imp.done.v3"
       assert value ["data"] ["order"] == [ "web", "api" ]
-      assert value ["data"] ["completed"] == [ "web", "api" ]
+      assert value ["data"] ["completed"] == [ "checkout" ]
 
-   def test_done_requires_approval (self, demo, capsys):
+   def test_done_unsets_the_span_order (self, demo):
+      from imp_git.commands import done as done_cmd
+
+      self._ready (demo)
+
+      done_cmd.done ("checkout")
+
+      with workspace.inside (str (demo / "api")):
+         assert git.config_get ("imp.span.checkout.order") == ""
+
+   def test_done_requires_approval_for_humans (self, demo, capsys):
       from imp_git.commands import done as done_cmd
 
       self._ready (demo)

@@ -2,17 +2,7 @@ from typing import Annotated
 
 import typer
 
-from imp_git import (
-   approval,
-   commit_plan,
-   console,
-   features,
-   git,
-   identity,
-   runtime,
-   state,
-   validate,
-)
+from imp_git import approval, commit_plan, console, git, state
 
 
 def _show (plan: dict):
@@ -25,37 +15,31 @@ def _show (plan: dict):
       console.err (str (blocker))
 
 
-def _manual (message: str, actor: str) -> dict:
-   features.assert_write_access (actor)
-   if not validate.commit (message):
-      console.fatal ("Message must use Conventional Commits")
-   if not git.staged_files ():
-      console.fatal ("Nothing staged")
-   git.commit (message)
-   data = { "branch": git.branch (), "message": message, "oid": git.rev_parse ("HEAD") }
-   if runtime.options.json:
-      from imp_git import result
+def commit (
+   message: Annotated [
+      str,
+      typer.Option (
+         "--message", "-m",
+         help="Exact Conventional Commits subject to use; nothing is sent to AI",
+      ),
+   ] = "",
+):
+   """Create one exact local commit from staged changes, or every dirty path when nothing is staged.
 
-      result.emit ("imp.commit.v1", "imp commit", data, json_output=True)
-   else:
-      console.success (f"Committed: {message}")
-   return data
+   The commit is built off-ref from an isolated index and the branch only moves when it
+   succeeds, so a failure leaves the repository untouched. Anything staged but not
+   selected stays staged.
 
+   Without -m the selected diff is sent to AI for a Conventional Commits subject; that
+   is the only content this command sends anywhere. With -m the given subject is used
+   verbatim and nothing leaves the machine. Never pushes.
+   """
 
-def _planned (
-   *,
-   actor: str,
-   dry_run: bool,
-   json_output: bool,
-   yes: bool,
-) -> dict:
+   git.require ()
    try:
-      plan = commit_plan.create (actor_id=actor)
+      plan = commit_plan.create (message=message)
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
-
-   def apply_plan (value: dict) -> dict:
-      return commit_plan.apply (value, actor)
 
    def success (data: dict):
       for value in data ["commits"]:
@@ -63,37 +47,10 @@ def _planned (
 
    return approval.run (
       plan,
-      command="imp commit",
       noun="commit",
       confirm="Create this local commit?",
-      plan_schema="imp.commit-plan.v3",
       result_schema="imp.commit.v1",
-      apply=apply_plan,
+      apply=commit_plan.apply,
       show=_show,
       success=success,
-      dry_run=dry_run,
-      yes=yes,
-      json_output=json_output,
-   )
-
-
-def commit (
-   message: Annotated [str, typer.Option ("--message", "-m", help="Commit staged changes without AI")] = "",
-):
-   """Create one local commit. Sends the selected diff to AI unless -m is used."""
-
-   actor_id = runtime.options.actor_id
-   dry_run = runtime.options.dry_run
-   json_output = runtime.options.json
-   yes = runtime.options.yes
-
-   git.require ()
-   actor = identity.actor (actor_id)
-   if message:
-      return _manual (message, actor)
-   return _planned (
-      actor=actor,
-      dry_run=dry_run,
-      json_output=json_output,
-      yes=yes,
    )

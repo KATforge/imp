@@ -66,6 +66,67 @@ class TestCommitCommand:
       assert last_commit_subject (repo) == "fix: resolve bug"
       assert len (calls) == 2
 
+   def test_manual_message_respects_dry_run (self, repo):
+      """Regression: -m used to commit for real even under --dry-run."""
+
+      runtime.configure (dry_run=True)
+      (repo / "file.txt").write_text ("changed\n")
+      git_run (repo, "add", ".")
+
+      plan = commit_cmd.commit (message="fix: update value")
+
+      assert plan ["state"] == "ready"
+      assert commit_count (repo) == 1
+
+   def test_manual_message_commits_through_the_spine (self, repo):
+      (repo / "file.txt").write_text ("changed\n")
+      git_run (repo, "add", ".")
+
+      commit_cmd.commit (message="fix: update value")
+
+      assert last_commit_subject (repo) == "fix: update value"
+
+
+class TestAutonomy:
+
+   def test_agents_approve_their_own_reversible_work (self, repo, monkeypatch):
+      runtime.configure (json=True)
+      monkeypatch.setenv ("CLAUDE_SESSION_ID", "session-1")
+      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add value")
+
+      (repo / "file.txt").write_text ("changed\n")
+      git_run (repo, "add", ".")
+
+      commit_cmd.commit ()
+
+      assert last_commit_subject (repo) == "feat: add value"
+
+   def test_humans_still_need_approval (self, repo, monkeypatch):
+      runtime.configure (json=True)
+      monkeypatch.setattr (ai, "fast", lambda prompt: "feat: add value")
+
+      (repo / "file.txt").write_text ("changed\n")
+      git_run (repo, "add", ".")
+
+      with pytest.raises (typer.Exit):
+         commit_cmd.commit ()
+
+      assert commit_count (repo) == 1
+
+   def test_agents_never_approve_destructive_work (self, repo, monkeypatch):
+      from imp_git import features
+      from imp_git.commands import worktree as worktree_cmd
+
+      features.apply_start (features.plan_start ("doomed"))
+      runtime.configure (json=True)
+      monkeypatch.setenv ("CLAUDE_SESSION_ID", "session-1")
+
+      with pytest.raises (typer.Exit):
+         worktree_cmd.remove ("doomed")
+
+      assert git.ref_exists ("feature/doomed")
+
+
 class TestStatusParsing:
 
    def test_path_not_truncated (self, repo):
@@ -166,31 +227,29 @@ class TestPullRequest:
       with pytest.raises (typer.Exit):
          pr_cmd.pr ()
 
+
 class TestStandingWarning:
 
-   def test_done_warns_when_run_inside_the_worktree_it_removes (self, repo_with_origin, tmp_path, monkeypatch):
-      import os
-      from pathlib import Path
-
-      from imp_git import features
+   def test_done_warns_when_run_inside_the_worktree_it_removes (self, repo_with_origin, monkeypatch):
+      from imp_git import features, roster, workspace
       from imp_git.commands import done as done_cmd
       from imp_git.commands import start as start_cmd
 
       start_cmd.start (name="standing")
       feature = features.find ("standing")
-      previous = Path.cwd ()
-      os.chdir (feature ["path"])
-      try:
-         warnings = done_cmd._standing_here ()
-      finally:
-         os.chdir (previous)
+      entries = roster.collect (workspace.here (str (repo_with_origin)))
+      monkeypatch.chdir (feature ["path"])
+
+      warnings = done_cmd._standing (entries)
 
       assert any (str (feature ["path"]) in text for text in warnings)
 
-   def test_done_stays_quiet_from_the_repository_root (self, repo_with_origin, tmp_path, monkeypatch):
+   def test_done_stays_quiet_from_the_repository_root (self, repo_with_origin):
+      from imp_git import roster, workspace
       from imp_git.commands import done as done_cmd
       from imp_git.commands import start as start_cmd
 
       start_cmd.start (name="standing")
+      entries = roster.collect (workspace.here (str (repo_with_origin)))
 
-      assert done_cmd._standing_here () == []
+      assert done_cmd._standing (entries) == []

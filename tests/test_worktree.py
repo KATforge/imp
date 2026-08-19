@@ -66,6 +66,17 @@ class TestStart:
       with pytest.raises (typer.Exit):
          start_cmd.start (name="doomed")
 
+   def test_ticket_shapes_the_branch (self, repo_with_origin, mock_spin):
+      start_cmd.start (name="payment retries", ticket="spk-12345")
+
+      assert git.ref_exists ("feature/SPK-12345-payment-retries")
+      feature = features.find ("payment-retries")
+      assert feature ["ticket"] == "SPK-12345"
+
+   def test_invalid_ticket_is_refused (self, repo_with_origin, mock_spin):
+      with pytest.raises (typer.Exit):
+         start_cmd.start (name="payment", ticket="not a ticket")
+
 
 def test_worktree_path (repo_with_origin, tmp_path, mock_spin):
    start_cmd.start (name="path")
@@ -81,7 +92,8 @@ def test_worktree_remove (repo_with_origin, tmp_path, mock_spin):
 
    result = worktree_cmd.remove ("discard")
 
-   assert result ["feature_id"] == "feature:discard"
+   assert result ["branch"] == "feature/discard"
+   assert result ["attic"].startswith ("refs/imp/attic/discard/")
    assert not Path (feature ["path"]).exists ()
    assert not git.ref_exists ("feature/discard")
    assert features.find ("discard") is None

@@ -147,6 +147,14 @@ def choose (title: str, options: list [str]) -> str:
 
    return result
 
+def ask (title: str) -> str:
+   """Read one free-form line, or return empty when prompting is unavailable."""
+
+   if _noninteractive ():
+      return ""
+   value = questionary.text (title, style=_pt_style, qmark="▸").ask ()
+   return (value or "").strip ()
+
 def spin (title: str, fn: Callable [..., T], *args: Any, **kwargs: Any) -> T:
    with out.status (f"[accent]{title}[/accent]", spinner="dots"):
       return fn (*args, **kwargs)

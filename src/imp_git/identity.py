@@ -45,7 +45,7 @@ def actor (override: str = "") -> str:
    if explicit:
       return validate (explicit, "actor")
 
-   configured = config.get ("actor:id")
+   configured = config.get ("actor")
    if configured:
       return validate (configured, "actor")
 
@@ -60,8 +60,7 @@ def actor (override: str = "") -> str:
    return resource ("actor", "human", getpass.getuser ())
 
 
-def key (value: str) -> str:
-   """Encode a resource identity for a portable filename."""
+def is_agent (actor_id: str = "") -> bool:
+   """Return whether the actor is an autonomous agent rather than a person."""
 
-   validate (value)
-   return value.replace (":", "--")
+   return not (actor_id or actor ()).startswith ("actor:human:")

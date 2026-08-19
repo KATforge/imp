@@ -107,7 +107,7 @@ def _call (prompt: str, model: str) -> str:
    return handler (prompt, model)
 
 def _invoke (tier: str, prompt: str, spin: bool = True) -> str:
-   model = config.get (f"model:{tier}")
+   model = config.get (f"{tier}model")
    prompt = _guard (prompt)
    if spin:
       result = console.spin ("Thinking...", _call, prompt, model)
@@ -127,7 +127,7 @@ def smart (prompt: str, spin: bool = True) -> str:
 
 def ping () -> bool:
    try:
-      model = config.get ("model:fast")
+      model = config.get ("fastmodel")
       result = _call ("Reply with OK", model)
       return bool (result and result.strip ())
    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, SystemExit):
@@ -165,3 +165,35 @@ def commit_message (prompt: str) -> str:
          console.fatal ("AI output not in Conventional Commits format")
 
    return msg
+
+def json_payload (prompt: str, spin_title: str = "Thinking...") -> dict:
+   from imp_git import state
+
+   for _attempt in range (2):
+      raw = strip_fences (_invoke ("smart", prompt))
+      start = raw.find ("{")
+      end = raw.rfind ("}")
+      if start < 0 or end <= start:
+         continue
+      try:
+         value = json.loads (raw [start:end + 1])
+      except json.JSONDecodeError:
+         continue
+      if isinstance (value, dict):
+         return value
+   raise state.StateError ("AI did not return the requested JSON")
+
+def review_diff (diff: str) -> dict:
+   from imp_git import prompts
+
+   return json_payload (prompts.review (truncate (diff)))
+
+def answer (diff: str, question: str) -> str:
+   from imp_git import prompts
+
+   return smart (prompts.answer (truncate (diff), question)).strip ()
+
+def verdict (name: str, age: str, diff: str) -> dict:
+   from imp_git import prompts
+
+   return json_payload (prompts.verdict (name, age, truncate (diff)))

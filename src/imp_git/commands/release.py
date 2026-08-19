@@ -3,7 +3,7 @@ from typing import Annotated, Any
 
 import typer
 
-from imp_git import approval, console, fingerprint, gh, git, plans, runtime, state, validate
+from imp_git import approval, console, fingerprint, gh, git, plans, state, validate
 
 _VERSION = re.compile (r"^v?(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$")
 
@@ -122,17 +122,16 @@ def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
       raise state.StateError ("Release plan is stale")
    if git.tag_exists (str (payload ["tag"])):
       raise state.StateError (f"Release tag already exists: {payload ['tag']}")
-   with state.lock ("release"):
-      git.tag (str (payload ["tag"]), str (payload ["head"]))
-      pushed = []
-      url = ""
-      if not payload ["local"]:
-         git.push (ref=str (payload ["branch"]))
-         git.push (ref=str (payload ["tag"]))
-         pushed = [ str (payload ["branch"]), str (payload ["tag"]) ]
-         url = gh.release_create (
-            str (payload ["tag"]), str (payload ["notes"]), bool (payload ["prerelease"]),
-         )
+   git.tag (str (payload ["tag"]), str (payload ["head"]))
+   pushed = []
+   url = ""
+   if not payload ["local"]:
+      git.push (ref=str (payload ["branch"]))
+      git.push (ref=str (payload ["tag"]))
+      pushed = [ str (payload ["branch"]), str (payload ["tag"]) ]
+      url = gh.release_create (
+         str (payload ["tag"]), str (payload ["notes"]), bool (payload ["prerelease"]),
+      )
    plans.mark (plan, "applied", applied_at=state.now ())
    return {
       "commit_oid": payload ["head"],
@@ -165,7 +164,14 @@ def release (
    rc: Annotated [bool, typer.Option ("--rc", help="Create or increment a release candidate")] = False,
    stable: Annotated [bool, typer.Option ("--stable", help="Promote the latest release candidate")] = False,
 ):
-   """Tag the current clean commit and optionally publish it."""
+   """Tag the current clean commit as a SemVer release and publish it to GitHub.
+
+   With no version it increments patch; pass an exact version or one SemVer flag.
+   Release notes are the commit subjects since the previous tag, so keep subjects
+   publishable. Pushes the branch and tag then creates the GitHub release; --local
+   only tags. Refuses notes containing AI attribution or actor IDs. Always confirms,
+   since it writes to a remote. Deterministic; sends nothing to AI.
+   """
 
    git.require ()
    try:
@@ -179,15 +185,11 @@ def release (
       console.fatal (str (error))
    return approval.run (
       plan,
-      command="imp release",
       noun="release",
       confirm="Create this exact release?",
-      plan_schema="imp.release-plan.v1",
       result_schema="imp.release.v1",
       apply=apply_release,
       show=_show,
       success=lambda data: console.success (f"Released {data ['tag']}"),
-      dry_run=runtime.options.dry_run,
-      yes=runtime.options.yes,
-      json_output=runtime.options.json,
+      destructive=not local,
    )

@@ -1,46 +1,26 @@
-import functools
-import json
-import os
-from pathlib import Path
+from imp_git import git
 
 _DEFAULTS = {
-   "schema": "imp.machine.v1",
    "provider": "claude",
-   "model:fast": "haiku",
-   "model:smart": "sonnet",
+   "fastmodel": "haiku",
+   "smartmodel": "sonnet",
 }
 
 
-def path () -> Path:
-   xdg = os.environ.get ("XDG_CONFIG_HOME", "") or str (Path.home () / ".config")
-
-   return Path (xdg) / "imp" / "config.json"
-
-@functools.cache
-def load () -> dict:
-   """Return defaults plus an explicit machine configuration file."""
-
-   cfg = dict (_DEFAULTS)
-
-   p = path ()
-   if p.is_file ():
-      try:
-         stored = json.loads (p.read_text ())
-         cfg.update (stored)
-      except json.JSONDecodeError:
-         from imp_git import console
-         console.warn ("Invalid config file, using defaults")
-      except OSError:
-         pass
-   return cfg
-
-
-def save (cfg: dict):
-   p = path ()
-   p.parent.mkdir (parents=True, exist_ok=True)
-   cfg = { **cfg, "schema": "imp.machine.v1" }
-   p.write_text (json.dumps (cfg, indent=3, sort_keys=True) + "\n")
-   load.cache_clear ()
-
 def get (key: str) -> str:
-   return load ().get (key, _DEFAULTS.get (key, ""))
+   """Read one machine or repository knob from Git configuration."""
+
+   return git.config_get (f"imp.{key}") or _DEFAULTS.get (key, "")
+
+
+def get_all (key: str) -> list [str]:
+   return git.config_get_all (f"imp.{key}")
+
+
+def snapshot () -> dict [str, str]:
+   """Return the effective configuration: defaults overlaid with explicit imp.* entries."""
+
+   values = dict (_DEFAULTS)
+   for key, value in git.config_entries (r"^imp\.").items ():
+      values [key.removeprefix ("imp.")] = value
+   return values

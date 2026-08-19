@@ -1,3 +1,5 @@
+import json
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -5,22 +7,78 @@ import time
 from pathlib import Path
 from typing import Any
 
-from imp_git import features, fingerprint, git, plans, repo, state
+from imp_git import features, fingerprint, git, plans, state
+
+
+def _configured_checks () -> list [dict [str, Any]] | None:
+   values = git.config_get_all ("imp.check")
+   if not values:
+      return None
+   if values == [ "none" ]:
+      return []
+   return [ { "name": value, "run": shlex.split (value) } for value in values ]
+
+
+def _package_check (root: Path) -> list [dict [str, Any]]:
+   try:
+      scripts = json.loads ((root / "package.json").read_text ()).get ("scripts", {})
+   except (json.JSONDecodeError, OSError):
+      return []
+   script = str (scripts.get ("test") or "")
+   if not script or "no test specified" in script:
+      return []
+   return [ { "name": "npm test", "run": [ "npm", "test" ] } ]
+
+
+def _composer_check (root: Path) -> list [dict [str, Any]]:
+   try:
+      scripts = json.loads ((root / "composer.json").read_text ()).get ("scripts", {})
+   except (json.JSONDecodeError, OSError):
+      return []
+   if not scripts.get ("test"):
+      return []
+   return [ { "name": "composer test", "run": [ "composer", "test" ] } ]
+
+
+def _pytest_check (root: Path) -> list [dict [str, Any]]:
+   pyproject = root / "pyproject.toml"
+   try:
+      if "pytest" not in pyproject.read_text ():
+         return []
+   except OSError:
+      return []
+   if (root / "uv.lock").is_file () and shutil.which ("uv"):
+      return [ { "name": "pytest", "run": [ "uv", "run", "pytest", "-q" ] } ]
+   return [ { "name": "pytest", "run": [ "pytest", "-q" ] } ]
+
+
+def _make_check (root: Path) -> list [dict [str, Any]]:
+   try:
+      lines = (root / "Makefile").read_text ().splitlines ()
+   except OSError:
+      return []
+   if not any (line.startswith ("test:") for line in lines):
+      return []
+   return [ { "name": "make test", "run": [ "make", "test" ] } ]
 
 
 def _checks () -> list [dict [str, Any]]:
-   values = repo.get ("check:commands", []) or []
-   if not isinstance (values, list):
-      raise state.StateError ("check:commands must be an array")
-   checks = []
-   for index, value in enumerate (values, start=1):
-      if not isinstance (value, dict) or not isinstance (value.get ("run"), list):
-         raise state.StateError ("Each check requires a run argv array")
-      argv = value ["run"]
-      if not argv or not all (isinstance (part, str) and part for part in argv):
-         raise state.StateError ("Each check requires a non-empty string argv array")
-      checks.append ({ "name": str (value.get ("name") or f"check-{index}"), "run": argv })
-   return checks
+   """Return this repository's test commands: imp.check entries, or what the project declares.
+
+   Detection is deterministic and first-match: package.json test script, composer test
+   script, a pyproject mentioning pytest, then a Makefile test target. Set imp.check to
+   override, or to the single value "none" to disable checks.
+   """
+
+   configured = _configured_checks ()
+   if configured is not None:
+      return configured
+   root = Path (git.repo_root ())
+   for detect in (_package_check, _composer_check, _pytest_check, _make_check):
+      found = detect (root)
+      if found:
+         return found
+   return []
 
 
 def configured_checks () -> list [dict [str, Any]]:
@@ -151,14 +209,15 @@ def target_state (target: str) -> tuple [str, str, str]:
 
 
 def _state_fingerprint (payload: dict [str, Any]) -> str:
-   feature = features.find (str (payload ["feature_id"]))
+   feature = features.find (str (payload ["branch"]))
    if not feature:
       return ""
+   path = str (feature ["path"])
    return fingerprint.values ({
       "candidate_oid": payload ["candidate_oid"],
       "candidate_tree_oid": payload ["candidate_tree_oid"],
       "feature_oid": git.rev_parse (str (feature ["branch"])),
-      "status": git.capture ("-C", str (feature ["path"]), "status", "--porcelain=v1", "-z"),
+      "status": git.capture ("-C", path, "status", "--porcelain=v1", "-z") if path else "",
       "target_oid": payload ["target_oid"],
       "target_ref": payload ["target_ref"],
    })
@@ -169,11 +228,8 @@ def plan_done (
    *,
    resolved_target: tuple [str, str, str] | None = None,
 ) -> dict [str, Any]:
-   if feature.get ("state") not in { "active", "awaiting-merge" }:
-      raise state.StateError (f"Feature is {feature.get ('state')}")
-   if feature.get ("worktree_state") != "live":
-      raise state.StateError ("Feature worktree is not live")
-   if not git.clean_at (str (feature ["path"])):
+   path = str (feature ["path"])
+   if path and not git.clean_at (path):
       raise state.StateError ("Feature worktree has uncommitted changes")
    target = str (feature.get ("target") or git.base_branch ())
    local_oid, remote_oid, target_oid = resolved_target or _target_oids (target)
@@ -186,12 +242,11 @@ def plan_done (
    if resurrected:
       blockers.append (f"Candidate restores deleted paths: {', '.join (resurrected [:5])}")
    payload = {
+      "branch": feature ["branch"],
       "candidate_oid": candidate_oid,
       "candidate_tree_oid": git.tree (candidate_oid),
-      "check_commands": checks,
       "check_results": check_results,
       "diff": git.capture ("diff", "--binary", target_oid, candidate_oid),
-      "feature_id": feature ["feature_id"],
       "feature_oid": feature_oid,
       "local_target_oid": local_oid,
       "remote_target_oid": remote_oid,
@@ -203,31 +258,32 @@ def plan_done (
    payload ["state_fingerprint"] = _state_fingerprint (payload)
    return plans.build (
       "done", str (feature ["name"]),
-      scope={ "feature_id": feature ["feature_id"], "repository": git.repo_name () },
+      scope={ "branch": feature ["branch"], "repository": git.repo_name () },
       items=[
          { "action": "integrate", "candidate_oid": candidate_oid, "target": target },
-         { "action": "remove", "feature_id": feature ["feature_id"] },
+         { "action": "remove", "branch": feature ["branch"] },
       ],
       checks=check_results,
       blockers=blockers,
       fingerprint=payload ["state_fingerprint"],
-      payload_schema="imp.done-plan.v2",
+      payload_schema="imp.done-plan.v3",
       payload=payload,
    )
 
 
 def _validate (plan: dict [str, Any]):
-   if plan.get ("state") != "ready" or plan.get ("payload_schema") != "imp.done-plan.v2":
+   if plan.get ("state") != "ready" or plan.get ("payload_schema") != "imp.done-plan.v3":
       raise state.StateError ("Integration plan is not ready")
    payload = plan ["payload"]
-   feature = features.find (str (payload ["feature_id"]))
+   feature = features.find (str (payload ["branch"]))
    if not feature:
       raise state.StateError ("Integration feature is missing")
-   if not git.clean_at (str (feature ["path"])):
+   path = str (feature ["path"])
+   if path and not git.clean_at (path):
       raise state.StateError ("Feature worktree became dirty")
-   for path in git.ref_worktrees (str (payload ["target_ref"])):
-      if not git.clean_at (path):
-         raise state.StateError (f"Target worktree is dirty: {path}")
+   for worktree_path in git.ref_worktrees (str (payload ["target_ref"])):
+      if not git.clean_at (worktree_path):
+         raise state.StateError (f"Target worktree is dirty: {worktree_path}")
    if git.rev_parse (str (feature ["branch"])) != payload ["feature_oid"]:
       raise state.StateError ("Feature moved after integration planning")
    if git.remote_exists () and payload ["remote_target_oid"]:
@@ -240,29 +296,24 @@ def _validate (plan: dict [str, Any]):
       raise state.StateError ("Local target moved after integration planning")
    if _state_fingerprint (payload) != payload ["state_fingerprint"]:
       raise state.StateError ("Integration candidate became stale")
-   failed = [
-      result
-      for result in run_checks (payload ["candidate_oid"], payload ["check_commands"])
-      if result ["exit_code"]
-   ]
-   if failed:
-      raise state.StateError (f"Integration check failed: {failed [0]['name']}")
    return payload, feature, target_oid
 
 
 def apply_done (plan: dict [str, Any]) -> dict [str, Any]:
-   with state.lock (f"done-{plan ['payload']['target_ref']}"):
-      payload, feature, target_oid = _validate (plan)
-      if target_oid == payload ["local_target_oid"]:
-         git.update_ref_checked (
-            f"refs/heads/{payload ['target_ref']}", payload ["candidate_oid"], payload ["local_target_oid"],
-         )
-         for path in git.ref_worktrees (str (payload ["target_ref"])):
-            git.reset_at (path, str (payload ["candidate_oid"]))
-      plans.mark (plan, "applied", applied_at=state.now ())
-      features.complete (feature, branch_oid=str (payload ["feature_oid"]))
+   payload, feature, target_oid = _validate (plan)
+   if target_oid == payload ["local_target_oid"]:
+      git.update_ref_checked (
+         f"refs/heads/{payload ['target_ref']}",
+         payload ["candidate_oid"],
+         payload ["local_target_oid"],
+         message=f"imp done: {payload ['branch']}",
+      )
+      for path in git.ref_worktrees (str (payload ["target_ref"])):
+         git.reset_at (path, str (payload ["candidate_oid"]))
+   plans.mark (plan, "applied", applied_at=state.now ())
+   features.complete (feature, branch_oid=str (payload ["feature_oid"]))
    return {
+      "branch": payload ["branch"],
       "candidate_oid": payload ["candidate_oid"],
-      "feature_id": payload ["feature_id"],
       "target": payload ["target_ref"],
    }

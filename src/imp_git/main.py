@@ -11,13 +11,16 @@ from typer.core import TyperGroup
 
 from imp_git import __version__, console, passthrough, runtime
 from imp_git.cli import SortedCommand, ordered
+from imp_git.commands.cleanup import cleanup
 from imp_git.commands.commit import commit
 from imp_git.commands.doctor import doctor
 from imp_git.commands.done import done
 from imp_git.commands.pr import pr
 from imp_git.commands.release import release
+from imp_git.commands.review import review
 from imp_git.commands.start import start
 from imp_git.commands.status import status
+from imp_git.commands.undo import undo
 from imp_git.commands.worktree import worktree
 
 
@@ -82,8 +85,8 @@ def main (
 
    [bold]Feature[/bold]
 
-     start ─► edit ─► commit ─► done ─► trunk
-     └──────── isolated worktree ────────┘
+     start ─► edit ─► commit ─► done ─► trunk ─► review ─► push
+     └──────── isolated worktree ──────┘        undo backs a layer out
 
    [bold]Scope[/bold]
 
@@ -92,15 +95,22 @@ def main (
        └── feature/pay       ├── api/ ─┐  imp start pay --repo api --repo web
                              └── web/ ─┘  one feature, in the order named
 
+   [bold]State[/bold]
+
+     Git is the database: a feature is its branch plus its worktree
+     cleanup reconciles and flattens everything that is still open
+
    [bold]Approval[/bold]
 
-     nothing changes until you approve the exact candidate shown
-     preview it with --dry-run, or approve up front with --yes
+     nothing changes until the exact shown candidate is approved
+     agents approve their own reversible work; destructive and remote
+     actions always need --yes or a person; preview with --dry-run
 
    [bold]AI[/bold]
 
-     only commit calls AI; it sends the selected diff for a message
-     pass -m to send nothing; doctor only pings; all others are deterministic
+     commit sends its diff for a message (-m sends nothing); review and
+     cleanup send diffs for annotations and verdicts; doctor only pings;
+     start, done, undo, status, pr, and release are deterministic
    """
 
    if repo_path:
@@ -119,7 +129,7 @@ def main (
    )
 
 _commands = [
-   commit, doctor, done, pr, release, start, status,
+   cleanup, commit, doctor, done, pr, release, review, start, status, undo,
 ]
 
 for _cmd in _commands:

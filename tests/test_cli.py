@@ -33,19 +33,21 @@ class TestSurface:
       result = runner.invoke (app, [ "--help" ])
 
       assert result.exit_code == 0
-      for command in [ "start", "status", "commit", "done", "release", "pr", "worktree" ]:
+      for command in [
+         "start", "status", "commit", "done", "review", "cleanup", "undo", "release", "pr", "worktree",
+      ]:
          assert command in result.output
       removed_commands = [
          "active", "amend", "bisect", "changelog", "context", "guard",
-         "cleanup", "config", "fleet", "init", "recover", "resolve", "review", "revert", "ship", "split",
-         "tidy", "undo", "use",
+         "config", "fleet", "init", "recover", "resolve", "revert", "ship", "split",
+         "tidy", "use",
       ]
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
       assert "--actor-id" not in result.output
-      assert "only commit calls AI" in result.output
-      assert "pass -m to send nothing" in result.output
-      assert "all others are deterministic" in result.output
+      assert "commit sends its diff for a message" in result.output
+      assert "-m sends nothing" in result.output
+      assert "Git is the database" in result.output
 
    def test_worktree_has_no_duplicate_start_or_claim_commands (self):
       result = runner.invoke (app, [ "worktree", "--help" ])
@@ -176,7 +178,7 @@ class TestAutomation:
 
       assert result.exit_code == 0
       value = json.loads (result.stdout)
-      assert value ["schema"] == "imp.commit-plan.v3"
+      assert value ["schema"] == "imp.commit-plan.v4"
       assert value ["data"] ["plan"] ["state"] == "ready"
       assert commit_count (repo) == 1
 
@@ -253,8 +255,7 @@ class TestHelpOrdering:
       lines = [ line.strip () for line in result.output.splitlines () ]
 
       assert result.exit_code == 0
-      assert "start ─► edit ─► commit ─► done ─► trunk" in lines
-      assert "└──────── isolated worktree ────────┘" in lines
+      assert "start ─► edit ─► commit ─► done ─► trunk ─► review ─► push" in lines
       assert "one checkout          a directory of checkouts" in lines
 
    def test_global_options_are_alphabetical_with_help_last (self):
@@ -264,7 +265,7 @@ class TestHelpOrdering:
       assert options [:-1] == sorted (options [:-1])
 
    def test_every_command_orders_its_options_alphabetically (self):
-      for command in [ "commit", "done", "start", "release", "pr" ]:
+      for command in [ "commit", "done", "start", "release", "pr", "review", "cleanup", "undo" ]:
          options = self._options (command)
 
          assert options [-1] == "--help", command
