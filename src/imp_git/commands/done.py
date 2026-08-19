@@ -213,7 +213,9 @@ def done (
    feature, the name may be omitted.
 
    For trunk-mode work (started when the trunk lock was free), there is nothing to
-   integrate: `imp done` simply releases the lock.
+   integrate: `imp done` releases the lock and records the session as one undoable
+   layer. Bare `imp done` finishes your own trunk session first; name a feature to
+   integrate one instead.
 
    Checks come from `git config imp.check` entries, or are detected from the project
    (package.json, composer.json, pyproject with pytest, Makefile). Deterministic;
@@ -225,6 +227,10 @@ def done (
       console.fatal ("No repository here")
    if all_features and feature:
       console.fatal ("Pass a feature or --all, not both")
+   if not all_features and not feature:
+      released = _release (value, "")
+      if released is not None:
+         return released
    entries = roster.collect (value)
    selected = _select (entries, feature, all_features)
    if not selected:

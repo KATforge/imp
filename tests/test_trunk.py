@@ -118,19 +118,19 @@ class TestTrunkRelease:
 
       assert receipt ["released"] == [ "main" ]
 
-   def test_done_prefers_open_features_over_release (self, repo):
+   def test_bare_done_finishes_my_trunk_session_first (self, repo):
       start_cmd.start (name="quick")
       feature = features.apply_start (features.plan_start ("real"))
       commit_file (Path (feature ["path"]), "real.txt", "real\n", "feat: add real work")
 
       receipt = done_cmd.done ()
 
-      assert receipt ["completed"] == [ "real" ]
-      assert locks.holder ("main") is not None
+      assert receipt ["released"] == [ "main" ]
+      assert locks.holder ("main") is None
 
       receipt = done_cmd.done ()
 
-      assert receipt ["released"] == [ "main" ]
+      assert receipt ["completed"] == [ "real" ]
 
    def test_integration_is_blocked_by_a_foreign_lock (self, repo):
       feature = features.apply_start (features.plan_start ("blocked"))
