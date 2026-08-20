@@ -115,9 +115,6 @@ def diff (
    result = _run (*args)
    return result.stdout
 
-def diff_range (rev_range: str) -> str:
-   result = _run ("diff", rev_range, check=False)
-   return result.stdout
 
 def diff_numstat () -> str:
    staged = _run ("diff", "--cached", "--numstat", check=False).stdout.strip ()
@@ -137,8 +134,6 @@ def branch () -> str:
    result = _run ("branch", "--show-current", check=False)
    return result.stdout.strip ()
 
-def commit (msg: str):
-   _run ("commit", "-m", msg)
 
 def published (ref: str = "HEAD") -> bool:
    """Return whether a commit is reachable from any remote branch."""
@@ -338,21 +333,6 @@ def run_at (
 def clean_at (path: str) -> bool:
    return not run_at (path, "status", "--porcelain=v1", check=False).stdout.strip ()
 
-def apply_at (path: str, patch: str):
-   """Apply one atomic worktree patch through the Git boundary."""
-
-   try:
-      subprocess.run (
-         [ "git", "-C", path, "apply", "--recount", "--whitespace=nowarn", "-" ],
-         input=patch,
-         capture_output=True,
-         text=True,
-         check=True,
-         timeout=60,
-      )
-   except subprocess.CalledProcessError as error:
-      detail = (error.stderr or error.stdout or "").strip ()
-      raise RuntimeError (f"Smart AI patch did not apply: {detail}") from error
 
 def reset_at (path: str, ref: str):
    run_at (path, "reset", "--hard", ref)
@@ -519,11 +499,6 @@ def null_oid () -> str:
    object_format = _run ("rev-parse", "--show-object-format", check=False).stdout.strip ()
    return "0" * (64 if object_format == "sha256" else 40)
 
-def parent (ref: str = "HEAD") -> str:
-   """Return the first parent object ID, or empty for a root commit."""
-
-   result = _run ("rev-parse", "--verify", f"{ref}^", check=False)
-   return result.stdout.strip () if result.returncode == 0 else ""
 
 def ref_exists (ref: str) -> bool:
    result = _run ("rev-parse", "--verify", "--quiet", ref, check=False)

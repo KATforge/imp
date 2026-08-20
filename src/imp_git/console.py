@@ -112,13 +112,6 @@ def md (text: str):
 def confirm (msg: str) -> bool:
    return choose (msg, [ "Yes", "No" ]) == "Yes"
 
-def confirm_or_exit (msg: str, yes: bool = False):
-   """Exit cleanly unless approval was given up front or at the prompt."""
-
-   if yes or confirm (msg):
-      return
-   muted ("Cancelled")
-   raise typer.Exit (0)
 
 def _noninteractive () -> bool:
    """Return whether prompting is unavailable, refused up front, or machine-driven."""
