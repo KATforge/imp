@@ -39,7 +39,6 @@ _pt_style = PTStyle ([
 ])
 
 def header (title: str):
-   out.print ()
    out.print (f"[accent]{title}[/accent]")
    out.print ()
 

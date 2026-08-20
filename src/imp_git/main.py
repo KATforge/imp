@@ -205,21 +205,44 @@ def _machine () -> bool:
    return runtime.options.json or "--json" in sys.argv [1:]
 
 
-def _subcommand () -> str:
-   """Return the native command from argv, skipping global flags and their values."""
+def _positionals (count: int = 2) -> list [str]:
+   """Return the leading positional tokens from argv, skipping global flags and their values."""
 
+   values = []
    args = sys.argv [1:]
    index = 0
-   while index < len (args):
+   while index < len (args) and len (values) < count:
       if args [index] in _GLOBAL_VALUED:
          index += 2
          continue
       if args [index].startswith ("-"):
          index += 1
          continue
-      return args [index]
+      values.append (args [index])
+      index += 1
 
-   return ""
+   return values
+
+
+def _subcommand () -> str:
+   tokens = _positionals (1)
+   return tokens [0] if tokens else ""
+
+
+_RAW = { ("worktree", "path") }
+
+
+def _padded () -> bool:
+   """Whether to frame this invocation's output with one blank line above and below.
+
+   Human-facing native commands breathe; machine envelopes, Git passthrough, and
+   raw substitution outputs like `worktree path` stay byte-exact.
+   """
+
+   args = sys.argv [1:]
+   if not args or _machine () or not _native_request (args):
+      return False
+   return tuple (_positionals (2)) not in _RAW
 
 
 def _envelope (error: Exception, *, unexpected: bool):
@@ -255,6 +278,17 @@ def _fail (error: Exception) -> int:
 def run () -> int:
    """Run Imp, falling back to Git when native syntax does not match."""
 
+   padded = _padded ()
+   if padded:
+      sys.stdout.write ("\n")
+   try:
+      return _dispatch ()
+   finally:
+      if padded:
+         sys.stdout.write ("\n")
+
+
+def _dispatch () -> int:
    try:
       outcome = app (standalone_mode=False)
    except click.UsageError as error:

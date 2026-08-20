@@ -281,6 +281,46 @@ class TestHelpOrdering:
       assert options [:-1] == sorted (options [:-1])
 
 
+class TestPadding:
+
+   def test_native_output_is_framed_by_blank_lines (self, repo, monkeypatch, capsys):
+      monkeypatch.setattr (sys, "argv", [ "imp", "status" ])
+
+      code = main_mod.run ()
+      output = capsys.readouterr ().out
+
+      assert code == 0
+      assert output.startswith ("\n")
+      assert output.endswith ("\n\n")
+
+   def test_machine_output_is_never_padded (self, repo, monkeypatch, capsys):
+      monkeypatch.setattr (sys, "argv", [ "imp", "--json", "status" ])
+
+      code = main_mod.run ()
+      output = capsys.readouterr ().out
+
+      assert code == 0
+      assert output.startswith ("{")
+      assert output.endswith ("}\n")
+
+   def test_worktree_path_stays_raw_for_substitution (self, repo, monkeypatch, capsys):
+      from imp_git import features
+
+      feature = features.apply_start (features.plan_start ("raw"))
+      monkeypatch.setattr (sys, "argv", [ "imp", "worktree", "path", "raw" ])
+
+      code = main_mod.run ()
+      output = capsys.readouterr ().out
+
+      assert code == 0
+      assert output == feature ["path"] + "\n"
+
+   def test_passthrough_is_never_padded (self, monkeypatch):
+      monkeypatch.setattr (sys, "argv", [ "imp", "rev-parse", "HEAD" ])
+
+      assert not main_mod._padded ()
+
+
 class TestPrompts:
    """A machine invocation must fail loudly rather than wait for a person."""
 
