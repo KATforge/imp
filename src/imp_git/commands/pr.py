@@ -2,7 +2,7 @@ from typing import Annotated, Any
 
 import typer
 
-from imp_git import approval, console, fingerprint, gh, git, plans, state, validate
+from imp_git import ai, approval, console, features, fingerprint, gh, git, plans, state, validate
 
 
 def _fingerprint (payload: dict [str, Any]) -> str:
@@ -13,7 +13,22 @@ def _fingerprint (payload: dict [str, Any]) -> str:
    })
 
 
-def plan_pr (into: str = "") -> dict [str, Any]:
+def _described (head: str, base: str, message: str) -> tuple [str, str]:
+   """Compose the title and body: exact when given, AI-written from the diff otherwise."""
+
+   commits = git.capture ("log", "--reverse", "--format=- %s", f"{base}..{head}").strip ()
+   if message:
+      return message, commits or f"- {message}"
+   ticket = features.ticket_of (head)
+   value = ai.pull_request (git.capture ("diff", f"{base}...{head}"), commits, ticket)
+   title = str (value.get ("title", "")).strip () or git.subject (head) or head
+   if ticket and ticket not in title:
+      title = f"{ticket} {title}"
+   body = str (value.get ("body", "")).strip () or commits
+   return title [:70], body
+
+
+def plan_pr (into: str = "", message: str = "") -> dict [str, Any]:
    if not gh.available () or not git.remote_exists ():
       raise state.StateError ("Pull requests require origin and the GitHub CLI")
    if not git.is_clean ():
@@ -23,8 +38,7 @@ def plan_pr (into: str = "") -> dict [str, Any]:
    if not head or head == base:
       raise state.StateError (f"Cannot open a pull request from {head or 'detached HEAD'}")
    existing = gh.pr_view (head)
-   title = git.subject (head) or head
-   body = git.capture ("log", "--reverse", "--format=- %s", f"{base}..{head}").strip () or f"- {title}"
+   title, body = _described (head, base, message)
    if not validate.publishable (f"{title}\n{body}"):
       raise state.StateError ("Pull request text contains AI attribution or an actor ID")
    payload = {
@@ -79,22 +93,32 @@ def _show (plan: dict [str, Any]):
       [ "Title", str (payload ["title"]) ],
       [ "Mode", "update" if payload ["url"] else "create" ],
    ])
+   console.raw (str (payload ["body"]))
 
 
 def pr (
    into: Annotated [str, typer.Option ("--into", help="Target branch; defaults to trunk")] = "",
+   message: Annotated [
+      str,
+      typer.Option ("--message", "-m", help="Exact title to use; nothing is sent to AI"),
+   ] = "",
 ):
    """Push the current branch and open or update its GitHub pull request.
 
-   The title is the branch tip's subject and the body lists every commit subject since
-   the base, so a ticket in the subjects carries through. Refuses text containing AI
-   attribution or actor IDs. Requires origin and the GitHub CLI; always confirms, since
-   it writes to a remote. Deterministic; sends nothing to AI.
+   The description is written by AI from the branch's diff against the base: a title
+   under 70 characters carrying the ticket, and at most five one-line bullets covering
+   only what a reviewer must know. The exact text is shown for approval before
+   anything is pushed. With -m the given title is used, the body is the commit list,
+   and nothing is sent to AI.
+
+   Idempotent per branch: an existing pull request is updated, never duplicated.
+   Refuses text containing AI attribution or actor IDs. Requires origin and the
+   GitHub CLI; always confirms, since it writes to a remote.
    """
 
    git.require ()
    try:
-      plan = plan_pr (into)
+      plan = plan_pr (into, message)
    except state.StateError as error:
       console.fatal (str (error))
    return approval.run (

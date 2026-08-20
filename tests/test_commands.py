@@ -159,40 +159,92 @@ class TestStatusParsing:
 
 class TestPullRequest:
 
+   def _wire (self, pr_cmd, monkeypatch, pushed=None, created=None, existing=None):
+      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
+      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: existing or {})
+      monkeypatch.setattr (
+         pr_cmd.gh, "pr_create",
+         lambda title, body, base, head: (created.append ((base, head)) if created is not None else None)
+            or "https://example.test/1",
+      )
+      monkeypatch.setattr (pr_cmd.gh, "pr_update", lambda *_args: None)
+      monkeypatch.setattr (
+         pr_cmd.git, "push",
+         lambda **kwargs: pushed.append (kwargs) if pushed is not None else None,
+      )
+      monkeypatch.setattr (
+         pr_cmd.ai, "pull_request",
+         lambda diff, commits, ticket="": { "title": "add the widget", "body": "- adds one widget" },
+      )
+
    def test_pr_pushes_the_branch_and_creates_one (self, repo_with_origin, monkeypatch):
       from imp_git.commands import pr as pr_cmd
 
       git_run (repo_with_origin, "checkout", "-b", "feature/widget")
       commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
       pushed, created = [], []
-      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
-      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: {})
-      monkeypatch.setattr (
-         pr_cmd.gh, "pr_create",
-         lambda title, body, base, head: created.append ((base, head)) or "https://example.test/1",
-      )
-      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: pushed.append (kwargs))
+      self._wire (pr_cmd, monkeypatch, pushed=pushed, created=created)
 
       data = pr_cmd.pr ()
 
       assert pushed == [ { "set_upstream": True, "target": "feature/widget" } ]
       assert created == [ ("master", "feature/widget") ]
       assert data ["url"] == "https://example.test/1"
+      assert data ["title"] == "add the widget"
+      assert data ["body"] == "- adds one widget"
+
+   def test_pr_title_carries_the_branch_ticket (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "-b", "feature/SPK-77-widget")
+      commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: SPK-77 add the widget")
+      self._wire (pr_cmd, monkeypatch)
+
+      data = pr_cmd.pr ()
+
+      assert data ["title"] == "SPK-77 add the widget"
+
+   def test_pr_with_message_sends_nothing_to_ai (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "-b", "feature/widget", "master")
+      commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
+      self._wire (pr_cmd, monkeypatch)
+      monkeypatch.setattr (
+         pr_cmd.ai, "pull_request",
+         lambda *args, **kwargs: pytest.fail ("AI was called despite -m"),
+      )
+
+      data = pr_cmd.pr (message="feat: exact title")
+
+      assert data ["title"] == "feat: exact title"
+      assert data ["body"] == "- feat: add the widget"
+
+   def test_pr_refuses_ai_attribution_in_the_description (self, repo_with_origin, monkeypatch):
+      from imp_git.commands import pr as pr_cmd
+
+      git_run (repo_with_origin, "checkout", "-b", "feature/widget")
+      commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
+      self._wire (pr_cmd, monkeypatch)
+      monkeypatch.setattr (
+         pr_cmd.ai, "pull_request",
+         lambda diff, commits, ticket="": {
+            "title": "add the widget", "body": "Co-Authored-By: Bot <bot@ai>",
+         },
+      )
+
+      with pytest.raises (typer.Exit):
+         pr_cmd.pr ()
 
    def test_pr_pushes_an_existing_one_without_duplicating (self, repo_with_origin, monkeypatch):
       from imp_git.commands import pr as pr_cmd
 
       git_run (repo_with_origin, "checkout", "-b", "feature/widget")
       commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
-      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
-      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: { "url": "https://example.test/7" })
-      monkeypatch.setattr (
-         pr_cmd.gh, "pr_update", lambda *_args: None,
-      )
+      self._wire (pr_cmd, monkeypatch, existing={ "url": "https://example.test/7" })
       monkeypatch.setattr (
          pr_cmd.gh, "pr_create", lambda *_args: pytest.fail ("existing pull request was duplicated"),
       )
-      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
 
       data = pr_cmd.pr ()
 
@@ -205,13 +257,7 @@ class TestPullRequest:
       git_run (repo_with_origin, "checkout", "-b", "feature/widget", "develop")
       commit_file (repo_with_origin, "widget.txt", "widget\n", "feat: add the widget")
       created = []
-      monkeypatch.setattr (pr_cmd.gh, "available", lambda: True)
-      monkeypatch.setattr (pr_cmd.gh, "pr_view", lambda head: {})
-      monkeypatch.setattr (
-         pr_cmd.gh, "pr_create",
-         lambda title, body, base, head: created.append ((base, head)) or "https://example.test/1",
-      )
-      monkeypatch.setattr (pr_cmd.git, "push", lambda **kwargs: None)
+      self._wire (pr_cmd, monkeypatch, created=created)
 
       data = pr_cmd.pr (into="develop")
 

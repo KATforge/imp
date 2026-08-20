@@ -197,3 +197,13 @@ def verdict (name: str, age: str, diff: str) -> dict:
    from imp_git import prompts
 
    return json_payload (prompts.verdict (name, age, truncate (diff)))
+
+def pull_request (diff: str, commits: str, ticket: str = "") -> dict:
+   from imp_git import prompts
+
+   return json_payload (prompts.pull_request (truncate (diff), commits, ticket))
+
+def release_notes (subjects: str, tag: str) -> str:
+   from imp_git import prompts
+
+   return strip_fences (smart (prompts.release_notes (subjects, tag))).strip ()

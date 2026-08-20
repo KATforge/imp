@@ -19,7 +19,8 @@ Format: type: message
 Types: {_TYPES_STR}
 {_ticket_rule (branch, ticket)}
 Rules:
-- Subject only, one line, max 72 chars, no period
+- Subject only, one line, max 72 chars but prefer under 60, no period
+- Name the essential change, not the mechanics or the file list
 - ALL LOWERCASE after the colon (except ticket IDs like IMP-123)
 - Imperative mood: "add" not "added", "fix" not "fixes"
 - Pick the type that best fits the primary change
@@ -45,6 +46,7 @@ Return ONLY a JSON object, no prose, in this shape:
 Rules:
 - Annotate only what matters: bugs, risks, contract changes, and notable design choices
 - Prefer few strong annotations over many weak ones; zero is a valid answer
+- Every note is one line under 90 characters; the summary is at most two short sentences
 - "risk" means likely defect or data loss; "warn" means questionable; "info" means noteworthy
 - line refers to the NEW file, taken from the hunk headers
 
@@ -61,10 +63,44 @@ Diff:
 
 Question: {question}"""
 
+def pull_request (diff: str, commits: str, ticket: str = "") -> str:
+   mark = f'- Start the title with the ticket: "{ticket} <title>"\n' if ticket else ""
+   return f"""\
+Write a pull request title and description for this change.
+
+Return ONLY a JSON object: {{"title": "<title>", "body": "<markdown body>"}}
+
+Rules:
+- Title: one line, max 70 characters, imperative, no period
+{mark}- Body: 1 to 5 markdown bullets, each ONE line under 90 characters
+- Cover only what matters to a reviewer: behavior changes, contracts, risks
+- Never enumerate every change; merge related work into one bullet
+- No headings, no filler, no test plans, no attribution
+
+Commits:
+{commits}
+
+Diff:
+{diff}"""
+
+def release_notes (subjects: str, tag: str) -> str:
+   return f"""\
+Condense these commit subjects into release notes for {tag}.
+
+Rules:
+- Output ONLY markdown bullets, each ONE line under 80 characters
+- At most 6 bullets; merge related commits into one
+- Keep only what a user of the tool would care about; drop chores,
+  refactors, and internal churn unless they change behavior
+- Plain statements, no headings, no attribution
+
+Commit subjects:
+{subjects}"""
+
 def verdict (name: str, age: str, diff: str) -> str:
    return f"""\
 Judge one in-progress feature branch against trunk and return ONLY a JSON object:
-{{"verdict": "integrate|discard|hold", "reason": "<one concise sentence>"}}
+{{"verdict": "integrate|discard|hold", "reason": "<one line under 80 characters>"}}
 
 - integrate: the change is coherent, complete, and safe to land as-is
 - discard: empty, abandoned, superseded, or plainly not worth keeping

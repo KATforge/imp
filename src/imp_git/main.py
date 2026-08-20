@@ -110,9 +110,11 @@ def main (
 
    [bold]AI[/bold]
 
-     commit sends its diff for a message (-m sends nothing); review and
-     cleanup send diffs for annotations and verdicts; doctor only pings;
-     start, done, undo, status, pr, and release are deterministic
+     commit and pr send their diffs for a message or description, and
+     -m sends nothing; review and cleanup send diffs for annotations
+     and verdicts; release condenses commit subjects into notes;
+     doctor only pings; start, done, undo, and status are deterministic
+     every generated line is terse, and never carries AI attribution
 
    [muted]imp <command> --help tells each command's whole story;
    imp doctor checks the machine and shows the imp.* configuration[/muted]

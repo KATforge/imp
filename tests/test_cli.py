@@ -15,7 +15,10 @@ runner = CliRunner ()
 
 class TestSurface:
 
-   def test_release_preview_names_tag_and_notes (self, repo):
+   def test_release_preview_names_tag_and_notes (self, repo, monkeypatch):
+      from imp_git import ai
+
+      monkeypatch.setattr (ai, "release_notes", lambda subjects, tag: subjects)
       for index in range (1, 4):
          path = repo / f"change-{index}.txt"
          path.write_text (f"{index}\n")
@@ -45,7 +48,7 @@ class TestSurface:
       for removed in removed_commands:
          assert f"│ {removed} " not in result.output
       assert "--actor-id" not in result.output
-      assert "commit sends its diff for a message" in result.output
+      assert "commit and pr send their diffs" in result.output
       assert "-m sends nothing" in result.output
       assert "Git is the database" in result.output
 

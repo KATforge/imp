@@ -43,7 +43,7 @@ Agents approve their own reversible work: `start`, `commit`, and `done` run with
 
 ## AI
 
-`imp commit` sends the selected diff for a message (`-m` sends nothing). `imp review` sends the diff for annotations and answers. `imp cleanup` sends each feature's diff for a verdict. `imp doctor` only pings. `start`, `done`, `undo`, `status`, `pr`, and `release` are deterministic. Imp detects the actor automatically.
+`imp commit` and `imp pr` send their diffs for a message or description (`-m` sends nothing). `imp review` sends the diff for annotations and answers. `imp cleanup` sends each feature's diff for a verdict. `imp release` condenses commit subjects into notes, falling back to the raw list when the provider is unreachable. `imp doctor` only pings. `start`, `done`, `undo`, and `status` are deterministic. Everything generated is terse — one-line subjects, at most five PR bullets, at most six release bullets, essentials only — and never carries AI attribution. Imp detects the actor automatically.
 
 ## State
 
@@ -89,9 +89,9 @@ Native commands are `cleanup`, `commit`, `doctor`, `done`, `pr`, `release`, `rev
 
 ## Publishing
 
-`imp pr` pushes the current branch and opens or updates its pull request. `--into develop` targets another branch instead of trunk.
+`imp pr` pushes the current branch and opens or updates its pull request, with an AI-written title and description shown for approval first. `--into develop` targets another branch instead of trunk; `-m "title"` uses your title and the commit list, sending nothing to AI.
 
-`imp release` increments the patch version, tags the current clean commit, pushes, and publishes. Use an explicit version or `--major`, `--minor`, `--patch`, `--rc`, or `--stable`. `--local` only creates the tag.
+`imp release` increments the patch version, tags the current clean commit, pushes, and publishes with AI-condensed notes. Use an explicit version or `--major`, `--minor`, `--patch`, `--rc`, or `--stable`. `--local` only creates the tag.
 
 See the [documentation](https://docs.katforge.com/packages/imp/) and [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
 

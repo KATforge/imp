@@ -3,7 +3,7 @@ from typing import Annotated, Any
 
 import typer
 
-from imp_git import approval, console, fingerprint, gh, git, plans, state, validate
+from imp_git import ai, approval, console, fingerprint, gh, git, plans, state, validate
 
 _VERSION = re.compile (r"^v?(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$")
 
@@ -59,9 +59,24 @@ def _next (mode: str) -> str:
 
 
 def _notes (tag: str) -> str:
+   """Condense the commit subjects since the last tag into a few essential bullets.
+
+   AI keeps only what a user would care about; an unreachable provider falls back
+   to the raw subject list, so a release never blocks on the AI.
+   """
+
    previous = git.last_tag ()
    revision = f"{previous}..HEAD" if previous else "HEAD"
-   return git.capture ("log", "--reverse", "--format=- %s", revision).strip () or f"- Release {tag}"
+   subjects = git.capture ("log", "--reverse", "--format=- %s", revision).strip ()
+   if len (subjects.splitlines ()) < 2:
+      return subjects or f"- Release {tag}"
+   try:
+      condensed = ai.release_notes (subjects, tag)
+   except (state.StateError, typer.Exit):
+      return subjects
+   if condensed and validate.publishable (condensed):
+      return condensed
+   return subjects
 
 
 def _fingerprint (payload: dict [str, Any]) -> str:
@@ -167,10 +182,12 @@ def release (
    """Tag the current clean commit as a SemVer release and publish it to GitHub.
 
    With no version it increments patch; pass an exact version or one SemVer flag.
-   Release notes are the commit subjects since the previous tag, so keep subjects
-   publishable. Pushes the branch and tag then creates the GitHub release; --local
+   Release notes are AI-condensed from the commit subjects since the previous tag:
+   at most six one-line bullets covering only what users care about, shown for
+   approval before anything is tagged; an unreachable AI falls back to the raw
+   subject list. Pushes the branch and tag then creates the GitHub release; --local
    only tags. Refuses notes containing AI attribution or actor IDs. Always confirms,
-   since it writes to a remote. Deterministic; sends nothing to AI.
+   since it writes to a remote.
    """
 
    git.require ()

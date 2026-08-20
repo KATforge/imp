@@ -113,12 +113,41 @@ class TestRelease:
       assert receipt ["tag"] == "v1.2.3"
       assert git.rev_parse ("v1.2.3") == git.rev_parse ("main")
 
-   def test_release_notes_are_commit_subjects (self, repo):
+   def test_release_notes_are_condensed_by_ai (self, repo, monkeypatch):
       commit_file (repo, "change.txt", "change\n", "feat: add release change")
+      monkeypatch.setattr (
+         release_command.ai, "release_notes",
+         lambda subjects, tag: "- one essential bullet",
+      )
+
+      plan = release_command.plan_release ("1.2.3", local=True)
+
+      assert plan ["payload"] ["notes"] == "- one essential bullet"
+
+   def test_release_notes_fall_back_to_subjects (self, repo, monkeypatch):
+      from imp_git import state as state_mod
+
+      commit_file (repo, "change.txt", "change\n", "feat: add release change")
+
+      def broken (subjects, tag):
+         raise state_mod.StateError ("provider down")
+
+      monkeypatch.setattr (release_command.ai, "release_notes", broken)
 
       plan = release_command.plan_release ("1.2.3", local=True)
 
       assert "- feat: add release change" in plan ["payload"] ["notes"]
+
+   def test_single_subject_skips_ai (self, unborn_repo, monkeypatch):
+      commit_file (unborn_repo, "only.txt", "only\n", "feat: the only change")
+      monkeypatch.setattr (
+         release_command.ai, "release_notes",
+         lambda subjects, tag: pytest.fail ("AI condensed a single subject"),
+      )
+
+      plan = release_command.plan_release ("0.1.0", local=True)
+
+      assert plan ["payload"] ["notes"] == "- feat: the only change"
 
    def test_release_pushes_and_publishes (self, repo_with_origin, monkeypatch):
       pushed = []
