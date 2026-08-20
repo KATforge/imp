@@ -90,6 +90,11 @@ def _release (value: dict [str, Any], feature: str) -> dict [str, Any] | None:
    released = []
    for repository, trunk, lock in held:
       with workspace.inside (repository):
+         for path in git.ref_worktrees (trunk):
+            if not git.clean_at (path):
+               console.fatal (
+                  f"{trunk} has uncommitted session work; imp commit or discard it before imp done"
+               )
          bare = features.branch_for (lock ["name"], lock ["ticket"]).removeprefix (features.PREFIX)
          layers.record (bare, git.rev_parse (trunk), lock ["base"])
          locks.release (trunk)

@@ -186,6 +186,17 @@ class TestTrunkSessions:
       assert git.ref_exists ("feature/SPK-7-risky")
       assert locks.holder ("main") is None
 
+   def test_a_dirty_session_refuses_to_release (self, repo):
+      import typer
+
+      start_cmd.start (name="quick")
+      (repo / "loose.txt").write_text ("loose\n")
+
+      with pytest.raises (typer.Exit):
+         done_cmd.done ()
+
+      assert locks.holder ("main") is not None
+
    def test_an_empty_session_records_no_layer (self, repo):
       from imp_git import layers
 
