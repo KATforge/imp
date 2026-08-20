@@ -53,6 +53,19 @@ class TestIntegration:
       entries = git.reflog_entries ("refs/heads/main")
       assert entries [0] ["subject"] == "imp done: feature/checkout"
 
+   def test_a_dirty_trunk_blocks_at_plan_time_without_running_checks (self, repo, monkeypatch):
+      feature = _feature ()
+      (repo / "session.txt").write_text ("someone else's work\n")
+      monkeypatch.setattr (
+         integration, "run_checks",
+         lambda *args, **kwargs: pytest.fail ("checks ran against a blocked integration"),
+      )
+
+      plan = integration.plan_done (feature)
+
+      assert plan ["state"] == "blocked"
+      assert any ("uncommitted work" in blocker for blocker in plan ["blockers"])
+
    def test_apply_refuses_a_moved_target (self, repo):
       feature = _feature ()
       plan = integration.plan_done (feature)

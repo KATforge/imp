@@ -234,9 +234,14 @@ def plan_done (
    target = str (feature.get ("target") or git.base_branch ())
    local_oid, remote_oid, target_oid = resolved_target or _target_oids (target)
    candidate_oid, rewrites = _candidate (feature, target_oid)
+   blockers = [
+      f"Target checkout has uncommitted work: {path}"
+      for path in git.ref_worktrees (target)
+      if not git.clean_at (path)
+   ]
    checks = _checks ()
-   check_results = run_checks (candidate_oid, checks)
-   blockers = [ f"Check failed: {value ['name']}" for value in check_results if value ["exit_code"] ]
+   check_results = [] if blockers else run_checks (candidate_oid, checks)
+   blockers.extend (f"Check failed: {value ['name']}" for value in check_results if value ["exit_code"])
    feature_oid = git.rev_parse (str (feature ["branch"]))
    resurrected = _resurrected (git.merge_base (target_oid, feature_oid), target_oid, candidate_oid)
    if resurrected:
