@@ -5,7 +5,7 @@
 <h1 align="center">Imp</h1>
 <p align="center"><strong>Git-native workstreams for people and autonomous agents.</strong></p>
 
-Imp isolates concurrent writers in worktrees, integrates exact candidates into trunk, and keeps every fact in Git itself.
+Imp puts every change on trunk as one exact, reviewed, undoable layer — whether a person typed it or an agent shipped it. Concurrent writers never collide, nothing is ever lost, and Git itself is the only database.
 
 ## Install
 
@@ -14,84 +14,67 @@ pip install imp-git
 imp doctor
 ```
 
-## Workflow
+## The loop
 
 ```bash
-imp start payment-retries      # trunk free → work in place; trunk busy → worktree
-cd "$(imp worktree path payment-retries)"   # only when isolated
-
-imp commit
-imp done
-
-imp review     # AI-annotated diff of unpushed trunk; ask questions at the prompt
+imp start payment-retries      # trunk free → work in place; busy → isolated worktree
+imp commit                     # one exact commit, message written from the diff
+imp done                       # land it: checks, full diff, compare-and-swap
+imp review                     # annotated diff of unpushed trunk; ask it questions
 imp push
 ```
 
-`imp start` is trunk-first: when the trunk lock is free and the checkout is clean and on trunk, it claims `imp.lock.<trunk>` for 8 hours and work lands directly on trunk; `imp done` releases it. A trunk locked by someone else, a dirty checkout, `--repo`, or `--worktree` isolates in one branch plus one worktree off fresh trunk instead, so concurrent agents cascade: the first takes trunk, the rest take worktrees. `imp commit` on trunk claims or renews the lock automatically. `--ticket` rides the trunk lock or shapes the branch (`feature/SPK-12345-payment-retries`), reaching commit subjects either way; Imp warns when existing branches carry tickets and yours does not.
+`imp start` is trunk-first. When the trunk lock is free and the checkout is clean, work happens directly in the current checkout — live for whatever runs from trunk — and the session becomes one layer. When trunk is busy, imp creates a branch plus worktree off fresh trunk instead, so concurrent agents cascade: the first takes trunk, the rest take worktrees, nobody names a mode. `--worktree` forces isolation; `--ticket SPK-12345` carries a ticket into branch names and commit subjects.
 
-`imp commit` uses staged changes, or every dirty path when nothing is staged. It builds one commit off-ref and moves the branch only when it succeeds.
+`imp commit` builds the commit off-ref from staged changes (or every dirty path) and only moves the branch when it succeeds. On trunk it claims or renews the lock automatically.
 
-`imp done` builds the exact candidate, runs the project's checks against it in a throwaway worktree, shows the complete diff, integrates by compare-and-swap, and removes the branch and worktree. The move is stamped in trunk's reflog. `--all` integrates every open feature, oldest first, as one exact batch.
+`imp done` integrates exactly what it showed you: the candidate is rebased or merged off-ref, the project's checks run against it in a throwaway worktree, and trunk moves by compare-and-swap. For a trunk session it releases the lock. Either way the work is recorded as one layer. `--all` lands every open feature, oldest first.
 
-`imp undo` backs the most recent unpushed layer off trunk and restores it as a feature worktree, so a failed trunk test costs one command. Every unit of work is one layer — an integrated feature or a released trunk session, recorded under `refs/imp/layer` — and layers unwind newest-first. A live trunk session undoes midway too, turning abandoned trunk work into a branch.
+## The net
 
-`imp cleanup` judges every open feature with AI (integrate, discard, or hold), shows the verdict table for approval, and flattens the workspace. Discarded tips park under `refs/imp/attic` for 30 days. `--keep <name>` exempts a feature.
+```bash
+imp undo        # lift the newest layer off trunk, restore it as a feature worktree
+imp cleanup     # AI judges every open feature: integrate, discard, or hold
+```
 
-## Autonomy
+`imp undo` unwinds layers newest-first: trunk steps back, the work comes back as `feature/<name>` with its worktree, ready to fix and land again. A live trunk session undoes midway. Pushed layers refuse — revert those.
 
-Agents approve their own reversible work: `start`, `commit`, and `done` run without prompts for a detected agent session. Destructive and remote actions (`cleanup`, `undo`, `worktree remove`, `pr`, `release`) always need `--yes` or a person at the prompt. Humans are always asked. Preview anything with `--dry-run`.
-
-## AI
-
-`imp commit` and `imp pr` send their diffs for a message or description (`-m` sends nothing). `imp review` sends the diff for annotations and answers. `imp cleanup` sends each feature's diff for a verdict. `imp release` condenses commit subjects into notes, falling back to the raw list when the provider is unreachable. `imp doctor` only pings. `start`, `done`, `undo`, and `status` are deterministic. Everything generated is terse — one-line subjects, at most five PR bullets, at most six release bullets, essentials only — and never carries AI attribution. Imp detects the actor automatically.
+`imp cleanup` flattens the workspace. Each open feature's full difference against trunk, uncommitted work included, gets an AI verdict shown for approval. Integrations run the checks and land dependency-first; discards park under `refs/imp/attic` for 30 days; holds stay put, because flat with exceptions beats flat at all costs.
 
 ## State
 
-Git is the database. A feature is its `feature/*` branch plus its worktree; age comes from the reflog, layers from `refs/imp/layer`, discarded work from `refs/imp/attic`. Trunk locks, multi-repository order, and machine knobs live in Git configuration under `imp.*`. Imp writes no state files.
+Git is the database. A feature is its branch plus its worktree. Layers live in `refs/imp/layer`, discarded work in `refs/imp/attic`, history in the reflog. Locks, span order, and knobs are Git configuration:
 
 ```bash
-git config imp.worktrees ~/.worktrees    # managed worktree root (default)
-git config imp.provider claude           # or ollama
-git config --add imp.check "pytest -q"   # override check detection; "none" disables
+git config imp.worktrees ~/.worktrees     # managed worktree root (default)
+git config imp.provider claude            # or ollama
+git config --add imp.check "pytest -q"    # override check detection; "none" disables
 ```
 
-Checks are otherwise detected from the project: a `package.json` test script, a `composer.json` test script, a pyproject mentioning pytest, or a Makefile `test:` target.
+Checks are otherwise detected from the project: an npm or composer test script, a pyproject with pytest, a Makefile test target. Imp writes no state files, so there is nothing to migrate, repair, or trust.
 
-## Multiple repositories
+## Many repositories
 
 ```bash
 imp start checkout --repo api --repo web
 imp done checkout
 ```
 
-Run these from the directory containing the repositories. The repeated `--repo` order is recorded as `imp.span.<name>.order` in each member and is the integration order.
+Run from the directory holding the checkouts: it is the workspace, no manifest required. The `--repo` order is the dependency order — recorded in each member, replayed at integration, refused as a whole if any member is blocked.
 
-## Automation
+## Agents
 
-```bash
-imp commit --json --dry-run
-imp commit --json --yes
-```
+Agents run the same commands. They approve their own reversible work — `start`, `commit`, and `done` never stall on a prompt — while destructive and remote actions (`undo`, `cleanup`, `worktree remove`, `pr`, `release`) always need `--yes` or a person. `--json` gives every command a versioned envelope and never prompts; `--dry-run` shows the exact plan and changes nothing.
 
-`--json` never prompts and emits one versioned envelope. `--dry-run` emits the exact ephemeral plan. `--yes` approves it.
-
-## Git passthrough
-
-Unknown commands run as Git with the same arguments and exit status.
-
-```bash
-imp diff --staged
-imp log --oneline
-imp push
-```
-
-Native commands are `cleanup`, `commit`, `doctor`, `done`, `pr`, `release`, `review`, `start`, `status`, `undo`, and `worktree`.
+`imp commit` and `imp pr` send their diffs to AI (`-m` sends nothing); `imp review` and `imp cleanup` send diffs for annotations and verdicts; `imp release` condenses commit subjects into notes. Everything generated is terse — one-line subjects, essentials-only bullets — and never carries AI attribution.
 
 ## Publishing
 
-`imp pr` pushes the current branch and opens or updates its pull request, with an AI-written title and description shown for approval first. `--into develop` targets another branch instead of trunk; `-m "title"` uses your title and the commit list, sending nothing to AI.
+`imp pr` pushes the branch and opens or updates its pull request — AI-written title and description, shown for approval first. `--into develop` targets another base; `-m "title"` stays deterministic.
 
-`imp release` increments the patch version, tags the current clean commit, pushes, and publishes with AI-condensed notes. Use an explicit version or `--major`, `--minor`, `--patch`, `--rc`, or `--stable`. `--local` only creates the tag.
+`imp release` tags a SemVer release from the clean current commit and publishes it to GitHub with condensed notes. Pass a version, or `--major`, `--minor`, `--patch`, `--rc`, `--stable`; `--local` only tags.
+
+Everything else — `imp push`, `imp log`, `imp diff` — is Git, passed through untouched.
 
 See the [documentation](https://docs.katforge.com/packages/imp/) and [JSON protocol](https://docs.katforge.com/packages/imp/json-protocol).
 
