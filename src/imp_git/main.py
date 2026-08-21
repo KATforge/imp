@@ -142,8 +142,6 @@ _commands = [
 for _cmd in _commands:
    app.command (cls=SortedCommand) (_cmd)
 
-app.command (cls=SortedCommand, name="done", hidden=True) (merge)
-
 app.add_typer (worktree, name="worktree")
 
 _NATIVE = { command.name or command.callback.__name__ for command in app.registered_commands }

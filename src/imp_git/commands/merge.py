@@ -233,7 +233,7 @@ def merge (
 
    Checks come from `git config imp.check` entries, or are detected from the project
    (package.json, composer.json, pyproject with pytest, Makefile). Deterministic;
-   sends nothing to AI. `imp done` remains a hidden alias for one release.
+   sends nothing to AI.
    """
 
    value = workspace.here ()

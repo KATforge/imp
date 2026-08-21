@@ -28,7 +28,7 @@ imp push
 
 `imp commit` builds the commit off-ref from staged changes (or every dirty path) and only moves the branch when it succeeds. On trunk it claims or renews the lock automatically.
 
-`imp merge` integrates exactly what it showed you: the candidate is rebased or merged off-ref, the project's checks run against it in a throwaway worktree, and the target moves by compare-and-swap. `--into develop` names another target; trunk is the default. For a trunk session it releases the lock. Either way the work is recorded as one layer. `--all` lands every open feature, oldest first. `imp done` remains a hidden alias for one release.
+`imp merge` integrates exactly what it showed you: the candidate is rebased or merged off-ref, the project's checks run against it in a throwaway worktree, and the target moves by compare-and-swap. `--into develop` names another target; trunk is the default. For a trunk session it releases the lock. Either way the work is recorded as one layer. `--all` lands every open feature, oldest first.
 
 ## The net
 

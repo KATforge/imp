@@ -86,19 +86,6 @@ class TestUndo:
       assert git.rev_parse ("main") == trunk_before
       assert git.capture ("show", "develop:side.txt").strip () == "side"
 
-   def test_done_remains_an_alias (self, repo):
-      from typer.testing import CliRunner
-
-      from imp_git.main import app
-
-      feature = features.apply_start (features.plan_start ("aliased"))
-      commit_file (Path (feature ["path"]), "aliased.txt", "aliased\n", "feat: add aliased work")
-      result = CliRunner ().invoke (app, [ "--json", "--yes", "done", "aliased" ])
-
-      assert result.exit_code == 0
-      assert '"imp.merge.v1"' in result.output
-      assert git.capture ("show", "main:aliased.txt").strip () == "aliased"
-
    def test_undo_applies_nothing_when_trunk_moved_after_planning (self, repo):
       _integrated ()
       plan = undo_cmd._plan ("main", "")
