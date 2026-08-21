@@ -93,7 +93,7 @@ def _release (value: dict [str, Any], feature: str) -> dict [str, Any] | None:
          for path in git.ref_worktrees (trunk):
             if not git.clean_at (path):
                console.fatal (
-                  f"{trunk} has uncommitted session work; imp commit or discard it before imp done"
+                  f"{trunk} has uncommitted session work; imp commit or discard it before imp merge"
                )
          bare = features.branch_for (lock ["name"], lock ["ticket"]).removeprefix (features.PREFIX)
          layers.record (bare, git.rev_parse (trunk), lock ["base"])
@@ -106,12 +106,14 @@ def _release (value: dict [str, Any], feature: str) -> dict [str, Any] | None:
       "released": released,
    }
    if runtime.options.json:
-      return result.emit ("imp.done.v3", "imp done", data, json_output=True)
+      return result.emit ("imp.merge.v1", "imp merge", data, json_output=True)
    console.success (f"Trunk released: {', '.join (released)}")
    return data
 
 
-def _plan_group (name: str, workspace_name: str, entries: list [dict [str, Any]]) -> dict [str, Any]:
+def _plan_group (
+   name: str, workspace_name: str, entries: list [dict [str, Any]], into: str = "",
+) -> dict [str, Any]:
    children = []
    blockers = []
    batch = len (entries) > 1
@@ -120,10 +122,12 @@ def _plan_group (name: str, workspace_name: str, entries: list [dict [str, Any]]
       for member in entry ["members"]:
          with workspace.inside (member ["repository"]):
             feature = features.resolve (str (member ["branch"]))
+            if into:
+               feature = { **feature, "target": into }
             target = str (feature ["target"])
             key = (str (member ["repository"]), target)
             resolved = targets.get (key) or integration.target_state (target)
-            child = integration.plan_done (feature, resolved_target=resolved)
+            child = integration.plan_merge (feature, resolved_target=resolved)
          payload = child ["payload"]
          targets [key] = (payload ["candidate_oid"], payload ["remote_target_oid"], payload ["candidate_oid"])
          label = f"{entry ['name']}/{member ['alias']}" if batch else str (member ["alias"])
@@ -136,7 +140,7 @@ def _plan_group (name: str, workspace_name: str, entries: list [dict [str, Any]]
             "plan": child,
          })
    return plans.build (
-      "done",
+      "merge",
       name,
       scope={ "workspace": workspace_name },
       items=[
@@ -148,7 +152,7 @@ def _plan_group (name: str, workspace_name: str, entries: list [dict [str, Any]]
          }
          for child in children
       ],
-      payload_schema="imp.done-plan.v4",
+      payload_schema="imp.merge-plan.v2",
       payload={
          "feature": name,
          "features": [ str (entry ["name"]) for entry in entries ],
@@ -164,7 +168,7 @@ def _apply_group (plan: dict [str, Any]) -> dict [str, Any]:
    for child in plan ["payload"] ["members"]:
       try:
          with workspace.inside (child ["repository"]):
-            integration.apply_done (child ["plan"])
+            integration.apply_merge (child ["plan"])
       except (state.StateError, ValueError) as error:
          detail = ", ".join (landed) or "nothing"
          raise state.StateError (f"{child ['label']} failed after integrating {detail}: {error}") from error
@@ -199,32 +203,37 @@ def _show_group (plan: dict [str, Any]):
          _show_diff (diff)
 
 
-def done (
+def merge (
    feature: Annotated [str, typer.Argument (help="Feature name or branch; omit to pick the open one")] = "",
    all_features: Annotated [
       bool,
-      typer.Option ("--all", help="Integrate every open feature, oldest first, as one exact batch"),
+      typer.Option ("--all", help="Merge every open feature, oldest first, as one exact batch"),
    ] = False,
+   into: Annotated [
+      str,
+      typer.Option ("--into", help="Target branch; defaults to trunk"),
+   ] = "",
 ):
-   """Integrate a feature into trunk exactly as shown, then remove its branch and worktree.
+   """Merge a feature into trunk exactly as shown, then remove its branch and worktree.
 
-   Builds the exact candidate off-ref (rebasing unpublished commits onto trunk, merging
-   otherwise), runs the project's checks against it in a throwaway worktree, shows the
-   complete diff, then moves trunk by compare-and-swap. The move is stamped in trunk's
-   reflog, so `imp undo` can back the layer out later.
+   Builds the exact candidate off-ref (rebasing unpublished commits onto the target,
+   merging otherwise), runs the project's checks against it in a throwaway worktree,
+   shows the complete diff, then moves the target by compare-and-swap. The move is
+   stamped in the target's reflog, so `imp undo` can back the layer out later.
+   `--into` names the target branch; trunk by default.
 
-   A feature spanning repositories integrates dependency-first in its recorded span
+   A feature spanning repositories merges dependency-first in its recorded span
    order and refuses as a whole if any member is blocked. With exactly one open
    feature, the name may be omitted.
 
    For trunk-mode work (started when the trunk lock was free), there is nothing to
-   integrate: `imp done` releases the lock and records the session as one undoable
-   layer. Bare `imp done` finishes your own trunk session first; name a feature to
-   integrate one instead.
+   merge: `imp merge` releases the lock and records the session as one undoable
+   layer. Bare `imp merge` finishes your own trunk session first; name a feature to
+   merge one instead.
 
    Checks come from `git config imp.check` entries, or are detected from the project
    (package.json, composer.json, pyproject with pytest, Makefile). Deterministic;
-   sends nothing to AI.
+   sends nothing to AI. `imp done` remains a hidden alias for one release.
    """
 
    value = workspace.here ()
@@ -232,7 +241,7 @@ def done (
       console.fatal ("No repository here")
    if all_features and feature:
       console.fatal ("Pass a feature or --all, not both")
-   if not all_features and not feature:
+   if not all_features and not feature and not into:
       released = _release (value, "")
       if released is not None:
          return released
@@ -246,14 +255,14 @@ def done (
    notes = _standing (selected)
    name = "all features" if all_features else str (selected [0] ["name"])
    try:
-      plan = _plan_group (name, str (value ["name"]), selected)
+      plan = _plan_group (name, str (value ["name"]), selected, into)
    except (state.StateError, ValueError) as error:
       console.fatal (str (error))
    return approval.run (
       plan,
-      noun="integration",
-      confirm="Integrate these exact candidates?",
-      result_schema="imp.done.v3",
+      noun="merge",
+      confirm="Merge these exact candidates?",
+      result_schema="imp.merge.v1",
       apply=_apply_group,
       show=_show_group,
       success=lambda data: console.success (

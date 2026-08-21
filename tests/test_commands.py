@@ -278,7 +278,7 @@ class TestStandingWarning:
 
    def test_done_warns_when_run_inside_the_worktree_it_removes (self, repo_with_origin, monkeypatch):
       from imp_git import features, roster, workspace
-      from imp_git.commands import done as done_cmd
+      from imp_git.commands import merge as merge_cmd
       from imp_git.commands import start as start_cmd
 
       start_cmd.start (name="standing")
@@ -286,16 +286,16 @@ class TestStandingWarning:
       entries = roster.collect (workspace.here (str (repo_with_origin)))
       monkeypatch.chdir (feature ["path"])
 
-      warnings = done_cmd._standing (entries)
+      warnings = merge_cmd._standing (entries)
 
       assert any (str (feature ["path"]) in text for text in warnings)
 
    def test_done_stays_quiet_from_the_repository_root (self, repo_with_origin):
       from imp_git import roster, workspace
-      from imp_git.commands import done as done_cmd
+      from imp_git.commands import merge as merge_cmd
       from imp_git.commands import start as start_cmd
 
       start_cmd.start (name="standing")
       entries = roster.collect (workspace.here (str (repo_with_origin)))
 
-      assert done_cmd._standing (entries) == []
+      assert merge_cmd._standing (entries) == []

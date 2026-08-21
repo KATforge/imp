@@ -140,10 +140,10 @@ def undo (
 ):
    """Back the most recent layer off trunk and restore it as a feature worktree.
 
-   Every unit of work is one layer: a worktree feature integrated by `imp done`, or a
+   Every unit of work is one layer: a worktree feature integrated by `imp merge`, or a
    direct trunk session under the trunk lock. Undo moves trunk back to the state just
    before the top layer by compare-and-swap and recreates the work as feature/<name>
-   with a worktree, so nothing is lost — fix it and `imp done` it again. Undoing a
+   with a worktree, so nothing is lost — fix it and `imp merge` it again. Undoing a
    live trunk session also releases the lock.
 
    Layers unwind newest-first, one at a time; run undo repeatedly to go deeper. A

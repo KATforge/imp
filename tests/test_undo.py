@@ -11,7 +11,7 @@ from tests.conftest import commit_file, git_run
 def _integrated (name: str = "checkout") -> dict:
    feature = features.apply_start (features.plan_start (name))
    commit_file (Path (feature ["path"]), f"{name}.txt", f"{name}\n", f"feat: add {name}")
-   integration.apply_done (integration.plan_done (features.find (name)))
+   integration.apply_merge (integration.plan_merge (features.find (name)))
    return feature
 
 
@@ -34,7 +34,7 @@ class TestUndo:
       _integrated ()
       undo_cmd.undo ()
 
-      integration.apply_done (integration.plan_done (features.find ("checkout")))
+      integration.apply_merge (integration.plan_merge (features.find ("checkout")))
 
       assert git.capture ("show", "main:checkout.txt").strip () == "checkout"
 
@@ -73,6 +73,31 @@ class TestUndo:
 
       assert (repo / "file.txt").read_text () == "meddled\n"
       assert not git.ref_exists ("feature/checkout")
+
+   def test_merge_into_targets_another_branch (self, repo):
+      git_run (repo, "branch", "develop")
+      feature = features.apply_start (features.plan_start ("sidework"))
+      commit_file (Path (feature ["path"]), "side.txt", "side\n", "feat: add side work")
+      trunk_before = git.rev_parse ("main")
+
+      from imp_git.commands import merge as merge_cmd
+      merge_cmd.merge ("sidework", into="develop")
+
+      assert git.rev_parse ("main") == trunk_before
+      assert git.capture ("show", "develop:side.txt").strip () == "side"
+
+   def test_done_remains_an_alias (self, repo):
+      from typer.testing import CliRunner
+
+      from imp_git.main import app
+
+      feature = features.apply_start (features.plan_start ("aliased"))
+      commit_file (Path (feature ["path"]), "aliased.txt", "aliased\n", "feat: add aliased work")
+      result = CliRunner ().invoke (app, [ "--json", "--yes", "done", "aliased" ])
+
+      assert result.exit_code == 0
+      assert '"imp.merge.v1"' in result.output
+      assert git.capture ("show", "main:aliased.txt").strip () == "aliased"
 
    def test_undo_applies_nothing_when_trunk_moved_after_planning (self, repo):
       _integrated ()

@@ -37,7 +37,7 @@ class TestSurface:
 
       assert result.exit_code == 0
       for command in [
-         "start", "status", "commit", "done", "review", "cleanup", "undo", "release", "pr", "worktree",
+         "start", "status", "commit", "merge", "review", "cleanup", "undo", "release", "pr", "worktree",
       ]:
          assert command in result.output
       removed_commands = [
@@ -82,12 +82,13 @@ class TestSurface:
 
       assert seen == commands
 
-   def test_done_exposes_only_all (self):
-      result = runner.invoke (app, [ "done", "--help" ])
+   def test_merge_exposes_only_all_and_into (self):
+      result = runner.invoke (app, [ "merge", "--help" ])
 
       assert result.exit_code == 0
       assert "--approve" not in result.output
       assert "--all" in result.output
+      assert "--into" in result.output
       assert "--keep" not in result.output
       assert "--strategy" not in result.output
 
@@ -133,7 +134,7 @@ class TestErrorBoundary:
 
    def test_usage_error_emits_versioned_error_envelope (self, monkeypatch, capsys, tmp_path):
       monkeypatch.chdir (tmp_path)
-      monkeypatch.setattr (sys, "argv", [ "imp", "--json", "done", "--nope" ])
+      monkeypatch.setattr (sys, "argv", [ "imp", "--json", "merge", "--nope" ])
       monkeypatch.setattr (runtime, "options", runtime.Options ())
 
       code = main_mod.run ()
@@ -141,7 +142,7 @@ class TestErrorBoundary:
 
       assert code == 2
       assert value ["schema"] == "imp.error.v1"
-      assert value ["command"] == "imp done"
+      assert value ["command"] == "imp merge"
       assert value ["ok"] is False
       assert "--nope" in value ["data"] ["message"]
 
@@ -258,7 +259,7 @@ class TestHelpOrdering:
       lines = [ line.strip () for line in result.output.splitlines () ]
 
       assert result.exit_code == 0
-      assert "start ─► edit ─► commit ─► done ─► trunk ─► review ─► push" in lines
+      assert "start ─► edit ─► commit ─► merge ─► trunk ─► review ─► push" in lines
       assert "one checkout          a directory of checkouts" in lines
 
    def test_global_options_are_alphabetical_with_help_last (self):
@@ -268,7 +269,7 @@ class TestHelpOrdering:
       assert options [:-1] == sorted (options [:-1])
 
    def test_every_command_orders_its_options_alphabetically (self):
-      for command in [ "commit", "done", "start", "release", "pr", "review", "cleanup", "undo" ]:
+      for command in [ "commit", "merge", "start", "release", "pr", "review", "cleanup", "undo" ]:
          options = self._options (command)
 
          assert options [-1] == "--help", command

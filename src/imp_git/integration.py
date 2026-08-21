@@ -223,7 +223,7 @@ def _state_fingerprint (payload: dict [str, Any]) -> str:
    })
 
 
-def plan_done (
+def plan_merge (
    feature: dict [str, Any],
    *,
    resolved_target: tuple [str, str, str] | None = None,
@@ -265,7 +265,7 @@ def plan_done (
    }
    payload ["state_fingerprint"] = _state_fingerprint (payload)
    return plans.build (
-      "done", str (feature ["name"]),
+      "merge", str (feature ["name"]),
       scope={ "branch": feature ["branch"], "repository": git.repo_name () },
       items=[
          { "action": "integrate", "candidate_oid": candidate_oid, "target": target },
@@ -274,13 +274,13 @@ def plan_done (
       checks=check_results,
       blockers=blockers,
       fingerprint=payload ["state_fingerprint"],
-      payload_schema="imp.done-plan.v3",
+      payload_schema="imp.merge-plan.v1",
       payload=payload,
    )
 
 
 def _validate (plan: dict [str, Any]):
-   if plan.get ("state") != "ready" or plan.get ("payload_schema") != "imp.done-plan.v3":
+   if plan.get ("state") != "ready" or plan.get ("payload_schema") != "imp.merge-plan.v1":
       raise state.StateError ("Integration plan is not ready")
    payload = plan ["payload"]
    feature = features.find (str (payload ["branch"]))
@@ -307,7 +307,7 @@ def _validate (plan: dict [str, Any]):
    return payload, feature, target_oid
 
 
-def apply_done (plan: dict [str, Any]) -> dict [str, Any]:
+def apply_merge (plan: dict [str, Any]) -> dict [str, Any]:
    payload, feature, target_oid = _validate (plan)
    if target_oid == payload ["local_target_oid"]:
       _, layer = layers.stage (
@@ -320,7 +320,7 @@ def apply_done (plan: dict [str, Any]) -> dict [str, Any]:
             f"update refs/heads/{payload ['target_ref']} {payload ['candidate_oid']} {payload ['local_target_oid']}",
             *layer,
          ],
-         message=f"imp done: {payload ['branch']}",
+         message=f"imp merge: {payload ['branch']}",
       )
       for path in git.ref_worktrees (str (payload ["target_ref"])):
          git.reset_at (path, str (payload ["candidate_oid"]))

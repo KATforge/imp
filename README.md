@@ -19,7 +19,7 @@ imp doctor
 ```bash
 imp start payment-retries      # trunk free → work in place; busy → isolated worktree
 imp commit                     # one exact commit, message written from the diff
-imp done                       # land it: checks, full diff, compare-and-swap
+imp merge                      # into trunk: checks, full diff, compare-and-swap
 imp review                     # annotated diff of unpushed trunk; ask it questions
 imp push
 ```
@@ -28,7 +28,7 @@ imp push
 
 `imp commit` builds the commit off-ref from staged changes (or every dirty path) and only moves the branch when it succeeds. On trunk it claims or renews the lock automatically.
 
-`imp done` integrates exactly what it showed you: the candidate is rebased or merged off-ref, the project's checks run against it in a throwaway worktree, and trunk moves by compare-and-swap. For a trunk session it releases the lock. Either way the work is recorded as one layer. `--all` lands every open feature, oldest first.
+`imp merge` integrates exactly what it showed you: the candidate is rebased or merged off-ref, the project's checks run against it in a throwaway worktree, and the target moves by compare-and-swap. `--into develop` names another target; trunk is the default. For a trunk session it releases the lock. Either way the work is recorded as one layer. `--all` lands every open feature, oldest first. `imp done` remains a hidden alias for one release.
 
 ## The net
 
@@ -57,14 +57,14 @@ Checks are otherwise detected from the project: an npm or composer test script, 
 
 ```bash
 imp start checkout --repo api --repo web
-imp done checkout
+imp merge checkout
 ```
 
 Run from the directory holding the checkouts: it is the workspace, no manifest required. The `--repo` order is the dependency order — recorded in each member, replayed at integration, refused as a whole if any member is blocked.
 
 ## Agents
 
-Agents run the same commands. They approve their own reversible work — `start`, `commit`, and `done` never stall on a prompt — while destructive and remote actions (`undo`, `cleanup`, `worktree remove`, `pr`, `release`) always need `--yes` or a person. `--json` gives every command a versioned envelope and never prompts; `--dry-run` shows the exact plan and changes nothing.
+Agents run the same commands. They approve their own reversible work — `start`, `commit`, and `merge` never stall on a prompt — while destructive and remote actions (`undo`, `cleanup`, `worktree remove`, `pr`, `release`) always need `--yes` or a person. `--json` gives every command a versioned envelope and never prompts; `--dry-run` shows the exact plan and changes nothing.
 
 `imp commit` and `imp pr` send their diffs to AI (`-m` sends nothing); `imp review` and `imp cleanup` send diffs for annotations and verdicts; `imp release` condenses commit subjects into notes. Everything generated is terse — one-line subjects, essentials-only bullets — and never carries AI attribution.
 

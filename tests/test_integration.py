@@ -5,7 +5,7 @@ import pytest
 import typer
 
 from imp_git import features, git, integration, state
-from imp_git.commands import done as done_command
+from imp_git.commands import merge as merge_command
 from imp_git.commands import release as release_command
 from tests.conftest import commit_file, git_run
 
@@ -27,18 +27,18 @@ class TestIntegration:
          lambda: [ { "name": "tests", "run": [ sys.executable, "-c", "raise SystemExit(1)" ] } ],
       )
 
-      plan = integration.plan_done (feature)
+      plan = integration.plan_merge (feature)
 
       assert plan ["blockers"] == [ "Check failed: tests" ]
       assert git.rev_parse ("main") == target_oid
 
    def test_done_shows_and_integrates_the_exact_diff (self, repo):
       feature = _feature ()
-      plan = integration.plan_done (feature)
+      plan = integration.plan_merge (feature)
 
       assert "+checkout" in plan ["payload"] ["diff"]
 
-      receipt = integration.apply_done (plan)
+      receipt = integration.apply_merge (plan)
 
       assert receipt ["candidate_oid"] == git.rev_parse ("main")
       assert git.capture ("show", "main:checkout.txt").strip () == "checkout"
@@ -48,10 +48,10 @@ class TestIntegration:
    def test_done_stamps_the_trunk_reflog (self, repo):
       feature = _feature ()
 
-      integration.apply_done (integration.plan_done (feature))
+      integration.apply_merge (integration.plan_merge (feature))
 
       entries = git.reflog_entries ("refs/heads/main")
-      assert entries [0] ["subject"] == "imp done: feature/checkout"
+      assert entries [0] ["subject"] == "imp merge: feature/checkout"
 
    def test_a_dirty_trunk_blocks_at_plan_time_without_running_checks (self, repo, monkeypatch):
       feature = _feature ()
@@ -61,18 +61,18 @@ class TestIntegration:
          lambda *args, **kwargs: pytest.fail ("checks ran against a blocked integration"),
       )
 
-      plan = integration.plan_done (feature)
+      plan = integration.plan_merge (feature)
 
       assert plan ["state"] == "blocked"
       assert any ("uncommitted work" in blocker for blocker in plan ["blockers"])
 
    def test_apply_refuses_a_moved_target (self, repo):
       feature = _feature ()
-      plan = integration.plan_done (feature)
+      plan = integration.plan_merge (feature)
       commit_file (repo, "other.txt", "other\n", "chore: move target")
 
       with pytest.raises (state.StateError, match="target moved"):
-         integration.apply_done (plan)
+         integration.apply_merge (plan)
 
       assert features.find ("checkout") is not None
 
@@ -94,7 +94,7 @@ class TestIntegration:
       _feature ("first")
       _feature ("second")
 
-      receipt = done_command.done (all_features=True)
+      receipt = merge_command.merge (all_features=True)
 
       assert receipt ["completed"] == [ "first", "second" ]
       assert git.capture ("show", "main:first.txt").strip () == "first"
@@ -109,7 +109,7 @@ class TestIntegration:
       (Path (second ["path"]) / "loose.txt").write_text ("dirty\n")
 
       with pytest.raises (typer.Exit):
-         done_command.done (all_features=True)
+         merge_command.merge (all_features=True)
 
       assert git.rev_parse ("main") == target
       assert features.find ("first")

@@ -14,7 +14,7 @@ from imp_git.cli import SortedCommand, ordered
 from imp_git.commands.cleanup import cleanup
 from imp_git.commands.commit import commit
 from imp_git.commands.doctor import doctor
-from imp_git.commands.done import done
+from imp_git.commands.merge import merge
 from imp_git.commands.pr import pr
 from imp_git.commands.release import release
 from imp_git.commands.review import review
@@ -85,7 +85,7 @@ def main (
 
    [bold]Feature[/bold]
 
-     start ─► edit ─► commit ─► done ─► trunk ─► review ─► push
+     start ─► edit ─► commit ─► merge ─► trunk ─► review ─► push
      └──────── isolated worktree ──────┘        undo backs a layer out
 
    [bold]Scope[/bold]
@@ -113,7 +113,7 @@ def main (
      commit and pr send their diffs for a message or description, and
      -m sends nothing; review and cleanup send diffs for annotations
      and verdicts; release condenses commit subjects into notes;
-     doctor only pings; start, done, undo, and status are deterministic
+     doctor only pings; start, merge, undo, and status are deterministic
      every generated line is terse, and never carries AI attribution
 
    [muted]imp <command> --help tells each command's whole story;
@@ -136,11 +136,13 @@ def main (
    )
 
 _commands = [
-   cleanup, commit, doctor, done, pr, release, review, start, status, undo,
+   cleanup, commit, doctor, merge, pr, release, review, start, status, undo,
 ]
 
 for _cmd in _commands:
    app.command (cls=SortedCommand) (_cmd)
+
+app.command (cls=SortedCommand, name="done", hidden=True) (merge)
 
 app.add_typer (worktree, name="worktree")
 

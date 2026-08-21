@@ -152,7 +152,7 @@ def review (
    """Read an AI-annotated diff: the change on the left, findings on the right.
 
    With no argument it reviews everything on trunk that origin does not have yet, which
-   is exactly the layer integrated by `imp done` and not pushed. Name a feature to
+   is exactly the layer integrated by `imp merge` and not pushed. Name a feature to
    review its branch against trunk before integrating.
 
    The diff prints immediately while the AI reads it in the background; the sidebar

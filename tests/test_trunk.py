@@ -4,7 +4,7 @@ import pytest
 
 from imp_git import ai, commit_plan, features, git, integration, locks, state
 from imp_git.commands import cleanup as cleanup_cmd
-from imp_git.commands import done as done_cmd
+from imp_git.commands import merge as merge_cmd
 from imp_git.commands import start as start_cmd
 from tests.conftest import commit_file, git_run, plant_lock
 
@@ -106,7 +106,7 @@ class TestTrunkRelease:
    def test_done_releases_my_lock (self, repo):
       start_cmd.start (name="quick")
 
-      receipt = done_cmd.done ()
+      receipt = merge_cmd.merge ()
 
       assert receipt ["released"] == [ "main" ]
       assert locks.holder ("main") is None
@@ -114,7 +114,7 @@ class TestTrunkRelease:
    def test_done_releases_by_name (self, repo):
       start_cmd.start (name="quick")
 
-      receipt = done_cmd.done ("quick")
+      receipt = merge_cmd.merge ("quick")
 
       assert receipt ["released"] == [ "main" ]
 
@@ -123,12 +123,12 @@ class TestTrunkRelease:
       feature = features.apply_start (features.plan_start ("real"))
       commit_file (Path (feature ["path"]), "real.txt", "real\n", "feat: add real work")
 
-      receipt = done_cmd.done ()
+      receipt = merge_cmd.merge ()
 
       assert receipt ["released"] == [ "main" ]
       assert locks.holder ("main") is None
 
-      receipt = done_cmd.done ()
+      receipt = merge_cmd.merge ()
 
       assert receipt ["completed"] == [ "real" ]
 
@@ -137,7 +137,7 @@ class TestTrunkRelease:
       commit_file (Path (feature ["path"]), "b.txt", "b\n", "feat: add blocked work")
       plant_lock (repo, FOREIGN)
 
-      plan = integration.plan_done (features.find ("blocked"))
+      plan = integration.plan_merge (features.find ("blocked"))
 
       assert any ("locked by" in blocker for blocker in plan ["blockers"])
 
@@ -182,7 +182,7 @@ class TestTrunkSessions:
       commit_file (repo, "quick.txt", "quick\n", "feat: add quick change")
       landed = git.rev_parse ("main")
 
-      done_cmd.done ()
+      merge_cmd.merge ()
 
       layer = layers.at_head (landed)
       assert layer ["bare"] == "quick"
@@ -215,7 +215,7 @@ class TestTrunkSessions:
       (repo / "loose.txt").write_text ("loose\n")
 
       with pytest.raises (typer.Exit):
-         done_cmd.done ()
+         merge_cmd.merge ()
 
       assert locks.holder ("main") is not None
 
@@ -224,7 +224,7 @@ class TestTrunkSessions:
 
       start_cmd.start (name="idle")
 
-      done_cmd.done ()
+      merge_cmd.merge ()
 
       assert layers.all () == []
 

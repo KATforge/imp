@@ -137,47 +137,47 @@ class TestSpan:
       assert roster.collect (workspace.here (str (demo))) == []
 
    def test_done_emits_one_exact_result (self, demo, capsys):
-      from imp_git.commands import done as done_cmd
+      from imp_git.commands import merge as merge_cmd
 
       self._ready (demo)
       runtime.configure (json=True, yes=True)
       capsys.readouterr ()
 
-      done_cmd.done ("checkout")
+      merge_cmd.merge ("checkout")
 
       value = json.loads (capsys.readouterr ().out)
-      assert value ["schema"] == "imp.done.v3"
+      assert value ["schema"] == "imp.merge.v1"
       assert value ["data"] ["order"] == [ "web", "api" ]
       assert value ["data"] ["completed"] == [ "checkout" ]
 
    def test_done_unsets_the_span_order (self, demo):
-      from imp_git.commands import done as done_cmd
+      from imp_git.commands import merge as merge_cmd
 
       self._ready (demo)
 
-      done_cmd.done ("checkout")
+      merge_cmd.merge ("checkout")
 
       with workspace.inside (str (demo / "api")):
          assert git.config_get ("imp.span.checkout.order") == ""
 
    def test_done_requires_approval_for_humans (self, demo, capsys):
-      from imp_git.commands import done as done_cmd
+      from imp_git.commands import merge as merge_cmd
 
       self._ready (demo)
       runtime.configure (json=True, no_input=True)
       capsys.readouterr ()
 
       with pytest.raises (typer.Exit):
-         done_cmd.done ("checkout")
+         merge_cmd.merge ("checkout")
 
       assert json.loads (capsys.readouterr ().out) ["schema"] == "imp.error.v1"
 
    def test_done_all_integrates_the_workspace (self, demo):
-      from imp_git.commands import done as done_cmd
+      from imp_git.commands import merge as merge_cmd
 
       self._ready (demo)
 
-      receipt = done_cmd.done (all_features=True)
+      receipt = merge_cmd.merge (all_features=True)
 
       assert receipt ["completed"] == [ "checkout" ]
       assert roster.collect (workspace.here (str (demo))) == []

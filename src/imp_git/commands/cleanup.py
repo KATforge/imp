@@ -18,7 +18,7 @@ from imp_git import (
    state,
    workspace,
 )
-from imp_git.commands import done as done_command
+from imp_git.commands import merge as merge_command
 
 
 def _member_diff (member: dict [str, Any]) -> str:
@@ -79,10 +79,10 @@ def _commit_dirty (member: dict [str, Any]):
 def _integrate (entry: dict [str, Any], workspace_name: str):
    for member in entry ["members"]:
       _commit_dirty (member)
-   plan = done_command._plan_group (str (entry ["name"]), workspace_name, [ entry ])
+   plan = merge_command._plan_group (str (entry ["name"]), workspace_name, [ entry ])
    if plan ["blockers"]:
       raise state.StateError ("; ".join (str (value) for value in plan ["blockers"]))
-   done_command._apply_group (plan)
+   merge_command._apply_group (plan)
 
 
 def _discard (entry: dict [str, Any]) -> list [str]:
@@ -177,7 +177,7 @@ def cleanup (
    Each open feature's full difference against trunk, including uncommitted work, is
    judged by AI as integrate, discard, or hold. The verdict table is shown for approval
    before anything happens. Integrations commit outstanding work, run the project
-   checks, and land dependency-first exactly like `imp done`; discards park the branch
+   checks, and land dependency-first exactly like `imp merge`; discards park the branch
    tip under refs/imp/attic for 30 days before deletion, so a wrong verdict is
    recoverable with `git branch <name> <attic-ref>`. Holds are left in place and
    reported: flat with exceptions beats flat at all costs.

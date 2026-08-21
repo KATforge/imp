@@ -74,7 +74,7 @@ def _show_roster (entries: list [dict]):
       ],
    )
    console.out.print ()
-   console.hint ("imp done to integrate, imp cleanup to flatten")
+   console.hint ("imp merge to integrate, imp cleanup to flatten")
 
 
 def _workspace_status (json_output: bool):

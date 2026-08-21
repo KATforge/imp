@@ -74,7 +74,7 @@ def _show_trunk (plan: dict [str, Any]):
 
 def _success_trunk (data: dict [str, Any]):
    console.success (f"Trunk is yours: commit directly on {data ['trunk']}")
-   console.hint (f"imp done {data ['name']} releases it")
+   console.hint (f"imp merge {data ['name']} releases it")
 
 
 def _members (repos: list [str] | None) -> tuple [str, list [tuple [str, str]]]:
@@ -185,7 +185,7 @@ def start (
       typer.Option (
          "--repo",
          help="Workspace repository to span; repeat per repository. "
-              "The order given is the order they integrate at done time",
+              "The order given is the order they merge into trunk",
       ),
    ] = None,
    ticket: Annotated [
@@ -205,7 +205,7 @@ def start (
 
    With trunk free, on it, and clean, this claims `refs/imp/lock/<trunk>` for 8 hours and
    work happens directly in the current checkout, committed straight to trunk. The
-   session is one layer: `imp done <name>` releases the lock and records it, and
+   session is one layer: `imp merge <name>` releases the lock and records it, and
    `imp undo` can back it out. Anyone else's live lock, a dirty checkout, a span, or
    --worktree falls through to isolation.
 
@@ -217,7 +217,7 @@ def start (
 
    Spanning: run from a directory of checkouts with repeated --repo flags to create
    one feature across several repositories. The order you name them is recorded as
-   `imp.span.<name>.order` in each member and replayed dependency-first by `imp done`.
+   `imp.span.<name>.order` in each member and replayed dependency-first by `imp merge`.
 
    Nothing is written outside Git. Deterministic; sends nothing to AI.
    """
