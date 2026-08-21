@@ -53,6 +53,7 @@ def _reset_process_state (tmp_path_factory, monkeypatch):
    gitconfig = home / "gitconfig"
    gitconfig.write_text (f"[imp]\n\tworktrees = {home / 'worktrees'}\n")
    monkeypatch.delenv ("CLAUDE_SESSION_ID", raising=False)
+   monkeypatch.delenv ("CLAUDE_CODE_SESSION_ID", raising=False)
    monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)
    monkeypatch.setenv ("GIT_CONFIG_GLOBAL", str (gitconfig))
    monkeypatch.setenv ("GIT_CONFIG_SYSTEM", os.devnull)

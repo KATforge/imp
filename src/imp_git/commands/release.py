@@ -58,14 +58,23 @@ def _next (mode: str) -> str:
    return ".".join (map (str, version))
 
 
-def _notes (tag: str) -> str:
+def _stuck () -> str:
+   """Return a release tag already on HEAD whose GitHub release never landed."""
+
+   for name in git.tags_at ():
+      if _VERSION.fullmatch (name) and not gh.release_view (name):
+         return name
+   return ""
+
+
+def _notes (tag: str, resume: bool = False) -> str:
    """Condense the commit subjects since the last tag into a few essential bullets.
 
    AI keeps only what a user would care about; an unreachable provider falls back
    to the raw subject list, so a release never blocks on the AI.
    """
 
-   previous = git.last_tag ()
+   previous = git.last_tag (exclude=tag if resume else "")
    revision = f"{previous}..HEAD" if previous else "HEAD"
    subjects = git.capture ("log", "--reverse", "--format=- %s", revision).strip ()
    if len (subjects.splitlines ()) < 2:
@@ -93,15 +102,20 @@ def plan_release (version: str = "", *, bump: str = "", local: bool = False) -> 
       raise state.StateError ("Commit the working tree before releasing")
    if version and bump:
       raise state.StateError ("Use a version or one SemVer flag")
-   tag = _tag (version or _next (bump or "patch"))
-   if git.tag_exists (tag):
-      raise state.StateError (f"Release tag already exists: {tag}")
    if not local and (not git.remote_exists () or not gh.available ()):
       raise state.StateError ("Publishing requires origin and the GitHub CLI; use --local to only tag")
+   stuck = "" if local else _stuck ()
+   if version or bump:
+      tag = _tag (version or _next (bump))
+   else:
+      tag = stuck or _tag (_next ("patch"))
+   resume = bool (stuck) and tag == stuck
+   if git.tag_exists (tag) and not resume:
+      raise state.StateError (f"Release tag already exists: {tag}")
    branch = git.branch ()
    if not branch:
       raise state.StateError ("Release requires a checked-out branch")
-   notes = _notes (tag)
+   notes = _notes (tag, resume)
    if not validate.publishable (notes):
       raise state.StateError ("Release notes contain AI attribution or an actor ID")
    payload = {
@@ -110,6 +124,7 @@ def plan_release (version: str = "", *, bump: str = "", local: bool = False) -> 
       "local": local,
       "notes": notes,
       "prerelease": "-" in tag,
+      "resume": resume,
       "tag": tag,
       "version": tag.removeprefix ("v"),
    }
@@ -117,7 +132,7 @@ def plan_release (version: str = "", *, bump: str = "", local: bool = False) -> 
       "release", tag,
       scope={ "repository": git.repo_name (), "branch": payload ["branch"] },
       items=[
-         { "action": "tag", "tag": tag, "oid": payload ["head"] },
+         *([] if resume else [ { "action": "tag", "tag": tag, "oid": payload ["head"] } ]),
          *([] if local else [
             { "action": "push", "refs": [ payload ["branch"], tag ] },
             { "action": "github_release", "tag": tag },
@@ -135,17 +150,20 @@ def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
    payload = dict (plan ["payload"])
    if not git.is_clean () or _fingerprint (payload) != plan.get ("fingerprint"):
       raise state.StateError ("Release plan is stale")
-   if git.tag_exists (str (payload ["tag"])):
-      raise state.StateError (f"Release tag already exists: {payload ['tag']}")
-   git.tag (str (payload ["tag"]), str (payload ["head"]))
+   tag = str (payload ["tag"])
+   if git.tag_exists (tag):
+      if git.rev_parse (tag) != payload ["head"]:
+         raise state.StateError (f"Release tag already exists: {tag}")
+   else:
+      git.tag (tag, str (payload ["head"]))
    pushed = []
    url = ""
    if not payload ["local"]:
       git.push (ref=str (payload ["branch"]))
-      git.push (ref=str (payload ["tag"]))
-      pushed = [ str (payload ["branch"]), str (payload ["tag"]) ]
-      url = gh.release_create (
-         str (payload ["tag"]), str (payload ["notes"]), bool (payload ["prerelease"]),
+      git.push (ref=tag)
+      pushed = [ str (payload ["branch"]), tag ]
+      url = gh.release_view (tag).get ("url", "") or gh.release_create (
+         tag, str (payload ["notes"]), bool (payload ["prerelease"]),
       )
    plans.mark (plan, "applied", applied_at=state.now ())
    return {
@@ -161,11 +179,14 @@ def apply_release (plan: dict [str, Any]) -> dict [str, Any]:
 def _show (plan: dict [str, Any]):
    payload = plan ["payload"]
    console.header ("Release")
-   console.table ([ "Field", "Value" ], [
+   rows = [
       [ "Tag", str (payload ["tag"]) ],
       [ "Commit", str (payload ["head"]) [:12] ],
       [ "Publish", "No" if payload ["local"] else "GitHub" ],
-   ])
+   ]
+   if payload.get ("resume"):
+      rows.append ([ "Resume", "tag exists; finishing push and publish" ])
+   console.table ([ "Field", "Value" ], rows)
    console.label ("Notes")
    console.out.print (payload ["notes"])
 
@@ -186,8 +207,10 @@ def release (
    at most six one-line bullets covering only what users care about, shown for
    approval before anything is tagged; an unreachable AI falls back to the raw
    subject list. Pushes the branch and tag then creates the GitHub release; --local
-   only tags. Refuses notes containing AI attribution or actor IDs. Always confirms,
-   since it writes to a remote.
+   only tags. An interrupted publish resumes: rerunning release finds its own
+   unpublished tag on HEAD and finishes the push and GitHub release. Refuses notes
+   containing AI attribution or actor IDs. Always confirms, since it writes to a
+   remote.
    """
 
    git.require ()

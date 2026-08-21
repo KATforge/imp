@@ -41,6 +41,11 @@ class TestIdentity:
 
       assert identity.actor () == "actor:claude:session-456"
 
+      monkeypatch.delenv ("CLAUDE_SESSION_ID")
+      monkeypatch.setenv ("CLAUDE_CODE_SESSION_ID", "Session 789")
+
+      assert identity.actor () == "actor:claude:session-789"
+
    def test_the_actor_ignores_the_environment (self, monkeypatch):
       monkeypatch.setenv ("IMP_ACTOR_ID", "actor:human:someone-else")
       monkeypatch.delenv ("CODEX_THREAD_ID", raising=False)

@@ -38,6 +38,13 @@ def pr_update (head: str, base: str, title: str, body: str):
    _run ("pr", "edit", head, "--base", base, "--title", title, "--body", body)
 
 
+def release_view (tag: str) -> dict:
+   try:
+      return json.loads (_run ("release", "view", tag, "--json", "url"))
+   except (state.StateError, json.JSONDecodeError):
+      return {}
+
+
 def release_create (tag: str, notes: str, prerelease: bool = False) -> str:
    args = [ "release", "create", tag, "--title", tag, "--notes", notes ]
    if prerelease:

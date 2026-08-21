@@ -53,7 +53,7 @@ def actor (override: str = "") -> str:
    if codex:
       return resource ("actor", "codex", codex)
 
-   claude = os.environ.get ("CLAUDE_SESSION_ID", "")
+   claude = os.environ.get ("CLAUDE_SESSION_ID", "") or os.environ.get ("CLAUDE_CODE_SESSION_ID", "")
    if claude:
       return resource ("actor", "claude", claude)
 

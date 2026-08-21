@@ -177,6 +177,64 @@ class TestRelease:
       assert pushed == [ { "ref": plan ["payload"] ["branch"] }, { "ref": "v1.2.3" } ]
       assert receipt ["url"] == "https://example.test/v1.2.3"
 
+   def test_release_resumes_after_a_failed_push (self, repo_with_origin, monkeypatch):
+      monkeypatch.setattr (release_command.gh, "available", lambda: True)
+      monkeypatch.setattr (release_command.gh, "release_view", lambda tag: {})
+      monkeypatch.setattr (
+         release_command.gh, "release_create",
+         lambda tag, notes, prerelease: f"https://example.test/{tag}",
+      )
+
+      def broken (**kwargs):
+         raise state.StateError ("network down")
+
+      monkeypatch.setattr (release_command.git, "push", broken)
+      with pytest.raises (state.StateError, match="network down"):
+         release_command.apply_release (release_command.plan_release ("1.2.3"))
+      assert git.tag_exists ("v1.2.3")
+
+      pushed = []
+      monkeypatch.setattr (release_command.git, "push", lambda **kwargs: pushed.append (kwargs))
+      retry = release_command.plan_release ()
+
+      assert retry ["payload"] ["tag"] == "v1.2.3"
+      assert retry ["payload"] ["resume"] is True
+
+      receipt = release_command.apply_release (retry)
+
+      assert receipt ["url"] == "https://example.test/v1.2.3"
+      assert pushed == [ { "ref": retry ["payload"] ["branch"] }, { "ref": "v1.2.3" } ]
+
+   def test_resume_reuses_an_existing_github_release (self, repo_with_origin, monkeypatch):
+      monkeypatch.setattr (release_command.gh, "available", lambda: True)
+      monkeypatch.setattr (release_command.gh, "release_view", lambda tag: {})
+      monkeypatch.setattr (release_command.git, "push", lambda **kwargs: None)
+      git.tag ("v1.2.3")
+      plan = release_command.plan_release ()
+      monkeypatch.setattr (
+         release_command.gh, "release_view",
+         lambda tag: { "url": f"https://example.test/{tag}" },
+      )
+      monkeypatch.setattr (
+         release_command.gh, "release_create",
+         lambda *args: pytest.fail ("duplicated an existing GitHub release"),
+      )
+
+      receipt = release_command.apply_release (plan)
+
+      assert receipt ["url"] == "https://example.test/v1.2.3"
+
+   def test_release_refuses_a_published_tag_on_head (self, repo_with_origin, monkeypatch):
+      monkeypatch.setattr (release_command.gh, "available", lambda: True)
+      monkeypatch.setattr (
+         release_command.gh, "release_view",
+         lambda tag: { "url": f"https://example.test/{tag}" },
+      )
+      git.tag ("v1.2.3")
+
+      with pytest.raises (state.StateError, match="already exists"):
+         release_command.plan_release ("1.2.3")
+
    def test_release_refuses_an_existing_tag (self, repo):
       git.tag ("v1.2.3")
 

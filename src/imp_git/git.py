@@ -168,8 +168,11 @@ def base_branch () -> str:
 
    return "main"
 
-def last_tag () -> str:
-   result = _run ("describe", "--tags", "--abbrev=0", check=False)
+def last_tag (exclude: str = "") -> str:
+   args = [ "describe", "--tags", "--abbrev=0" ]
+   if exclude:
+      args.append (f"--exclude={exclude}")
+   result = _run (*args, check=False)
    return result.stdout.strip ()
 
 def tags () -> list [str]:
@@ -181,6 +184,10 @@ def remote_tags () -> list [str]:
       ref for line in result.splitlines ()
       if (ref := line.partition ("refs/tags/") [2]) and not ref.endswith ("^{}")
    ]
+
+def tags_at (ref: str = "HEAD") -> list [str]:
+   result = _run ("tag", "--points-at", ref, "-l", "v*", check=False)
+   return [ line for line in result.stdout.splitlines () if line ]
 
 def tag (name: str, ref: str = ""):
    args = [ "tag", name ]
