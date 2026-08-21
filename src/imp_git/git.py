@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from imp_git import console
+from imp_git import console, state
 
 
 def _run (
@@ -10,6 +10,7 @@ def _run (
    check: bool = True,
    timeout: int = 60,
    env: dict [str, str] | None = None,
+   input: str = "",
 ) -> subprocess.CompletedProcess [str]:
    run_env = None
    if env:
@@ -21,6 +22,7 @@ def _run (
          capture_output=True,
          timeout=timeout,
          env=run_env,
+         input=input.encode () if input else None,
       )
    except subprocess.TimeoutExpired:
       label = args [0] if args else "command"
@@ -266,6 +268,35 @@ def delete_ref_checked (name: str, previous: str):
    """Delete one ref only when it still names the expected object."""
 
    _run ("update-ref", "-d", name, previous)
+
+def update_refs (instructions: list [str], message: str = ""):
+   """Apply several ref moves as one atomic transaction: all land or none do.
+
+   Instructions use the `update-ref --stdin` verbs — `update <ref> <new> <old>`,
+   `create <ref> <new>`, `delete <ref> <old>` — so every expectation is checked
+   while Git holds every lock. A lost race raises StateError instead of leaving
+   refs half-moved.
+   """
+
+   if not instructions:
+      return
+   args = [ "update-ref" ]
+   if message:
+      args.extend ([ "-m", message ])
+   args.append ("--stdin")
+   try:
+      _run (*args, input="".join (f"{line}\n" for line in instructions))
+   except subprocess.CalledProcessError as error:
+      detail = (error.stderr or "").strip ().splitlines ()
+      raise state.StateError (detail [0] if detail else "Ref transaction failed") from error
+
+def hash_blob (content: str) -> str:
+   """Store one blob and return its object ID."""
+
+   return _run ("hash-object", "-w", "--stdin", input=content).stdout.strip ()
+
+def blob_text (oid: str) -> str:
+   return _run ("cat-file", "blob", oid, check=False).stdout
 
 
 def delete_branch_checked (name: str, previous: str):

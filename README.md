@@ -43,7 +43,7 @@ imp cleanup     # AI judges every open feature: integrate, discard, or hold
 
 ## State
 
-Git is the database. A feature is its branch plus its worktree. Layers live in `refs/imp/layer`, discarded work in `refs/imp/attic`, history in the reflog. Locks, span order, and knobs are Git configuration:
+Git is the database. A feature is its branch plus its worktree. Layers live in `refs/imp/layer`, locks in `refs/imp/lock` (moved by compare-and-swap, so racing acquirers get exactly one winner), discarded work in `refs/imp/attic`, history in the reflog. Span order and knobs are Git configuration:
 
 ```bash
 git config imp.worktrees ~/.worktrees     # managed worktree root (default)

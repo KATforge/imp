@@ -3,7 +3,7 @@ import subprocess
 import pytest
 import typer
 
-from imp_git import git
+from imp_git import git, state
 from tests.conftest import commit_file, git_run
 
 
@@ -151,6 +151,29 @@ class TestDeleteBranch:
 
    def test_returns_false_on_failure (self, repo):
       assert git.delete_branch ("nonexistent") is False
+
+
+class TestUpdateRefs:
+
+   def test_applies_every_move_together (self, repo):
+      oid = git.rev_parse ("main")
+
+      git.update_refs ([ f"create refs/imp/probe/a {oid}", f"create refs/imp/probe/b {oid}" ])
+
+      assert git.rev_parse ("refs/imp/probe/a") == oid
+      assert git.rev_parse ("refs/imp/probe/b") == oid
+
+   def test_a_stale_expectation_applies_nothing (self, repo):
+      oid = git.rev_parse ("main")
+
+      with pytest.raises (state.StateError):
+         git.update_refs ([
+            f"create refs/imp/probe {oid}",
+            f"update refs/heads/main {oid} {git.null_oid ()}",
+         ])
+
+      assert not git.ref_exists ("refs/imp/probe")
+      assert git.rev_parse ("main") == oid
 
 
 class TestIsMerged:

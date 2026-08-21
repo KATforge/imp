@@ -7,14 +7,20 @@ import pytest
 from imp_git import ai, console, runtime
 
 
-def git_run (cwd, *args):
+def git_run (cwd, *args, input=None):
    return subprocess.run (
       [ "git", *args ],
       cwd=cwd,
       check=True,
       capture_output=True,
       text=True,
+      input=input,
    )
+
+
+def plant_lock (repo, value, branch="main"):
+   oid = git_run (repo, "hash-object", "-w", "--stdin", input=value).stdout.strip ()
+   git_run (repo, "update-ref", f"refs/imp/lock/{branch}", oid)
 
 
 def commit_file (repo, name, content, message):

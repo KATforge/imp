@@ -7,19 +7,29 @@ PREFIX = "refs/imp/layer"
 DAYS = 30
 
 
+def stage (bare: str, head: str, base: str) -> tuple [str, list [str]]:
+   """Build the ref instructions recording one layer, for one atomic transaction.
+
+   Callers splice these into the same `git.update_refs` call that moves trunk, so
+   a landed layer and its undo record appear together or not at all. A layer that
+   moved nothing stages nothing.
+   """
+
+   if not head or not base or head == base:
+      return "", []
+   root = f"{PREFIX}/{state.stamp ()}-{bare}"
+   return root, [ f"create {root}/base {base}", f"create {root}/head {head}" ]
+
+
 def record (bare: str, head: str, base: str) -> str:
    """Write one layer artifact: head and base refs naming exactly what landed.
 
    Both integration and trunk-session release write the same artifact, so
    `imp undo` has one format to consume regardless of how work reached trunk.
-   A layer that moved nothing records nothing.
    """
 
-   if not head or not base or head == base:
-      return ""
-   root = f"{PREFIX}/{state.stamp ()}-{bare}"
-   git.update_ref_checked (f"{root}/base", base, "")
-   git.update_ref_checked (f"{root}/head", head, "")
+   root, instructions = stage (bare, head, base)
+   git.update_refs (instructions)
    return root
 
 

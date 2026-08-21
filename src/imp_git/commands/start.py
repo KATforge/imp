@@ -203,7 +203,7 @@ def start (
 ):
    """Start work trunk-first: claim the trunk lock when it is free, else isolate in a worktree.
 
-   With trunk free, on it, and clean, this claims `imp.lock.<trunk>` for 8 hours and
+   With trunk free, on it, and clean, this claims `refs/imp/lock/<trunk>` for 8 hours and
    work happens directly in the current checkout, committed straight to trunk. The
    session is one layer: `imp done <name>` releases the lock and records it, and
    `imp undo` can back it out. Anyone else's live lock, a dirty checkout, a span, or

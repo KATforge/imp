@@ -310,19 +310,20 @@ def _validate (plan: dict [str, Any]):
 def apply_done (plan: dict [str, Any]) -> dict [str, Any]:
    payload, feature, target_oid = _validate (plan)
    if target_oid == payload ["local_target_oid"]:
-      git.update_ref_checked (
-         f"refs/heads/{payload ['target_ref']}",
-         payload ["candidate_oid"],
-         payload ["local_target_oid"],
-         message=f"imp done: {payload ['branch']}",
-      )
-      for path in git.ref_worktrees (str (payload ["target_ref"])):
-         git.reset_at (path, str (payload ["candidate_oid"]))
-      layers.record (
+      _, layer = layers.stage (
          str (payload ["branch"]).removeprefix (features.PREFIX),
          str (payload ["candidate_oid"]),
          str (payload ["local_target_oid"]),
       )
+      git.update_refs (
+         [
+            f"update refs/heads/{payload ['target_ref']} {payload ['candidate_oid']} {payload ['local_target_oid']}",
+            *layer,
+         ],
+         message=f"imp done: {payload ['branch']}",
+      )
+      for path in git.ref_worktrees (str (payload ["target_ref"])):
+         git.reset_at (path, str (payload ["candidate_oid"]))
    plans.mark (plan, "applied", applied_at=state.now ())
    features.complete (feature, branch_oid=str (payload ["feature_oid"]))
    return {

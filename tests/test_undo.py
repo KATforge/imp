@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from imp_git import features, git, integration
+from imp_git import features, git, integration, layers, state
 from imp_git.commands import undo as undo_cmd
 from tests.conftest import commit_file, git_run
 
@@ -62,3 +62,27 @@ class TestUndo:
    def test_undo_without_layers_fails_cleanly (self, repo):
       with pytest.raises (typer.Exit):
          undo_cmd.undo ()
+
+   def test_undo_refuses_a_trunk_dirtied_after_planning (self, repo):
+      _integrated ()
+      plan = undo_cmd._plan ("main", "")
+      (repo / "file.txt").write_text ("meddled\n")
+
+      with pytest.raises (state.StateError, match="dirty"):
+         undo_cmd._apply (plan)
+
+      assert (repo / "file.txt").read_text () == "meddled\n"
+      assert not git.ref_exists ("feature/checkout")
+
+   def test_undo_applies_nothing_when_trunk_moved_after_planning (self, repo):
+      _integrated ()
+      plan = undo_cmd._plan ("main", "")
+      commit_file (repo, "later.txt", "later\n", "chore: land later work")
+      moved = git.rev_parse ("main")
+
+      with pytest.raises (state.StateError):
+         undo_cmd._apply (plan)
+
+      assert git.rev_parse ("main") == moved
+      assert not git.ref_exists ("feature/checkout")
+      assert len (layers.all ()) == 1

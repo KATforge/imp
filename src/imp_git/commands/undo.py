@@ -83,13 +83,21 @@ def _apply (plan: dict [str, Any]) -> dict [str, Any]:
    trunk = str (payload ["trunk"])
    branch = str (payload ["branch"])
    bare = branch.removeprefix (features.PREFIX)
-   git.update_ref_checked (
-      f"refs/heads/{trunk}", str (payload ["old_oid"]), str (payload ["new_oid"]),
-      message=f"imp undo: {bare}",
-   )
+   new_oid = str (payload ["new_oid"])
+   old_oid = str (payload ["old_oid"])
    for path in git.ref_worktrees (trunk):
-      git.reset_at (path, str (payload ["old_oid"]))
-   git.update_ref_checked (f"refs/heads/{branch}", str (payload ["new_oid"]), "")
+      if not git.clean_at (path):
+         raise state.StateError (f"Trunk worktree became dirty: {path}")
+   moves = [
+      f"create refs/heads/{branch} {new_oid}",
+      f"update refs/heads/{trunk} {old_oid} {new_oid}",
+   ]
+   if payload ["kind"] == "layer":
+      moves.append (f"delete {payload ['root']}/head {new_oid}")
+      moves.append (f"delete {payload ['root']}/base {old_oid}")
+   git.update_refs (moves, message=f"imp undo: {bare}")
+   for path in git.ref_worktrees (trunk):
+      git.reset_at (path, old_oid)
    path = str (features.worktree_path (features.name_of (branch)))
    restored = ""
    if not Path (path).exists ():
@@ -98,7 +106,6 @@ def _apply (plan: dict [str, Any]) -> dict [str, Any]:
    if payload ["kind"] == "session":
       locks.release (trunk)
    else:
-      layers.consume ({ "root": payload ["root"], "head": payload ["new_oid"], "base": payload ["old_oid"] })
       lock = locks.holder (trunk)
       if lock and lock ["actor"] == identity.actor ():
          locks.release (trunk)

@@ -6,7 +6,7 @@ from imp_git import ai, commit_plan, features, git, integration, locks, state
 from imp_git.commands import cleanup as cleanup_cmd
 from imp_git.commands import done as done_cmd
 from imp_git.commands import start as start_cmd
-from tests.conftest import commit_file, git_run
+from tests.conftest import commit_file, git_run, plant_lock
 
 FOREIGN = "task actor:claude:other 2099-01-01T00:00:00Z"
 EXPIRED = "task actor:claude:other 2000-01-01T00:00:00Z"
@@ -24,7 +24,7 @@ class TestTrunkFirst:
       assert git.branch_names ("feature/*") == []
 
    def test_start_falls_back_when_trunk_is_locked (self, repo):
-      git_run (repo, "config", "imp.lock.main.holder", FOREIGN)
+      plant_lock (repo, FOREIGN)
 
       data = start_cmd.start (name="quick")
 
@@ -53,7 +53,7 @@ class TestTrunkFirst:
       assert lock ["base"] == git.rev_parse ("main")
 
    def test_expired_foreign_lock_is_free (self, repo):
-      git_run (repo, "config", "imp.lock.main.holder", EXPIRED)
+      plant_lock (repo, EXPIRED)
 
       data = start_cmd.start (name="quick")
 
@@ -83,14 +83,14 @@ class TestTrunkCommits:
       assert locks.holder ("main") ["name"] == "main"
 
    def test_commit_on_trunk_is_blocked_by_a_foreign_lock (self, repo):
-      git_run (repo, "config", "imp.lock.main.holder", FOREIGN)
+      plant_lock (repo, FOREIGN)
       (repo / "file.txt").write_text ("changed\n")
 
       with pytest.raises (state.StateError, match="locked by"):
          commit_plan.create (message="fix: update value")
 
    def test_commit_in_a_worktree_ignores_the_trunk_lock (self, repo, monkeypatch):
-      git_run (repo, "config", "imp.lock.main.holder", FOREIGN)
+      plant_lock (repo, FOREIGN)
       feature = features.apply_start (features.plan_start ("isolated"))
       monkeypatch.chdir (feature ["path"])
       Path ("new.txt").write_text ("new\n")
@@ -135,18 +135,40 @@ class TestTrunkRelease:
    def test_integration_is_blocked_by_a_foreign_lock (self, repo):
       feature = features.apply_start (features.plan_start ("blocked"))
       commit_file (Path (feature ["path"]), "b.txt", "b\n", "feat: add blocked work")
-      git_run (repo, "config", "imp.lock.main.holder", FOREIGN)
+      plant_lock (repo, FOREIGN)
 
       plan = integration.plan_done (features.find ("blocked"))
 
       assert any ("locked by" in blocker for blocker in plan ["blockers"])
 
    def test_cleanup_sweeps_expired_locks (self, repo):
-      git_run (repo, "config", "imp.lock.main.holder", EXPIRED)
+      plant_lock (repo, EXPIRED)
+
+      cleanup_cmd.cleanup ()
+
+      assert not git.ref_exists ("refs/imp/lock/main")
+
+   def test_cleanup_sweeps_legacy_config_locks (self, repo):
+      git_run (repo, "config", "imp.lock.main.holder", FOREIGN)
 
       cleanup_cmd.cleanup ()
 
       assert git.config_get ("imp.lock.main.holder") == ""
+
+   def test_acquire_loses_a_race_cleanly (self, repo, monkeypatch):
+      read = locks._read
+
+      def stale (branch):
+         value = read (branch)
+         plant_lock (repo, FOREIGN)
+         return value
+
+      monkeypatch.setattr (locks, "_read", stale)
+
+      with pytest.raises (state.StateError, match="during acquisition"):
+         locks.acquire ("main", "quick")
+
+      assert locks.holder ("main") ["actor"] == "actor:claude:other"
 
 
 class TestTrunkSessions:

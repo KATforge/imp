@@ -3,10 +3,11 @@ from datetime import datetime, timedelta, timezone
 from imp_git import git, identity, state
 
 HOURS = 8
+PREFIX = "refs/imp/lock"
 
 
 def key (branch: str) -> str:
-   return f"imp.lock.{branch}.holder"
+   return f"{PREFIX}/{branch}"
 
 
 def _expires () -> str:
@@ -21,10 +22,13 @@ def _expired (raw: str) -> bool:
       return True
 
 
-def holder (branch: str) -> dict [str, str] | None:
-   """Return the live lock on one branch, or None when free or expired."""
+def _read (branch: str) -> tuple [str, str]:
+   oid = git.rev_parse (key (branch))
+   return (oid, git.blob_text (oid)) if oid else ("", "")
 
-   parts = git.config_get (key (branch)).split ()
+
+def _parse (branch: str, raw: str) -> dict [str, str] | None:
+   parts = raw.split ()
    if len (parts) < 3 or _expired (parts [2]):
       return None
    return {
@@ -35,6 +39,13 @@ def holder (branch: str) -> dict [str, str] | None:
       "base": parts [3] if len (parts) > 3 else "",
       "ticket": parts [4] if len (parts) > 4 else "",
    }
+
+
+def holder (branch: str) -> dict [str, str] | None:
+   """Return the live lock on one branch, or None when free or expired."""
+
+   _, raw = _read (branch)
+   return _parse (branch, raw)
 
 
 def mine (branch: str) -> bool:
@@ -54,11 +65,13 @@ def acquire (branch: str, name: str = "", ticket: str = "") -> dict [str, str]:
 
    A lock held by someone else refuses. A fresh lock records the branch's current
    object ID as the session base, so the whole session is one undoable layer; a
-   renewal keeps the base, name, and ticket unless new ones are given. Locks
-   expire on their own after 8 hours.
+   renewal keeps the base, name, and ticket unless new ones are given. The lock is
+   a blob under refs/imp/lock, moved by compare-and-swap so racing acquirers get
+   exactly one winner. Locks expire on their own after 8 hours.
    """
 
-   existing = holder (branch)
+   previous, raw = _read (branch)
+   existing = _parse (branch, raw)
    actor = identity.actor ()
    if existing and existing ["actor"] != actor:
       raise state.StateError (
@@ -74,21 +87,35 @@ def acquire (branch: str, name: str = "", ticket: str = "") -> dict [str, str]:
    value = f"{label} {actor} {record ['expires_at']} {base}"
    if mark:
       value += f" {mark}"
-   git.config_set (key (branch), value)
+   blob = git.hash_blob (value)
+   move = f"update {key (branch)} {blob} {previous}" if previous else f"create {key (branch)} {blob}"
+   try:
+      git.update_refs ([ move ])
+   except state.StateError:
+      taken = holder (branch)
+      if taken and taken ["actor"] != actor:
+         raise state.StateError (
+            f"{branch} was locked by {taken ['actor']} ({taken ['name']}) during acquisition"
+         ) from None
+      raise
    return record
 
 
 def release (branch: str):
-   git.config_unset (key (branch))
+   previous, _ = _read (branch)
+   if previous:
+      git.update_refs ([ f"delete {key (branch)} {previous}" ])
 
 
 def sweep () -> list [str]:
-   """Drop expired or malformed lock entries and return the keys removed."""
+   """Drop expired, malformed, or legacy lock entries and return what was removed."""
 
    removed = []
-   for entry, value in git.config_entries (r"^imp\.lock\.").items ():
-      parts = value.split ()
-      if len (parts) < 3 or _expired (parts [2]):
-         git.config_unset (entry)
-         removed.append (entry)
+   for ref, oid in git.refs (PREFIX).items ():
+      if not _parse (ref.removeprefix (f"{PREFIX}/"), git.blob_text (oid)):
+         git.update_refs ([ f"delete {ref} {oid}" ])
+         removed.append (ref)
+   for entry in git.config_entries (r"^imp\.lock\."):
+      git.config_unset (entry)
+      removed.append (entry)
    return removed
