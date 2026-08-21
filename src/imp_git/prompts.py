@@ -75,6 +75,8 @@ Rules:
 {mark}- Body: 1 to 5 markdown bullets, each ONE line under 90 characters
 - Cover only what matters to a reviewer: behavior changes, contracts, risks
 - Never enumerate every change; merge related work into one bullet
+- State only what the commits and diff below actually contain; never invent
+  features, flags, or command names
 - No headings, no filler, no test plans, no attribution
 
 Commits:
@@ -92,6 +94,8 @@ Rules:
 - At most 6 bullets; merge related commits into one
 - Keep only what a user of the tool would care about; drop chores,
   refactors, and internal churn unless they change behavior
+- Every bullet must restate information present in the subjects below;
+  NEVER invent features, flags, or command names that do not appear there
 - Plain statements, no headings, no attribution
 
 Commit subjects:
